@@ -169,6 +169,8 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
 .endstats div{border:1px solid var(--line);padding:10px;display:grid;gap:2px}
 .endstats b{font-size:22px;font-variant-numeric:tabular-nums}
 .endstats span{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.vol{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--dim);letter-spacing:.06em}
+.vol input{width:min(200px,50vw);accent-color:var(--amber)}
 .keys{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px}
 .keys kbd{font:600 11px var(--f-ui);color:var(--amber)}
 .fail{position:fixed;inset:0;display:grid;place-items:center;padding-inline:16px;text-align:center;font-size:15px;line-height:1.5;z-index:9}
@@ -256,9 +258,11 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
     <div class="row" style="justify-content:space-between"><h2>Menu</h2><button class="btn primary" id="resume" type="button">Resume</button></div>
     <h3>Graphics</h3>
     <div class="row"><button class="btn" id="qHigh" type="button">High</button><button class="btn" id="qLow" type="button">Low</button><button class="btn" id="fpsTog" type="button">Show fps</button></div>
+    <h3>Sound</h3>
+    <div class="row"><button class="btn" id="muteBtn" type="button">Sound on</button><label class="vol"><span>Volume</span><input type="range" id="volRange" min="0" max="100" step="5" aria-label="Volume"></label></div>
     <h3>Controls</h3>
     <div class="row"><button class="btn" id="cAuto" type="button">Auto</button><button class="btn" id="cTouch" type="button">Touch</button><button class="btn" id="cMouse" type="button">Mouse &amp; keys</button></div>
-    <div class="keys"><kbd>Right-click</kbd><span>Walk there (hold to keep steering)</span><kbd>Left-click</kbd><span>Hold to fire · locks on to the nearest threat by itself · point at an enemy or part to aim there instead</span><kbd>S</kbd><span>Stop</span><kbd>T</kbd><span>Target the next part</span><kbd>Space</kbd><span>Dodge toward the cursor</span><kbd>Q</kbd><span>Swap weapon</span><kbd>E</kbd><span>Talk, open, use (or right-click it)</span><kbd>I</kbd><span>Pack</span><kbd>C</kbd><span>Tell Mara to follow or hold</span></div>
+    <div class="keys"><kbd>Right-click</kbd><span>Walk there (hold to keep steering)</span><kbd>Left-click</kbd><span>Hold to fire · locks on to the nearest threat by itself · point at an enemy or part to aim there instead</span><kbd>S</kbd><span>Stop</span><kbd>T</kbd><span>Target the next part</span><kbd>Space</kbd><span>Dodge toward the cursor</span><kbd>Q</kbd><span>Swap weapon</span><kbd>E</kbd><span>Talk, open, use (or right-click it)</span><kbd>I</kbd><span>Pack</span><kbd>C</kbd><span>Tell Mara to follow or hold</span><kbd>M</kbd><span>Mute or unmute</span></div>
     <h3>Run</h3>
     <div class="row"><button class="btn" id="toCheckpoint" type="button">Back to checkpoint</button><button class="btn danger" id="wipeBtn" type="button">Start over</button></div>
     <div class="confirm" id="wipeConfirm"><span class="muted">Wipe your gear and progress?</span><button class="btn danger" id="wipeYes" type="button">Wipe it</button><button class="btn" id="wipeNo" type="button">Cancel</button></div>

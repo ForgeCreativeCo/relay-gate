@@ -229,7 +229,10 @@ export class Player extends Actor {
     this.root.rotation.y = this.facing;
 
     /* body */
+    const stride0 = this.H.stride;
     walkAnim(this.H, this.dash > 0 ? 8 : Math.min(spd, SPEED), dt); this.H.pel.rotation.x = this.dash > 0 ? .35 : 0;
+    /* a foot lands each time the stride passes a half-turn */
+    if (Math.floor(this.H.stride / Math.PI) > Math.floor(stride0 / Math.PI)) G.audio.play('pstep', { gain: .35, vary: true });
     if (G.t - this.lastHurt > 4 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.regen * dt);
 
     /* weapon: no ammo, no reloading. Fires while left is held (always on touch) at the target, or at the cursor */
@@ -251,7 +254,7 @@ export class Player extends Actor {
           const dir = h.c.subtract(from), L = dir.length(); dir.addInPlaceFromFloats(rand(-1, 1) * s.spread * L, rand(-.6, .6) * s.spread * L, rand(-1, 1) * s.spread * L); dir.normalize();
           G.CB.fire({ from, dir, speed: s.speed, dmg: s.dmg, owner: this, kind: 'tracer', mat, life, crit: s.crit, vsMachine: s.vsMachine });
         }
-        this.muzzle.diffuse = B.Color3.FromHexString(hex); this.muzzle.intensity = 3; this.muzzleT = .05;
+        this.muzzle.diffuse = B.Color3.FromHexString(hex); this.muzzle.intensity = 3; this.muzzleT = .05; G.audio.shot(w.arch);
       }
     }
     if (this.muzzleT > 0) { this.muzzleT -= dt; if (this.muzzleT <= 0) this.muzzle.intensity = 0; }

@@ -8,6 +8,7 @@ import { makeDrops, newInventory, genWeapon, upgradeItem } from './loot.js';
 import { Player, Ally } from './actors.js';
 import { makeInput } from './input.js';
 import { makeNav } from './nav.js';
+import { makeAudio } from './audio.js';
 import { makeSave } from './save.js';
 import { makeGame, freshProgress, OBJECTIVES } from './game.js';
 import { makeUI } from './ui.js';
@@ -77,14 +78,15 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
   };
 
   /* the world and the cast */
-  G.settings = { quality: 'high', controls: 'auto', fps: false };
+  G.settings = { quality: 'high', controls: 'auto', fps: false, volume: .8, mute: false };
+  G.audio = makeAudio(); G.audio.apply();
   G.progress = freshProgress(); G.inv = newInventory();
   G.region = buildRegion(M); G.nav = makeNav();
   G.CB = makeCombat(M); G.drops = makeDrops(M);
   G.input = makeInput(canvas); G.save = makeSave(); G.UI = makeUI(); G.game = makeGame();
   G.player = new Player(); G.actors.push(G.player); G.player.pos.set(0, 0, -5);
   G.ally = new Ally(3.6, .4);
-  G.setPaused = (p) => { G.paused = p; G.input.release(); };
+  G.setPaused = (p) => { G.paused = p; G.input.release(); if (p) G.audio.silenceHums(); };
   G.input.on(a => {
     const P = G.player;
     if (a === 'dash') P.tryDash(); else if (a === 'stop') P.stop(); else if (a === 'swap') P.swap();
@@ -102,6 +104,7 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
     P.update(dt, G.input); G.ally.update(dt);
     for (const a of G.actors) if (a !== P && a !== G.ally && !a.dormant) a.update(dt);
     G.CB.update(dt); G.drops.update(dt, p); G.game.update(dt);
+    G.audio.updateHums(G.actors.filter(a => a.kind === 'drone' && a.alive && !a.dormant));
     /* nearest thing you can use */
     G.near = null; let nd = 1e9; for (const it of G.game.interactables()) { const d = dist2(p, it.pos); if (d < it.r && d < nd) { nd = d; G.near = it; } }
     /* clicked on something usable: use it once you arrive */
@@ -147,19 +150,20 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
   $('newYes').onclick = async () => { await G.save.wipe(); start(null); };
 
   function start(s) {
+    G.audio.unlock();
     if (s) {
       const inv = s.inv || {}; G.inv = { items: (inv.items || []).map(upgradeItem), equip: Object.assign({ primary: null, secondary: null, helmet: null, vest: null }, inv.equip || {}), active: inv.active || 'primary', scrap: inv.scrap || 0 };
       for (const k of ['primary', 'secondary']) upgradeItem(G.inv.equip[k]);
       if (!G.inv.equip.primary) G.inv.equip.primary = newInventory().equip.primary;
       G.progress = Object.assign(freshProgress(), s.progress || {}); G.progress.cleared = Object.assign({}, (s.progress || {}).cleared);
-      G.settings = Object.assign({ quality: 'high', controls: 'auto', fps: false }, s.settings || {});
+      G.settings = Object.assign({ quality: 'high', controls: 'auto', fps: false, volume: .8, mute: false }, s.settings || {});
     }
     G.raiderHostile = !!G.progress.raiders;
     G.player.recalc(); G.player.hp = G.player.maxHp;
     if (G.progress.mara) { G.ally.joined = true; G.actors.push(G.ally); }
     G.game.spawnAll(); G.game.applyGate();
     const cp = G.game.checkpoint(); G.player.respawn(cp.x, cp.z); cam.target.set(cp.x, 0, cp.z); if (G.ally.joined) G.ally.teleportNear(G.player.pos);
-    G.setQuality(G.settings.quality); if (G.settings.controls !== 'auto') G.input.setMode(G.settings.controls, true); $('fps').hidden = !G.settings.fps;
+    G.setQuality(G.settings.quality); G.audio.apply(); if (G.settings.controls !== 'auto') G.input.setMode(G.settings.controls, true); $('fps').hidden = !G.settings.fps;
     G.UI.objective(OBJECTIVES[G.progress.step].text);
     $('title').hidden = true; $('hud').hidden = false; G.input.restStick(); G.UI.showTips();
     G.started = true; G.paused = false; G.save.now();

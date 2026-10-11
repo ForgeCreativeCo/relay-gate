@@ -4,7 +4,7 @@ import { G } from './core.js';
 export function makeInput(canvas) {
   const $ = id => document.getElementById(id);
   const I = { pointer: null, mode: matchMedia('(pointer: coarse)').matches ? 'touch' : 'mouse', setting: 'auto', listeners: [], clicks: [] };
-  const act = (name) => { if (G.paused && !['pack', 'menu', 'close'].includes(name)) return; I.listeners.forEach(f => f(name)); };
+  const act = (name) => { if (G.paused && !['pack', 'menu', 'close', 'mute'].includes(name)) return; I.listeners.forEach(f => f(name)); };
   I.on = f => I.listeners.push(f);
   I.setMode = (m, manual) => { if (manual) I.setting = m; const next = I.setting === 'auto' ? (m === 'auto' ? I.mode : m) : I.setting; if (next !== I.mode || manual) { I.mode = next; document.body.dataset.mode = I.mode; if (G.UI) G.UI.modeChanged(); } };
   const auto = m => { if (I.setting === 'auto' && m !== I.mode) { I.mode = m; document.body.dataset.mode = m; if (G.UI) G.UI.modeChanged(); } };
@@ -12,7 +12,7 @@ export function makeInput(canvas) {
 
   window.addEventListener('pointerdown', e => auto(e.pointerType === 'touch' ? 'touch' : 'mouse'), true);
   window.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' && (Math.abs(e.movementX) + Math.abs(e.movementY)) > 2) auto('mouse'); }, true);
-  const KEYMAP = { Space: 'dash', ShiftLeft: 'dash', KeyQ: 'swap', KeyE: 'interact', KeyF: 'interact', KeyI: 'pack', Tab: 'pack', KeyC: 'command', Escape: 'menu', KeyT: 'part', KeyS: 'stop' };
+  const KEYMAP = { Space: 'dash', ShiftLeft: 'dash', KeyQ: 'swap', KeyE: 'interact', KeyF: 'interact', KeyI: 'pack', Tab: 'pack', KeyC: 'command', Escape: 'menu', KeyT: 'part', KeyS: 'stop', KeyM: 'mute' };
   window.addEventListener('keydown', e => {
     if (e.target && /input|textarea/i.test(e.target.tagName)) return;
     if (['Space', 'Tab'].includes(e.code)) e.preventDefault();

@@ -172,11 +172,15 @@ export function makeUI() {
   /* ---------- menu ---------- */
   const pressed = () => { const S = G.settings; $('qHigh').setAttribute('aria-pressed', S.quality === 'high'); $('qLow').setAttribute('aria-pressed', S.quality === 'low');
     $('fpsTog').setAttribute('aria-pressed', !!S.fps); for (const [id, v] of [['cAuto', 'auto'], ['cTouch', 'touch'], ['cMouse', 'mouse']]) $(id).setAttribute('aria-pressed', G.input.setting === v);
-    $('saveInfo').textContent = 'Progress and gear save automatically to ' + G.save.where + '.'; };
+    $('saveInfo').textContent = 'Progress and gear save automatically to ' + G.save.where + '.';
+    $('muteBtn').textContent = S.mute ? 'Sound off' : 'Sound on'; $('muteBtn').setAttribute('aria-pressed', !S.mute); $('volRange').value = Math.round((S.volume == null ? .8 : S.volume) * 100); };
   UI.openMenu = () => { if (!G.started) return; pressed(); $('wipeConfirm').classList.remove('show'); $('menu').hidden = false; G.setPaused(true); };
   UI.closeMenu = () => { $('menu').hidden = true; G.setPaused(false); };
   $('menuBtn').onclick = () => UI.openMenu(); $('resume').onclick = () => UI.closeMenu();
   $('qHigh').onclick = () => { G.setQuality('high'); pressed(); }; $('qLow').onclick = () => { G.setQuality('low'); pressed(); };
+  $('muteBtn').onclick = () => { G.settings.mute = !G.settings.mute; G.audio.apply(); G.save.soon(); pressed(); };
+  $('volRange').oninput = e => { G.settings.volume = +e.target.value / 100; if (G.settings.mute && G.settings.volume > 0) G.settings.mute = false; G.audio.apply(); pressed(); };
+  $('volRange').onchange = () => G.save.soon();
   $('fpsTog').onclick = () => { G.settings.fps = !G.settings.fps; $('fps').hidden = !G.settings.fps; G.save.soon(); pressed(); };
   $('cAuto').onclick = () => { G.input.setMode('auto', true); G.settings.controls = 'auto'; G.save.soon(); pressed(); };
   $('cTouch').onclick = () => { G.input.setMode('touch', true); G.settings.controls = 'touch'; G.save.soon(); pressed(); };
@@ -198,6 +202,7 @@ export function makeUI() {
     if (a === 'pack') { if (open('pack')) UI.closePack(); else if (!open('menu') && !open('end')) UI.openPack(); }
     if (a === 'menu') { if (open('pack')) UI.closePack(); else if (open('menu')) UI.closeMenu(); else if (!open('end')) UI.openMenu(); }
     if (a === 'part') UI.cyclePart();
+    if (a === 'mute') { G.settings.mute = !G.settings.mute; G.audio.apply(); G.save.soon(); UI.feed(G.settings.mute ? 'Sound off · M to turn it back on' : 'Sound on'); if (open('menu')) pressed(); }
   };
   return UI;
 }
