@@ -135,14 +135,24 @@ export class Player extends Actor {
     if (!quiet || this.destT <= 0) { this.destMark.position.set(this.goal.x, .06, this.goal.z); this.destMark.setEnabled(true); this.destT = .7; }
     return true;
   }
+  /* the enemy under the cursor, or (unless strict) a hostile one standing right next to where it points */
+  enemyAt(x, y, strict) {
+    const hit = this.actorAt(x, y); if (hit && !hit.actor.untargetable && hit.actor.faction !== 'player') return hit;
+    if (strict) return null;
+    const g = this.groundAt(x, y); if (!g) return null;
+    let best = null, bd = 2;
+    for (const a of G.actors) { if (!a.alive || a.untargetable || !hostile(this, a)) continue; const d = Math.hypot(a.pos.x - g.x, a.pos.z - g.z) - (a.radius || .5); if (d < bd) { bd = d; best = a; } }
+    return best ? { actor: best, part: null } : null;
+  }
+  setLock(a, part) {
+    this.lock = { actor: a, part: a.parts && part && part !== 'core' && a.partAlive(part) ? part : null };
+    this.path = null; this.goal = null; this.pendingUse = null; this.steering = false; this.repathT = 0; this.destMark.setEnabled(false);
+  }
+  /* fire: left click (locks on to an enemy, walks into range if needed); move: right click; tap: touch, which does both */
   command(c) {
     if (this.down > 0) return;
-    const hit = this.actorAt(c.x, c.y);
-    if (hit && !hit.actor.untargetable && hit.actor.faction !== 'player') {
-      const a = hit.actor; this.lock = { actor: a, part: a.parts && hit.part !== 'core' && a.partAlive(hit.part) ? hit.part : null };
-      this.path = null; this.goal = null; this.pendingUse = null; this.steering = false; this.repathT = 0; this.destMark.setEnabled(false);
-      return;
-    }
+    if (c.kind === 'fire') { const e = this.enemyAt(c.x, c.y); if (e) this.setLock(e.actor, e.part); return; }   // a lock holds until you move away (right-click) or press S
+    if (c.kind === 'tap') { const e = this.enemyAt(c.x, c.y, true); if (e) { this.setLock(e.actor, e.part); return; } }
     const g = this.groundAt(c.x, c.y); if (!g) return;
     this.lock = null; this.steering = true; this.pendingUse = null;
     /* clicked next to something you can use: walk over and use it */
@@ -150,11 +160,14 @@ export class Player extends Actor {
     this.moveTo(g.x, g.z);
   }
   /* the locked target, or failing that the nearest threat you can actually shoot */
-  pickTarget(dt) {
+  lockedActor() {
     const L = this.lock;
     if (L && (!L.actor.alive || L.actor.untargetable)) this.lock = null;
     if (L && L.part && !L.actor.partAlive(L.part)) L.part = null;
-    if (this.lock) { this.auto = null; return this.lock.actor; }
+    return this.lock ? this.lock.actor : null;
+  }
+  pickTarget(dt) {
+    if (this.lockedActor()) { this.auto = null; return this.lock.actor; }
     const p = this.pos, R = this.range, ok = a => a && a.alive && !a.untargetable && !a.dormant && hostile(this, a) && dist2(p, a.pos) <= R && clearShot(p, a.pos);
     this.scanT -= dt;
     if (this.scanT <= 0 || !ok(this.auto)) {
@@ -174,13 +187,20 @@ export class Player extends Actor {
     if (I.steer && this.steering) { this.steerT -= dt; if (this.steerT <= 0) { this.steerT = .15; const g = this.groundAt(I.steer.x, I.steer.y); if (g) this.moveTo(g.x, g.z, true); } }
     if (I.mode === 'mouse' && I.pointer) { this.hover = this.actorAt(I.pointer.x, I.pointer.y); G.canvas.style.cursor = this.hover && this.hover.actor.faction !== 'player' ? 'crosshair' : 'pointer'; } else this.hover = null;
 
-    /* target: chase a locked one into range and line of sight, then stand and shoot */
-    const T = this.pickTarget(dt), w = this.weapon, s = w && wstats(w);
+    /* target. Mouse: the locked enemy, or while left is held the enemy under or near the cursor, else wherever it points.
+       Touch: the locked enemy, else the nearest threat, and the gun fires by itself. A locked enemy is chased into range and line of sight. */
+    const w = this.weapon, s = w && wstats(w), mouse = I.mode === 'mouse', firing = !mouse || I.fireHeld;
+    let T = mouse ? this.lockedActor() : this.pickTarget(dt), aimPart = null, aimPt = null;
+    if (mouse && !T && I.fireHeld && I.pointer) {
+      const e = this.hover && this.hover.actor.faction !== 'player' && !this.hover.actor.untargetable ? this.hover : this.enemyAt(I.pointer.x, I.pointer.y);
+      if (e) { T = e.actor; aimPart = e.part; } else { const g = this.groundAt(I.pointer.x, I.pointer.y); if (g && Math.hypot(g.x - p.x, g.z - p.z) > 1) aimPt = V(g.x, 1.2, g.z); }
+    }
     const inRange = !!(T && s && dist2(p, T.pos) <= s.range && clearShot(p, T.pos));
     if (this.lock) {
       if (inRange) { this.path = null; this.goal = null; }
       else { this.repathT -= dt; const c = this.chaseAt; if (this.repathT <= 0 && (!this.path || !c || Math.hypot(c.x - T.pos.x, c.z - T.pos.z) > 1.5)) { this.repathT = .4; this.chaseAt = { x: T.pos.x, z: T.pos.z }; this.moveTo(T.pos.x, T.pos.z, true); this.destMark.setEnabled(false); } }
     }
+    if (firing && T && !inRange) aimPt = T.pos.add(V(0, T.parts ? 3 * (T.s || 1) : 1.1, 0));   // out of reach: shoot toward it anyway
     this.target = T; G.assist = T;
 
     /* walking the path */
@@ -202,6 +222,7 @@ export class Player extends Actor {
 
     /* facing: at the target while it's in reach, else where you're going */
     if (inRange) this.facing = lerpAngle(this.facing, angleTo(p, T.pos), damp(16, dt));
+    else if (firing && aimPt) this.facing = lerpAngle(this.facing, angleTo(p, aimPt), damp(16, dt));
     else if (moving) this.facing = lerpAngle(this.facing, Math.atan2(this.lastMove.x, this.lastMove.z), damp(12, dt));
     this.root.rotation.y = this.facing;
 
@@ -209,11 +230,17 @@ export class Player extends Actor {
     walkAnim(this.H, this.dash > 0 ? 8 : Math.min(spd, SPEED), dt); this.H.pel.rotation.x = this.dash > 0 ? .35 : 0;
     if (G.t - this.lastHurt > 4 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.regen * dt);
 
-    /* weapon: no ammo, no reloading, it just fires at whatever it's locked on to */
+    /* weapon: no ammo, no reloading. Fires while left is held (always on touch) at the target, or at the cursor */
     this.cool -= dt;
-    if (inRange && this.cool <= 0 && Math.abs(lerpAngle(0, angleTo(p, T.pos) - this.facing, 1)) < .5) {
+    const at = !firing ? null : inRange ? T.pos : aimPt;
+    if (at && this.cool <= 0 && Math.abs(lerpAngle(0, angleTo(p, at) - this.facing, 1)) < .5) {
       this.cool = s.rate;
-      const H = T.hitTargets(), want = this.lock && this.lock.part, h = (want && H.find(q => q.part === want)) || H.find(q => q.part === 'core' || q.part === 'body') || H[0];
+      let h = null;
+      if (inRange) { const H = T.hitTargets(), want = (this.lock && this.lock.part) || aimPart;
+        /* legs: the nearest one, aimed just under the knee so shots pass beneath the body's hit zone */
+        if (want === 'legs') { const legs = H.filter(q => q.part === 'legs').sort((u, v) => dist2(p, u.c) - dist2(p, v.c)); if (legs[0]) h = { c: legs[0].c.add(V(0, -.35 * (T.s || 1), 0)) }; }
+        h = h || (want && H.find(q => q.part === want)) || H.find(q => q.part === 'core' || q.part === 'body') || H[0]; }
+      else h = { c: aimPt };
       if (h) {
         const fw = { x: Math.sin(this.facing), z: Math.cos(this.facing) };
         const from = V(p.x + fw.x * 1.25 + fw.z * .08, 1.36, p.z + fw.z * 1.25 - fw.x * .08);

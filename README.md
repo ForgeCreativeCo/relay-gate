@@ -43,4 +43,4 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 
 ## Controls
 
-Click the ground to walk there (hold to keep steering) · click an enemy to lock on, or a part of a walker to target that part · with nothing locked, your gun fires by itself at the nearest threat in range · guns never need reloading · S stop · T next part · Space dodge toward the cursor · Q swap · E use (or click the thing) · I pack · C command Mara · Esc menu. On a phone it is the same with taps, plus Dodge, Swap and Use buttons.
+Right-click to walk somewhere (hold to keep steering; right-click Mara, the stash or the gate to walk over and use it) · hold left-click to fire, and shots lock on to the enemy under or near the cursor · left-click an enemy to lock on and walk into range, or a part of a walker to target that part · guns never need reloading · S stop · T next part · Space dodge toward the cursor · Q swap · E use · I pack · C command Mara · Esc menu. On a phone, tap the ground to move and tap an enemy to lock on; the gun fires by itself at your target or the nearest threat. Dodge, Swap and Use buttons appear on screen.

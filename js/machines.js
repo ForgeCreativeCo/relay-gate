@@ -5,7 +5,9 @@ import { Actor } from './actors.js';
 import { nearestHostile } from './combat.js';
 import { rollLoot } from './loot.js';
 
-const cloneMat = (m, n) => { const c = m.clone(n); c.maxSimultaneousLights = 8; return c; };
+/* Per-machine material copies (so each can flash when hit). They must share the original's textures: cloned DynamicTextures come out blank and never report ready, which leaves the material uncompiled and the machine invisible. */
+const TEX_SLOTS = ['diffuseTexture', 'bumpTexture', 'specularTexture', 'emissiveTexture', 'ambientTexture', 'opacityTexture', 'reflectionTexture', 'lightmapTexture'];
+const cloneMat = (m, n) => { const c = m.clone(n); for (const k of TEX_SLOTS) if (m[k] && c[k] !== m[k]) { const t = c[k]; c[k] = m[k]; if (t) t.dispose(); } c.maxSimultaneousLights = 8; return c; };
 function pickTarget(self, range) {
   const a = self.lastAttacker;
   if (a && a.alive && !a.untargetable && a.faction !== 'machine' && dist2(a.pos, self.pos) < range * 1.4 && G.t - self.lastHurt < 6) return a;

@@ -1,4 +1,4 @@
-/* Controls: click or tap to move and to pick a target; the gun locks on and fires by itself. Touch and mouse share the scheme, only the buttons differ. */
+/* Controls: right-click to move, hold left-click to fire (shots lock on to the enemy under or near the cursor). On touch, tap to move or to lock on, and the gun fires by itself. */
 import { G } from './core.js';
 
 export function makeInput(canvas) {
@@ -19,22 +19,40 @@ export function makeInput(canvas) {
     if (!e.repeat && KEYMAP[e.code]) act(KEYMAP[e.code]);
   });
 
-  /* Click or tap: queued as a command for the player. Holding the mouse button down on the ground keeps steering toward the cursor. */
-  let held = null;
-  canvas.addEventListener('pointermove', e => { I.pointer = { x: e.clientX, y: e.clientY }; if (held && held.id === e.pointerId) { held.x = e.clientX; held.y = e.clientY; } });
+  /* Mouse: right button moves (hold to keep steering), left button fires (and clicking an enemy locks on to it).
+     Touch: a tap on an enemy locks on, a tap on the ground moves, and holding keeps steering. Each press is queued as a command for the player. */
+  let held = null; I.fireHeld = false;
+  /* Mouse buttons are read from the pointer events' button mask: Babylon cancels pointerdown, which suppresses mousedown/mouseup,
+     and a second button pressed while one is down only shows up as a change in the mask. */
+  let buttons = 0;
+  const mouseButtons = e => {
+    const now = e.buttons & 3, pressed = now & ~buttons, released = buttons & ~now; buttons = now;
+    if (pressed) { canvas.focus(); I.pointer = { x: e.clientX, y: e.clientY }; }
+    if (pressed & 1) { I.fireHeld = true; I.clicks.push({ x: e.clientX, y: e.clientY, kind: 'fire' }); }
+    if (pressed & 2) { I.clicks.push({ x: e.clientX, y: e.clientY, kind: 'move' }); held = { id: 'mouse', x: e.clientX, y: e.clientY, t: 0 }; try { canvas.setPointerCapture(e.pointerId); } catch (_) {} }
+    if (released & 1) I.fireHeld = false;
+    if ((released & 2) && held && held.id === 'mouse') held = null;
+  };
+  canvas.addEventListener('pointermove', e => {
+    I.pointer = { x: e.clientX, y: e.clientY };
+    if (e.pointerType === 'mouse') mouseButtons(e);
+    if (held && (held.id === e.pointerId || (held.id === 'mouse' && e.pointerType === 'mouse'))) { held.x = e.clientX; held.y = e.clientY; }
+  });
+  canvas.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') mouseButtons(e); });
+  window.addEventListener('pointerup', e => { if (e.pointerType === 'mouse') mouseButtons(e); });
   canvas.addEventListener('pointerdown', e => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    canvas.focus(); I.pointer = { x: e.clientX, y: e.clientY };
-    I.clicks.push({ x: e.clientX, y: e.clientY });
+    if (e.pointerType === 'mouse') return;
+    I.pointer = { x: e.clientX, y: e.clientY };
+    I.clicks.push({ x: e.clientX, y: e.clientY, kind: 'tap' });
     held = { id: e.pointerId, x: e.clientX, y: e.clientY, t: 0 };
     try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
   });
   const up = e => { if (held && held.id === e.pointerId) held = null; };
   canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
-  canvas.addEventListener('mouseleave', () => { if (!held) I.pointer = null; });
+  canvas.addEventListener('mouseleave', () => { if (!held && !I.fireHeld) I.pointer = null; });
   canvas.addEventListener('wheel', e => { e.preventDefault(); G.zoom = Math.min(42, Math.max(18, (G.zoom || 30) + e.deltaY * .02)); }, { passive: false });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
-  window.addEventListener('blur', () => { held = null; });
+  window.addEventListener('blur', () => { held = null; buttons = 0; I.fireHeld = false; });
 
   const tap = (id, a) => { const b = $(id); b.addEventListener('pointerdown', e => { e.preventDefault(); act(a); b.classList.add('on'); });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => b.addEventListener(ev, () => b.classList.remove('on'))); b.addEventListener('contextmenu', e => e.preventDefault()); };
@@ -47,7 +65,7 @@ export function makeInput(canvas) {
     if (held) { held.t += dt; if (held.t > .18) I.steer = { x: held.x, y: held.y }; }
     return out;
   };
-  I.release = () => { held = null; I.clicks = []; I.frameClicks = []; I.steer = null; };
+  I.release = () => { held = null; I.fireHeld = false; I.clicks = []; I.frameClicks = []; I.steer = null; };
   I.restStick = () => {};
   return I;
 }
