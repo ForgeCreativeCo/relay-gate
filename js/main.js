@@ -35,7 +35,7 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
   const hemi = new B.HemisphericLight('hemi', V(0, 1, 0), scene); hemi.diffuse = C(LOOK.hemiSky); hemi.groundColor = C(LOOK.hemiGround); hemi.intensity = LOOK.hemiI;
   const sun = new B.DirectionalLight('sun', V(...LOOK.sunDir).normalize(), scene); sun.diffuse = C(LOOK.sun); sun.specular = C(LOOK.sun); sun.intensity = LOOK.sunI;
   sun.autoUpdateExtends = false; sun.orthoLeft = -34; sun.orthoRight = 34; sun.orthoTop = 34; sun.orthoBottom = -34; sun.shadowMinZ = 1; sun.shadowMaxZ = 170;
-  const sg = G.sg = new B.ShadowGenerator(2048, sun); sg.usePercentageCloserFiltering = true; sg.filteringQuality = B.ShadowGenerator.QUALITY_MEDIUM; sg.bias = .002; sg.normalBias = .03; sg.darkness = .15;
+  const sg = G.sg = new B.ShadowGenerator(2048, sun); sg.usePercentageCloserFiltering = true; sg.filteringQuality = B.ShadowGenerator.QUALITY_MEDIUM; sg.bias = .002; sg.normalBias = .03; sg.darkness = .3;
   const pool = [0, 1].map(i => { const l = new B.PointLight('local' + i, V(0, -50, 0), scene); l.intensity = 0; l.range = 10; return { l, src: null }; });
   const spot = new B.SpotLight('searchlight', V(0, 0, .7), V(0, -.55, 1), Math.PI / 4.5, 6, scene); spot.range = 30; spot.intensity = 0; spot.diffuse = C(LOOK.machine); let spotOwner = null;
   const boomL = new B.PointLight('boom', V(0, -50, 0), scene); boomL.diffuse = C('#ffb070'); boomL.intensity = 0; boomL.range = 24;
@@ -104,11 +104,11 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
   /* ---------- the loop ---------- */
   let lightT = 0;
   function step(dt) {
-    G.t += dt; const P = G.player, p = P.pos;
+    G.t += dt; G.frame = (G.frame || 0) + 1; const P = G.player, p = P.pos;
     G.input.update(dt);
     P.update(dt, G.input); G.ally.update(dt);
     for (const a of G.actors) if (a !== P && a !== G.ally && !a.dormant) a.update(dt);
-    G.CB.update(dt); G.drops.update(dt, p); G.game.update(dt);
+    G.CB.update(dt); G.drops.update(dt, p); G.game.update(dt); G.FX.update(dt);
     G.audio.updateHums(G.actors.filter(a => a.kind === 'drone' && a.alive && !a.dormant));
     /* nearest thing you can use */
     G.near = null; let nd = 1e9; for (const it of G.game.interactables()) { const d = dist2(p, it.pos); if (d < it.r && d < nd) { nd = d; G.near = it; } }
@@ -128,7 +128,7 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
       if (best !== spotOwner) { spotOwner = best; if (best) { spot.parent = best.head; spot.position.set(0, 0, .7); spot.direction.set(0, -.55, 1); } }
     }
     pool.forEach(pl => { const s = pl.src; if (s) pl.l.intensity = s.intensity * (s.flicker ? 1 + Math.sin(G.t * 17) * .15 + Math.sin(G.t * 7.3) * .2 : 1); });
-    spot.intensity = spotOwner && spotOwner.alive && spotOwner.partAlive('head') ? 2.4 * (1 + spotOwner.alert * .5) * spotOwner.s : 0;
+    spot.intensity = spotOwner && spotOwner.alive && spotOwner.partAlive('head') ? 1.2 * (1 + spotOwner.alert * .4) * spotOwner.s : 0;   // kept low enough to stay red under the exposure
     boomL.intensity = Math.max(0, boomL.intensity - dt * 14);
     /* camera */
     cam.radius += (G.zoom - cam.radius) * damp(6, dt);

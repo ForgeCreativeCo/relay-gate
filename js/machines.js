@@ -38,7 +38,10 @@ export class Drone extends Actor {
     this.flash = 0;
   }
   hitTargets() { return [{ part: 'core', c: this.pos.clone(), r: .85 }]; }
-  takeDamage(d) { this.flash = 1; return d; }
+  /* hits knock the drone back and set it wobbling */
+  takeDamage(d, part, src, point) { this.flash = 1;
+    if (point) { const dx = this.pos.x - point.x, dz = this.pos.z - point.z, l = Math.hypot(dx, dz) || 1, k = Math.min(3, .6 + d * .12); this.knock = this.knock || V(0, 0, 0); this.knock.x += dx / l * k; this.knock.z += dz / l * k; this.wob = Math.min(1, (this.wob || 0) + .5); }
+    return d; }
   die(src) { this.meshes.forEach(m => { m.isPickable = false; }); this.dying = true; G.game.onMachineDown(this, src); }
   update(dt) {
     const p = this.pos;
@@ -46,7 +49,7 @@ export class Drone extends Actor {
     this.flash = Math.max(0, this.flash - dt * 6); this.mat.emissiveColor.set(this.flash * .4, this.flash * .4, this.flash * .4);
     if (!this.alive) {
       if (this.dying) { this.fallV += 14 * dt; p.y -= this.fallV * dt; this.root.rotation.z += dt * 6; this.root.rotation.x += dt * 3;
-        if (p.y <= .3) { this.dying = false; G.FX.explode(V(p.x, .6, p.z), .45); G.audio.play('boomSmall', { pos: p, gain: .7, vary: true }); G.audio.play('droneDeath', { pos: p, gain: .5, vary: true, fade: .4 }); this.root.setEnabled(false); if (this.lastKiller === undefined) G.drops.scatter(p.x, p.z, rollLoot('drone')); } }
+        if (p.y <= .3) { this.dying = false; G.FX.explode(V(p.x, .6, p.z), .45); G.FX.blast(V(p.x, .4, p.z), .45); G.FX.debris(V(p.x, .6, p.z), 5, .45, .7); G.audio.play('boomSmall', { pos: p, gain: .7, vary: true }); G.audio.play('droneDeath', { pos: p, gain: .5, vary: true, fade: .4 }); this.root.setEnabled(false); if (this.lastKiller === undefined) G.drops.scatter(p.x, p.z, rollLoot('drone')); } }
       return;
     }
     this.retarget -= dt; if (this.retarget <= 0) { this.retarget = .7; this.target = pickTarget(this, 20); announce(this, .7, [['whir', { gain: .6, rate: 1.1, gap: 1.5, key: 'droneAlert' }]]); }
@@ -57,9 +60,11 @@ export class Drone extends Actor {
     const hx = gx - this.home.x, hz = gz - this.home.z, hd = Math.hypot(hx, hz); if (hd > 20) { gx = this.home.x + hx / hd * 20; gz = this.home.z + hz / hd * 20; }
     const dx = gx - p.x, dz = gz - p.z, d = Math.hypot(dx, dz), sp = Math.min(d * 2, 7);
     if (d > .1) { p.x += dx / d * sp * dt; p.z += dz / d * sp * dt; }
+    if (this.knock) { p.x += this.knock.x * dt; p.z += this.knock.z * dt; this.knock.scaleInPlace(Math.exp(-dt * 5)); }
     p.y += (this.alt + Math.sin(G.t * 2 + this.orbitA) * .25 - p.y) * damp(3, dt);
     const face = T ? angleTo(p, T.pos) : Math.atan2(dx, dz);
     this.root.rotation.y = lerpAngle(this.root.rotation.y, face, damp(6, dt)); this.root.rotation.z = -clamp(dx * .05, -.3, .3);
+    if (this.wob > 0) { this.wob = Math.max(0, this.wob - dt * 2.5); this.root.rotation.z += Math.sin(G.t * 38) * this.wob * .35; this.root.rotation.x = Math.cos(G.t * 31) * this.wob * .3; } else this.root.rotation.x = 0;
     this.cool -= dt;
     if (T && this.cool <= 0 && dist2(T.pos, p) < 16) {
       this.cool = rand(1.2, 1.9);
@@ -153,10 +158,14 @@ export class Walker extends Actor {
     const mult = { head: 1.6, guns: 1.25, missiles: 1.3, legs: 1, core: .7 }[part] || .7; let dealt = d * mult;
     const pt = this.parts[part];
     if (pt && pt.hp > 0) { pt.hp = Math.max(0, pt.hp - dealt); if (pt.hp <= 0) this.breakPart(part, point || this.body.getAbsolutePosition()); dealt *= .3; }
-    this.flash = 1; return dealt;
+    this.flash = 1;
+    /* jolt: the body tilts away from where it was hit, harder for bigger hits; decays in the update */
+    if (point) { const b = this.body.getAbsolutePosition(), dx = b.x - point.x, dz = b.z - point.z, l = Math.hypot(dx, dz) || 1, ry = this.root.rotation.y;
+      this.joltX = (dx * Math.cos(ry) - dz * Math.sin(ry)) / l; this.joltZ = (dx * Math.sin(ry) + dz * Math.cos(ry)) / l; this.jolt = Math.min(1, (this.jolt || 0) + .25 + d / (this.boss ? 60 : 30)); }
+    return dealt;
   }
   breakPart(part, pos) {
-    this.hp -= this.boss ? 60 : 35; G.FX.explode(pos, .5); G.audio.play('whir', { pos, gain: this.boss ? 1 : .85, rate: this.boss ? .62 : .72 });
+    this.hp -= this.boss ? 60 : 35; G.FX.explode(pos, .5); G.FX.debris(pos, this.boss ? 5 : 3, .55 * this.s, .6); this.jolt = 1; G.audio.play('whir', { pos, gain: this.boss ? 1 : .85, rate: this.boss ? .62 : .72 });
     const say = (t) => G.UI.feed(`${this.boss ? 'Warden' : 'Walker'} ${t}`, '#ff6a5a');
     if (part === 'head') { this.eye.setEnabled(false); this.beam.setEnabled(false); this.blind = 4; this.smokeHead.start(); say('sensor destroyed · Blind for a moment'); }
     if (part === 'guns') { this.guns.forEach(g => { g.mesh.setEnabled(false); g.charge.setEnabled(false); }); this.charge = this.burst = 0; this.smokeGuns.start(); say('guns destroyed · It will try to stomp'); }
@@ -174,22 +183,27 @@ export class Walker extends Actor {
   }
   explodeWreck() {
     this.boomed = true;
-    G.FX.explode(this.body.getAbsolutePosition(), this.boss ? 2.4 : 1.5); G.audio.play('boomBig', { pos: this.pos, gain: this.boss ? 1 : .8, rate: this.boss ? .85 : 1, hear: this.boss ? 90 : 60 });
+    const bp = this.body.getAbsolutePosition();
+    G.FX.explode(bp, this.boss ? 2.4 : 1.5); G.FX.blast(V(bp.x, .5, bp.z), this.boss ? 1.6 : 1.1); G.FX.debris(bp, this.boss ? 16 : 11, this.s, this.boss ? 1.2 : 1);
+    this.mat.albedoColor.scaleInPlace(.4); this.matD.albedoColor.scaleInPlace(.5); this.heat = 1;
+    G.audio.play('boomBig', { pos: this.pos, gain: this.boss ? 1 : .8, rate: this.boss ? .85 : 1, hear: this.boss ? 90 : 60 });
     this.smokeWreck.start();
     G.game.onMachineDown(this, this.killer);
   }
   fireBolt(g, T) {
     const o = V3.TransformCoordinates(V(0, 0, 2), g.node.getWorldMatrix()), spread = this.partAlive('head') ? .6 : 1.8, v = T.vel || { x: 0, z: 0 };
     const aim = V(T.pos.x + v.x * .3 + rand(-spread, spread), 1.15, T.pos.z + v.z * .3 + rand(-spread, spread));
-    G.CB.fire({ from: o, dir: aim.subtract(o).normalize(), speed: this.boss ? 28 : 26, dmg: this.boss ? 9 : 7, owner: this, kind: 'bolt', life: 1.8 }); G.audio.shot(this.boss ? 'warden' : 'walker', o);
+    G.CB.fire({ from: o, dir: aim.subtract(o).normalize(), speed: this.boss ? 28 : 26, dmg: this.boss ? 9 : 7, owner: this, kind: 'bolt', life: 1.8, flash: this.boss ? 1.4 : 1.1 }); G.audio.shot(this.boss ? 'warden' : 'walker', o);
   }
   update(dt) {
     const s = this.s, p = this.pos;
     this.flash = Math.max(0, this.flash - dt * 5);
-    this.mat.emissiveColor.set(this.flash * .28, this.flash * .28, this.flash * .28); this.matD.emissiveColor.set(this.flash * .2, this.flash * .2, this.flash * .2);
+    /* hit flash: a faint warm pulse (stronger and the glow pass turns the whole walker white) */
+    this.mat.emissiveColor.set(this.flash * .09, this.flash * .06, this.flash * .04); this.matD.emissiveColor.set(this.flash * .07, this.flash * .05, this.flash * .03);
     if (!this.alive) {
       this.deathT += dt; const k = Math.min(1, this.deathT / this.boomAt), e = k * k;
       if (!this.boomed && this.deathT >= this.boomAt) this.explodeWreck();
+      if (this.heat > 0) { this.heat = Math.max(0, this.heat - dt / 8); const h = this.heat * this.heat; this.mat.emissiveColor.set(h * .9, h * .26, h * .05); this.matD.emissiveColor.set(h * .7, h * .18, h * .03); }
       this.body.position.y = 3.4 - e * 1.85; this.body.rotation.x = e * .2; this.body.rotation.z = e * .3;
       this.legs.forEach(l => { l.hip.rotation.z = l.sx * (.18 + e * .85); l.hip.rotation.x = -.3; l.knee.rotation.x = .75 + e * .5; });
       return;
@@ -238,12 +252,13 @@ export class Walker extends Actor {
           this.marks.push({ mesh: m, t: 1.3 + i * .12, x, z }); }
         G.FX.puffAt(this.pod.getAbsolutePosition(), 20); }
       for (const mk of [...this.marks]) { mk.t -= dt; const k = clamp(1 - mk.t / 1.3, 0, 1); mk.mesh.scaling.set(.4 + k * .6, .4 + k * .6, 1);
-        if (mk.t <= 0) { G.FX.explode(V(mk.x, .5, mk.z), .6); G.CB.blast(V(mk.x, 0, mk.z), 2.4, 24, this); mk.mesh.dispose(); this.marks.splice(this.marks.indexOf(mk), 1); } }
+        if (mk.t <= 0) { G.FX.explode(V(mk.x, .5, mk.z), .6); G.FX.blast(V(mk.x, .3, mk.z), .6); G.CB.blast(V(mk.x, 0, mk.z), 2.4, 24, this); mk.mesh.dispose(); this.marks.splice(this.marks.indexOf(mk), 1); } }
     }
     /* pose */
     const crip = !this.partAlive('legs');
     this.legs.forEach((l, i) => { const sn = Math.sin(this.walkPh + l.ph), c = Math.cos(this.walkPh + l.ph); l.hip.rotation.x = -.3 + sn * .28; l.knee.rotation.x = .75 + Math.max(0, -c) * .35 + (crip && i === 1 ? .55 : 0); l.ankle.rotation.x = -.45 - sn * .2; l.hip.rotation.z = l.sx * .18; });
     this.body.position.y = 3.4 + Math.sin(this.walkPh * 2) * .06 + lift - (crip ? .35 : 0); this.body.rotation.z = Math.sin(this.walkPh) * .02 + (crip ? .12 : 0); this.body.rotation.x = 0;
+    if (this.jolt > 0) { const j = this.jolt; this.body.rotation.z -= this.joltX * j * .09; this.body.rotation.x += this.joltZ * j * .09; this.body.position.y -= j * .08; this.jolt = Math.max(0, j - dt * 6); }
     const headUp = this.partAlive('head');
     this.head.rotation.x = headUp ? this.alert * .12 : .45; this.head.rotation.y = headUp ? Math.sin(G.t * .6) * .25 * (1 - this.alert) : Math.sin(G.t * 9) * .08;
     const k = 1 + this.alert * .7 + this.flash * 1.5, mg = G.machineColor;

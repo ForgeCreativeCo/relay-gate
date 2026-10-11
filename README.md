@@ -30,7 +30,7 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `js/tex.js` | Procedural textures, materials and the Ash & Neon colour palette |
 | `js/look.js` | Generated reflection sky, the ground detail layer (grime, scorch, oil, cracks, road paint, puddles) and scattered debris |
 | `js/geo.js` | Geometry builder (boxes, prisms, cylinders) |
-| `js/fx.js` | Particles: ash, fire, sparks, explosions, smoke |
+| `js/fx.js` | Particles (ash, fire, sparks, explosions, smoke) and combat visuals: muzzle flashes, surface-matched impacts, shockwaves, scorch marks, wreck debris |
 | `js/region1.js` | The Dead City map: streets, ruins, props, the relay gate |
 | `js/actors.js` | Player, Mara and raiders |
 | `js/machines.js` | Drones, Hunter Walkers and the Warden boss |

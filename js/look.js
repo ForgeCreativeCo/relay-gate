@@ -67,7 +67,7 @@ export function makeGroundDetail(scene) {
   for (const [x, z, r] of G.decalHints.scorch) scorch(x, z, r);
   for (let k = 0; k < 6; k++) { const p = randIn(2); if (p) scorch(p[0], p[1], R(.9, 1.8)); }
   /* 4. oil under and around vehicles: dark, a little glossy */
-  const oil = (x, z, r) => { splat(col, x, z, r, 'rgba(6,6,8,.55)', 6, .4); splat(ruf, x, z, r, 'rgba(0,90,0,.8)', 6, .4); };
+  const oil = (x, z, r) => { splat(col, x, z, r, 'rgba(6,6,8,.45)', 6, .4); splat(ruf, x, z, r, 'rgba(0,165,0,.8)', 6, .4); };   // only slightly glossy: shinier oil caught lamplight like blood
   for (const [x, z, r] of G.decalHints.oil) { oil(x + R(-.6, .6), z + R(-.6, .6), r * R(.6, .9)); if (rnd() < .6) oil(x + R(-2, 2), z + R(-2, 2), R(.4, .9)); }
   /* 5. long cracks across the open ground */
   const crack = (x, z, len) => { let a = R(0, 6.28), cx = x, cz = z; col.lineCap = 'round';

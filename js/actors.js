@@ -65,6 +65,8 @@ function walkAnim(H, speed, dt) {
   H.pel.position.y = .94 - Math.abs(Math.sin(H.stride)) * .04 * amp;
 }
 function fall(H, k) { H.pel.rotation.x = -1.42 * k; H.pel.position.y = .94 - .66 * k; }
+/* muzzle flash size and camera kick per weapon type */
+const FLASH_SIZE = { rifle: .75, smg: .6, shotgun: 1.3, marksman: 1.1, arc: .8 }, RECOIL = { shotgun: .14, marksman: .1 };
 const TRACER = { scrap: '#ffc35a', military: '#ffc35a', proto: '#c58bff', machine: '#ffd84a' };
 
 /* ---------- the player ---------- */
@@ -80,7 +82,7 @@ export class Player extends Actor {
     super('player', 100);
     this.H = humanModel({ cloth: G.M.uniform, armor: G.M.armor, visor: G.M.visor, helmet: true, rifle: true });
     this.root = this.H.root; this.facing = 0; this.dash = 0; this.dashCD = 0; this.down = 0; this.cool = 0; this.lastMove = { x: 0, z: 1 }; this.vel = { x: 0, z: 0 };
-    this.lamp = new B.PointLight('lamp', V(0, 2.3, .3), G.scene); this.lamp.parent = this.root; this.lamp.diffuse = B.Color3.FromHexString('#ff9440'); this.lamp.intensity = .95;   // warm, and kept below the point where its yellow clips toward olive on the ground this.lamp.range = 8;
+    this.lamp = new B.PointLight('lamp', V(0, 2.3, .3), G.scene); this.lamp.parent = this.root; this.lamp.diffuse = B.Color3.FromHexString('#ffe0c2'); this.lamp.intensity = .6;   // a soft, nearly white pool: a coloured lamp is the only light inside shadows, and tinted them blood-red this.lamp.range = 8;
     this.muzzle = new B.PointLight('muzzle', V(.1, 1.4, 1.3), G.scene); this.muzzle.parent = this.root; this.muzzle.intensity = 0; this.muzzle.range = 9; this.muzzleT = 0;
     this.focus = null; this.hover = null;
     this.path = null; this.goal = null; this.lock = null; this.auto = null; this.target = null; this.pendingUse = null; this.steering = false;
@@ -252,8 +254,9 @@ export class Player extends Actor {
         const hex = s.tech ? '#7fe8ff' : TRACER[w.tier], mat = G.CB.tierMat(hex), life = Math.max(s.life, s.range * 1.15 / s.speed);
         for (let k = 0; k < s.pellets; k++) {
           const dir = h.c.subtract(from), L = dir.length(); dir.addInPlaceFromFloats(rand(-1, 1) * s.spread * L, rand(-.6, .6) * s.spread * L, rand(-1, 1) * s.spread * L); dir.normalize();
-          G.CB.fire({ from, dir, speed: s.speed, dmg: s.dmg, owner: this, kind: 'tracer', mat, life, crit: s.crit, vsMachine: s.vsMachine });
+          G.CB.fire({ from, dir, speed: s.speed, dmg: s.dmg, owner: this, kind: 'tracer', mat, life, crit: s.crit, vsMachine: s.vsMachine, flash: FLASH_SIZE[w.arch] });
         }
+        if (RECOIL[w.arch]) G.shake = Math.max(G.shake, RECOIL[w.arch]);
         this.muzzle.diffuse = B.Color3.FromHexString(hex); this.muzzle.intensity = 3; this.muzzleT = .05; G.audio.shot(w.arch);
       }
     }

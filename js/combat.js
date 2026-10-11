@@ -16,6 +16,7 @@ export function nearestHostile(self, range, from) {
   return best;
 }
 
+const FLASH = { bolt: '#ff5a40', raider: '#ffa04a', ally: '#ffd27a', tracer: '#ffc35a' };
 const KINDS = {
   tracer: { mat: 'tracer', w: .07, len: 1.3, n: 60 },
   proto: { mat: 'tracer', w: .09, len: 1.4, n: 0 },
@@ -40,6 +41,8 @@ export function makeCombat(M) {
     p.m.material = o.mat || M[KINDS[o.kind || 'tracer'].mat];
     p.life = o.life || 1.2; p.dmg = o.dmg; p.owner = o.owner; p.src = { faction: o.owner.faction, alive: true }; p.crit = o.crit || 0; p.vsMachine = o.vsMachine || 0;
     if (!live.includes(p)) live.push(p);
+    /* muzzle flash, coloured like the round; o.flash sets its size (0 for none) */
+    if (o.flash !== 0) G.FX.muzzle(o.from, o.dir, o.mat && o.mat.emissiveColor ? o.mat.emissiveColor.toHexString() : FLASH[o.kind] || '#ffc35a', o.flash || .6);
   };
   CB.update = (dt) => {
     /* gather hit spheres once per frame */
@@ -63,8 +66,8 @@ export function makeCombat(M) {
         if (p.crit && Math.random() < p.crit / 100) { d *= 1.8; crit = true; }
         const dealt = a.damage(d, part, p.owner, q.clone());
         if (p.owner === G.player && dealt > 0) { G.UI.number(q, Math.round(dealt), crit || (part !== 'core' && part !== 'body')); G.player.onHit(a, dealt); }
-        G.FX.spark(q, a.faction === 'machine' ? 12 : 4); p.life = 0;
-      } else if (wall) { G.FX.spark(wall, 3); p.life = 0; }
+        G.FX.impact(q, a.faction === 'machine' ? 'metal' : 'body', p.v.scale(-1)); p.life = 0;
+      } else if (wall) { G.FX.impact(wall, wall.y < .1 ? 'ground' : 'hard', p.v.scale(-1)); p.life = 0; }
       if (p.life <= 0) { p.m.setEnabled(false); live.splice(i, 1); }
     }
   };

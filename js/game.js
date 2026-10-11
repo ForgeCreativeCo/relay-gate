@@ -105,7 +105,7 @@ export function makeGame() {
   };
   GM.runAgain = () => {
     const keep = P(); G.progress = { ...freshProgress(), step: 1, mara: true, raiders: false, runs: keep.runs, kills: keep.kills };
-    G.raiderHostile = false; GM.clearAll(); G.drops.clear(); G.CB.clear(); GM.spawnAll(); GM.applyGate();
+    G.raiderHostile = false; GM.clearAll(); G.drops.clear(); G.CB.clear(); G.FX.clearDebris(); GM.spawnAll(); GM.applyGate();
     G.player.respawn(0, -5); G.camera.target.set(0, 0, -5); if (G.ally.joined) G.ally.teleportNear(G.player.pos);
     G.UI.objective(OBJECTIVES[1].text, true); G.save.now();
   };
