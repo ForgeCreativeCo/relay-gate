@@ -44,11 +44,17 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `sfx/player-gun.mp3` | Player gunfire ("Dry assault rifle automatic", freesound_community on Pixabay) |
 | `sfx/machine-gun.mp3` | Drone and walker gunfire ("Auto gun shots", SoundReality on Pixabay) |
 | `sfx/mech-engage.mp3` | A walker or the Warden locking on to you ("Mech attack", SoundReality on Pixabay) |
+| `sfx/power-on.mp3` | Layered with the lock-on sound: the mech powering up ("Power on", freesound_community on Pixabay) |
+| `sfx/power-off.mp3` | A walker or the Warden powering down as it dies, into the explosion ("Power off", freesound_community on Pixabay) |
 | `sfx/mech-step.mp3` | Walker and Warden footsteps ("Rusty mech stomp", freesound_community on Pixabay) |
 | `sfx/mech-hum.mp3` | A drone spotting you; walker parts breaking ("Mech master", SoundReality on Pixabay) |
 | `sfx/drone-hum.mp3` | Drone hover hum ("Circuits hum 10", Gregor Quendel on Pixabay) |
 | `sfx/explosion-big.mp3` | A walker or the Warden destroyed ("Loud explosion", Dragon Studio on Pixabay) |
 | `sfx/explosion-small.mp3` | A drone crashing ("Small explosion", freesound_community on Pixabay) |
+| `sfx/drone-death.mp3` | Layered with a drone's crash explosion ("Mechanical sound design elements, robot PS 012", AudioPapkin on Pixabay) |
+| `sfx/ambience-terror.mp3` | Background ambience ("Terror ambience", freesound_community on Pixabay) |
+| `sfx/ambience-wasteland.mp3` | Background ambience ("A post-apocalyptic ambient soundscape", Fronbondi_Skegs on Pixabay) |
+| `sfx/horn.mp3` | A distant horn now and then ("Apocalyptic horn", Alex Jauk on Pixabay) |
 | `sfx/player-step.mp3` | Player footsteps ("Step", Pixabay) |
 
 ## Controls

@@ -25,6 +25,10 @@ const VOICES = {
 const CLIPS = {
   /* "Mech attack": a walker (or the Warden) locking on to you */
   engage: { url: 'sfx/mech-engage.mp3', start: 0, len: 2.9 },
+  /* "Power on": layered with engage, the mech powering up its weapons */
+  powerOn: { url: 'sfx/power-on.mp3', start: .04, len: 2.48 },
+  /* "Power off": a mech dying, winding down into the big explosion (it stays loud to the end, so it's cut and faded under the blast) */
+  powerOff: { url: 'sfx/power-off.mp3', start: .04, len: 2.48 },
   /* "Rusty mech stomp": three stomps; each start sits a moment before the impact so the thud lands with the foot */
   step: { url: 'sfx/mech-step.mp3', start: [0.67, 2.445, 3.905], len: .9 },
   /* "Mech master": a whirring machine sound that fades out over ~3 s. Played whole for a drone spotting you and (deeper) for a mech losing a part. */
@@ -35,20 +39,33 @@ const CLIPS = {
   boomBig: { url: 'sfx/explosion-big.mp3', start: 0, len: 2.9 },
   /* "Small explosion": a drone hitting the ground */
   boomSmall: { url: 'sfx/explosion-small.mp3', start: .03, len: 1 },
+  /* "Mechanical sound design elements, robot 012": layered with a drone's crash explosion (mechanical chatter, then a falling wind-down) */
+  droneDeath: { url: 'sfx/drone-death.mp3', start: .2, len: 4.6 },
 };
 /* Drone hover hum ("Circuits hum 10"): overlapping one-second grains from the body of the recording (it fades in over the first 2 s and out over the last 2),
    crossfaded so it never loops audibly. Only the nearest few drones hum, to keep the voice count down. */
 /* sine-shaped grain envelope; two of these overlapping by half sum to constant power */
 const GRAIN_CURVE = Float32Array.from({ length: 64 }, (_, i) => Math.sin(Math.PI * i / 63));
 const HUM = { url: 'sfx/drone-hum.mp3', from: 2.4, to: 6, grain: 1, every: .5, gain: .25, drones: 3 };
+/* Background ambience: two long soundscapes that alternate, each crossfading into the next, under everything else.
+   Now and then a horn sounds somewhere far off: filtered, quieter, and from a random side. */
+const AMBIENCE = {
+  beds: [
+    { name: 'ambTerror', url: 'sfx/ambience-terror.mp3', from: .5, to: 105 },        // "Terror ambience" (fades out after ~105 s)
+    { name: 'ambWaste', url: 'sfx/ambience-wasteland.mp3', from: 0, to: 60 },        // "A post-apocalyptic ambient soundscape"
+  ],
+  gain: .3, fade: 6,
+  horn: { name: 'horn', url: 'sfx/horn.mp3', from: .7, to: 9.4, gain: .5, first: [25, 50], every: [75, 160] },   // "Apocalyptic horn"
+};
 const MAX_VOICES = 24, HEAR = 42;   // simultaneous sounds; distance (m) at which machines fall silent
 
 export function makeAudio() {
   const A = { ctx: null, master: null, buffers: {}, voices: 0 };
   const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) { A.unlock = A.shot = A.play = A.apply = A.updateHums = A.silenceHums = () => {}; return A; }
+  if (!AC) { A.unlock = A.shot = A.play = A.apply = A.updateHums = A.silenceHums = A.startAmbience = A.horn = () => {}; return A; }
   A.ctx = new AC();
   A.master = A.ctx.createGain(); A.master.connect(A.ctx.destination);
+  A.amb = A.ctx.createGain(); A.amb.connect(A.master);   // ambience has its own level under the master volume
 
   A.load = async (name, url) => {
     try { const res = await fetch(url); if (!res.ok) return; A.buffers[name] = await A.ctx.decodeAudioData(await res.arrayBuffer()); }
@@ -58,7 +75,8 @@ export function makeAudio() {
   A.unlock = () => { if (A.ctx.state === 'suspended') A.ctx.resume().catch(() => {}); };
   ['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, A.unlock, { capture: true, passive: true }));
   /* Volume and mute come from the saved settings. */
-  A.apply = () => { const S = G.settings || {}; const v = S.mute ? 0 : (S.volume == null ? .8 : S.volume); A.master.gain.setTargetAtTime(v, A.ctx.currentTime, .02); };
+  A.apply = () => { const S = G.settings || {}; const v = S.mute ? 0 : (S.volume == null ? .8 : S.volume); A.master.gain.setTargetAtTime(v, A.ctx.currentTime, .02);
+    A.amb.gain.setTargetAtTime(S.ambience == null ? .6 : S.ambience, A.ctx.currentTime, .05); };
 
   /* Where a sound sits relative to the listener (the camera's focus): quieter with distance, panned by left/right on screen. */
   function place(pos, hear = HEAR) {
@@ -71,11 +89,11 @@ export function makeAudio() {
   }
 
   /* Play part of a buffer with a quick fade-out so cuts never click. */
-  function slice(buf, start, len, rate, gain, pan) {
+  function slice(buf, start, len, rate, gain, pan, fadeOut) {
     if (!buf || A.voices >= MAX_VOICES || A.ctx.state !== 'running') return;
     const t = A.ctx.currentTime, src = A.ctx.createBufferSource(), g = A.ctx.createGain();
     src.buffer = buf; src.playbackRate.value = rate;
-    const real = len / rate, fade = Math.min(.04, real * .4);
+    const real = len / rate, fade = fadeOut ? Math.min(fadeOut, real * .5) : Math.min(.04, real * .4);
     g.gain.setValueAtTime(gain, t); g.gain.setValueAtTime(gain, t + real - fade); g.gain.linearRampToValueAtTime(0, t + real);
     let out = g;
     if (pan && A.ctx.createStereoPanner) { const p = A.ctx.createStereoPanner(); p.pan.value = pan; g.connect(p); out = p; }
@@ -95,6 +113,7 @@ export function makeAudio() {
   };
 
   /* A one-off clip. opts: pos (for distance and pan), hear (how far away it can be heard, default 42 m), rate (pitch), gain, vary (small random pitch),
+     len (seconds of the clip to play, if shorter than the clip), fade (fade-out length, default a few hundredths),
      and gap: plays sharing a key (default the clip name) are at least this many seconds apart, so a pack of machines doesn't stack the same sound. */
   const lastPlay = {};
   A.play = (name, opts = {}) => {
@@ -102,7 +121,7 @@ export function makeAudio() {
     if (opts.gap) { const k = opts.key || name, now = A.ctx.currentTime; if (now - (lastPlay[k] || -1e9) < opts.gap) return; lastPlay[k] = now; }
     const at = place(opts.pos, opts.hear); if (!at) return;
     const start = Array.isArray(c.start) ? c.start[Math.floor(Math.random() * c.start.length)] : c.start, jitter = opts.vary ? .95 + Math.random() * .1 : 1;
-    slice(buf, start, Math.min(c.len, buf.duration - start), (opts.rate || 1) * jitter, (opts.gain == null ? 1 : opts.gain) * at.gain, at.pan);
+    slice(buf, start, Math.min(opts.len || c.len, c.len, buf.duration - start), (opts.rate || 1) * jitter, (opts.gain == null ? 1 : opts.gain) * at.gain, at.pan, opts.fade);
   };
 
   /* Hover hums, one per drone in earshot. Called every game frame with the drones that could be humming. */
@@ -132,7 +151,46 @@ export function makeAudio() {
   /* Pausing (menus) stops the hums; they pick up again on the next game frame. */
   A.silenceHums = () => { for (const [, h] of hums) { h.out.gain.setTargetAtTime(0, A.ctx.currentTime, .05); h.next = 0; } };
 
+  /* ---------- ambience ---------- */
+  const rnd = ([a, b]) => a + Math.random() * (b - a);
+  let ambOn = false, bedAt = 0, bedIdx = Math.floor(Math.random() * AMBIENCE.beds.length), firstBed = true, hornAt = 0;
+  function playBed(bed, when, offset) {
+    const buf = A.buffers[bed.name]; if (!buf) return 0;
+    const F = AMBIENCE.fade, dur = Math.min(bed.to, buf.duration) - offset; if (dur < F * 3) return 0;
+    const src = A.ctx.createBufferSource(), g = A.ctx.createGain(); src.buffer = buf;
+    g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(AMBIENCE.gain, when + F); g.gain.setValueAtTime(AMBIENCE.gain, when + dur - F); g.gain.linearRampToValueAtTime(0, when + dur);
+    src.connect(g); g.connect(A.amb); src.start(when, offset, dur); src.onended = () => { src.disconnect(); g.disconnect(); };
+    return dur;
+  }
+  function horn() {
+    const H = AMBIENCE.horn, buf = A.buffers[H.name]; if (!buf) return;
+    const t = A.ctx.currentTime, src = A.ctx.createBufferSource(), lp = A.ctx.createBiquadFilter(), g = A.ctx.createGain(), dur = H.to - H.from;
+    lp.type = 'lowpass'; lp.frequency.value = 1400 + Math.random() * 1600;   // far away: the highs are gone
+    src.buffer = buf; src.playbackRate.value = .94 + Math.random() * .1;
+    const v = H.gain * (.7 + Math.random() * .3); g.gain.setValueAtTime(v, t); g.gain.setValueAtTime(v, t + dur - .5); g.gain.linearRampToValueAtTime(0, t + dur);
+    let out = g; if (A.ctx.createStereoPanner) { const p = A.ctx.createStereoPanner(); p.pan.value = (Math.random() < .5 ? -1 : 1) * (.3 + Math.random() * .4); g.connect(p); out = p; }
+    src.connect(lp); lp.connect(g); out.connect(A.amb); src.start(t, H.from, dur);
+    src.onended = () => { src.disconnect(); lp.disconnect(); g.disconnect(); if (out !== g) out.disconnect(); };
+  }
+  /* Keeps the beds queued a little ahead and times the horn. Runs once a second; does nothing until audio is unlocked. */
+  function tickAmbience() {
+    if (!ambOn || A.ctx.state !== 'running') return;
+    const now = A.ctx.currentTime;
+    if (!hornAt) hornAt = now + rnd(AMBIENCE.horn.first);
+    if (now >= hornAt) { horn(); hornAt = now + rnd(AMBIENCE.horn.every); }
+    if (bedAt > now + 2) return;
+    const bed = AMBIENCE.beds[bedIdx]; if (!A.buffers[bed.name]) { bedIdx = (bedIdx + 1) % AMBIENCE.beds.length; return; }
+    const when = Math.max(now + .05, bedAt), offset = firstBed ? bed.from + Math.random() * (bed.to - bed.from) * .5 : bed.from;   // start somewhere in the middle the first time
+    const dur = playBed(bed, when, offset); firstBed = false;
+    bedAt = when + Math.max(1, dur - AMBIENCE.fade); bedIdx = (bedIdx + 1) % AMBIENCE.beds.length;
+  }
+  setInterval(tickAmbience, 1000);
+  A.startAmbience = () => { ambOn = true; tickAmbience(); };
+  A.horn = horn;
+
   for (const k in BANKS) A.load(k, BANKS[k].url);
+  for (const b of AMBIENCE.beds) A.load(b.name, b.url);
+  A.load(AMBIENCE.horn.name, AMBIENCE.horn.url);
   for (const k in CLIPS) A.load(k, CLIPS[k].url);
   A.load('hum', HUM.url);
   return A;

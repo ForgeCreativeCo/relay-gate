@@ -78,7 +78,7 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
   };
 
   /* the world and the cast */
-  G.settings = { quality: 'high', controls: 'auto', fps: false, volume: .8, mute: false };
+  G.settings = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
   G.audio = makeAudio(); G.audio.apply();
   G.progress = freshProgress(); G.inv = newInventory();
   G.region = buildRegion(M); G.nav = makeNav();
@@ -156,14 +156,14 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
       for (const k of ['primary', 'secondary']) upgradeItem(G.inv.equip[k]);
       if (!G.inv.equip.primary) G.inv.equip.primary = newInventory().equip.primary;
       G.progress = Object.assign(freshProgress(), s.progress || {}); G.progress.cleared = Object.assign({}, (s.progress || {}).cleared);
-      G.settings = Object.assign({ quality: 'high', controls: 'auto', fps: false, volume: .8, mute: false }, s.settings || {});
+      G.settings = Object.assign({ quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false }, s.settings || {});
     }
     G.raiderHostile = !!G.progress.raiders;
     G.player.recalc(); G.player.hp = G.player.maxHp;
     if (G.progress.mara) { G.ally.joined = true; G.actors.push(G.ally); }
     G.game.spawnAll(); G.game.applyGate();
     const cp = G.game.checkpoint(); G.player.respawn(cp.x, cp.z); cam.target.set(cp.x, 0, cp.z); if (G.ally.joined) G.ally.teleportNear(G.player.pos);
-    G.setQuality(G.settings.quality); G.audio.apply(); if (G.settings.controls !== 'auto') G.input.setMode(G.settings.controls, true); $('fps').hidden = !G.settings.fps;
+    G.setQuality(G.settings.quality); G.audio.apply(); G.audio.startAmbience(); if (G.settings.controls !== 'auto') G.input.setMode(G.settings.controls, true); $('fps').hidden = !G.settings.fps;
     G.UI.objective(OBJECTIVES[G.progress.step].text);
     $('title').hidden = true; $('hud').hidden = false; G.input.restStick(); G.UI.showTips();
     G.started = true; G.paused = false; G.save.now();

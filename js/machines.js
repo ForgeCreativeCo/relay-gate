@@ -9,9 +9,9 @@ import { rollLoot } from './loot.js';
 const TEX_SLOTS = ['diffuseTexture', 'bumpTexture', 'specularTexture', 'emissiveTexture', 'ambientTexture', 'opacityTexture', 'reflectionTexture', 'lightmapTexture'];
 const cloneMat = (m, n) => { const c = m.clone(n); for (const k of TEX_SLOTS) if (m[k] && c[k] !== m[k]) { const t = c[k]; c[k] = m[k]; if (t) t.dispose(); } c.maxSimultaneousLights = 8; return c; };
 /* A machine locking on to you or Mara announces it once per engagement; it re-arms after it has lost you for a few seconds. */
-function announce(self, dt, sound, opts) {
+function announce(self, dt, sounds) {
   const onUs = self.target && self.target.faction === 'player';
-  if (onUs && !self.engaged) { self.engaged = true; G.audio.play(sound, Object.assign({ pos: self.pos }, opts)); }
+  if (onUs && !self.engaged) { self.engaged = true; for (const [sound, opts] of sounds) G.audio.play(sound, Object.assign({ pos: self.pos }, opts)); }
   if (onUs) self.lostT = 0; else if (self.engaged && (self.lostT = (self.lostT || 0) + dt) > 6) self.engaged = false;
 }
 function pickTarget(self, range) {
@@ -46,10 +46,10 @@ export class Drone extends Actor {
     this.flash = Math.max(0, this.flash - dt * 6); this.mat.emissiveColor.set(this.flash * .4, this.flash * .4, this.flash * .4);
     if (!this.alive) {
       if (this.dying) { this.fallV += 14 * dt; p.y -= this.fallV * dt; this.root.rotation.z += dt * 6; this.root.rotation.x += dt * 3;
-        if (p.y <= .3) { this.dying = false; G.FX.explode(V(p.x, .6, p.z), .45); G.audio.play('boomSmall', { pos: p, gain: .7, vary: true }); this.root.setEnabled(false); if (this.lastKiller === undefined) G.drops.scatter(p.x, p.z, rollLoot('drone')); } }
+        if (p.y <= .3) { this.dying = false; G.FX.explode(V(p.x, .6, p.z), .45); G.audio.play('boomSmall', { pos: p, gain: .7, vary: true }); G.audio.play('droneDeath', { pos: p, gain: .5, vary: true, fade: .4 }); this.root.setEnabled(false); if (this.lastKiller === undefined) G.drops.scatter(p.x, p.z, rollLoot('drone')); } }
       return;
     }
-    this.retarget -= dt; if (this.retarget <= 0) { this.retarget = .7; this.target = pickTarget(this, 20); announce(this, .7, 'whir', { gain: .6, rate: 1.1, gap: 1.5, key: 'droneAlert' }); }
+    this.retarget -= dt; if (this.retarget <= 0) { this.retarget = .7; this.target = pickTarget(this, 20); announce(this, .7, [['whir', { gain: .6, rate: 1.1, gap: 1.5, key: 'droneAlert' }]]); }
     const T = this.target && this.target.alive && !this.target.untargetable ? this.target : null;
     let gx, gz;
     if (T) { this.orbitA += dt * .55 * this.orbitDir; const R0 = 8.5; gx = T.pos.x + Math.cos(this.orbitA) * R0; gz = T.pos.z + Math.sin(this.orbitA) * R0; if (Math.random() < dt * .15) this.orbitDir *= -1; }
@@ -167,8 +167,16 @@ export class Walker extends Actor {
   die(src) {
     this.deathT = 0; this.guns.forEach(g => g.charge.setEnabled(false)); this.ring.setEnabled(false); this.eye.setEnabled(false); this.beam.setEnabled(false); this.clearMarks();
     this.root.getChildMeshes().forEach(m => { m.isPickable = false; });
-    G.FX.explode(this.body.getAbsolutePosition(), this.boss ? 2.4 : 1.5); G.audio.play('boomBig', { pos: this.pos, gain: this.boss ? 1 : .8, rate: this.boss ? .85 : 1, hear: this.boss ? 90 : 60 }); this.smokeHead.stop(); this.smokeGuns.stop(); this.smokeWreck.start();
-    G.game.onMachineDown(this, src);
+    this.smokeHead.stop(); this.smokeGuns.stop();
+    /* It powers down and slumps first; the explosion lands as it hits the ground, with the power-off fading out underneath. */
+    const rate = this.boss ? .85 : 1; this.boomAt = this.boss ? 1.9 : 1.35; this.boomed = false; this.killer = src;
+    G.audio.play('powerOff', { pos: this.pos, gain: this.boss ? .9 : .7, rate, hear: this.boss ? 90 : 60, len: (this.boomAt + .5) * rate, fade: .5 });
+  }
+  explodeWreck() {
+    this.boomed = true;
+    G.FX.explode(this.body.getAbsolutePosition(), this.boss ? 2.4 : 1.5); G.audio.play('boomBig', { pos: this.pos, gain: this.boss ? 1 : .8, rate: this.boss ? .85 : 1, hear: this.boss ? 90 : 60 });
+    this.smokeWreck.start();
+    G.game.onMachineDown(this, this.killer);
   }
   fireBolt(g, T) {
     const o = V3.TransformCoordinates(V(0, 0, 2), g.node.getWorldMatrix()), spread = this.partAlive('head') ? .6 : 1.8, v = T.vel || { x: 0, z: 0 };
@@ -180,7 +188,8 @@ export class Walker extends Actor {
     this.flash = Math.max(0, this.flash - dt * 5);
     this.mat.emissiveColor.set(this.flash * .28, this.flash * .28, this.flash * .28); this.matD.emissiveColor.set(this.flash * .2, this.flash * .2, this.flash * .2);
     if (!this.alive) {
-      this.deathT += dt; const k = Math.min(1, this.deathT / 1.1), e = k * k;
+      this.deathT += dt; const k = Math.min(1, this.deathT / this.boomAt), e = k * k;
+      if (!this.boomed && this.deathT >= this.boomAt) this.explodeWreck();
       this.body.position.y = 3.4 - e * 1.85; this.body.rotation.x = e * .2; this.body.rotation.z = e * .3;
       this.legs.forEach(l => { l.hip.rotation.z = l.sx * (.18 + e * .85); l.hip.rotation.x = -.3; l.knee.rotation.x = .75 + e * .5; });
       return;
@@ -188,7 +197,7 @@ export class Walker extends Actor {
     this.blind = Math.max(0, this.blind - dt); this.stompCD -= dt;
     if (this.boss) { const f = this.hp / this.maxHp, ph = f < .3 ? 3 : f < .62 ? 2 : 1; if (ph > this.phase) { this.phase = ph; G.game.onBossPhase(this, ph); } }
     const sense = this.boss ? 34 : (this.partAlive('head') ? 17 : 9);
-    this.retarget -= dt; if (this.retarget <= 0) { this.retarget = .7; this.target = this.blind > 0 ? null : pickTarget(this, sense); announce(this, .7, 'engage', { gain: this.boss ? 1 : .75, rate: this.boss ? .85 : 1 }); }
+    this.retarget -= dt; if (this.retarget <= 0) { this.retarget = .7; this.target = this.blind > 0 ? null : pickTarget(this, sense); announce(this, .7, [['engage', { gain: this.boss ? 1 : .75, rate: this.boss ? .85 : 1 }], ['powerOn', { gain: this.boss ? .8 : .6, rate: this.boss ? .85 : 1 }]]); }
     const T = this.target && this.target.alive && !this.target.untargetable ? this.target : null;
     this.alert += ((T ? 1 : 0) - this.alert) * damp(3, dt);
     const legMul = this.partAlive('legs') ? (this.phase === 3 ? 1.25 : 1) : .35, gunsUp = this.partAlive('guns');
