@@ -6,7 +6,7 @@ import { nearestHostile } from './combat.js';
 import { rollLoot } from './loot.js';
 
 /* Per-machine material copies (so each can flash when hit). They must share the original's textures: cloned DynamicTextures come out blank and never report ready, which leaves the material uncompiled and the machine invisible. */
-const TEX_SLOTS = ['diffuseTexture', 'bumpTexture', 'specularTexture', 'emissiveTexture', 'ambientTexture', 'opacityTexture', 'reflectionTexture', 'lightmapTexture'];
+const TEX_SLOTS = ['albedoTexture', 'metallicTexture', 'diffuseTexture', 'bumpTexture', 'specularTexture', 'emissiveTexture', 'ambientTexture', 'opacityTexture', 'reflectionTexture', 'lightmapTexture'];
 const cloneMat = (m, n) => { const c = m.clone(n); for (const k of TEX_SLOTS) if (m[k] && c[k] !== m[k]) { const t = c[k]; c[k] = m[k]; if (t) t.dispose(); } c.maxSimultaneousLights = 8; return c; };
 /* A machine locking on to you or Mara announces it once per engagement; it re-arms after it has lost you for a few seconds. */
 function announce(self, dt, sounds) {

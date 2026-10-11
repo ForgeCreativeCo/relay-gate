@@ -80,7 +80,7 @@ export class Player extends Actor {
     super('player', 100);
     this.H = humanModel({ cloth: G.M.uniform, armor: G.M.armor, visor: G.M.visor, helmet: true, rifle: true });
     this.root = this.H.root; this.facing = 0; this.dash = 0; this.dashCD = 0; this.down = 0; this.cool = 0; this.lastMove = { x: 0, z: 1 }; this.vel = { x: 0, z: 0 };
-    this.lamp = new B.PointLight('lamp', V(0, 2.3, .3), G.scene); this.lamp.parent = this.root; this.lamp.diffuse = B.Color3.FromHexString('#ffb24a'); this.lamp.intensity = 1.1; this.lamp.range = 8;
+    this.lamp = new B.PointLight('lamp', V(0, 2.3, .3), G.scene); this.lamp.parent = this.root; this.lamp.diffuse = B.Color3.FromHexString('#ff9440'); this.lamp.intensity = .95;   // warm, and kept below the point where its yellow clips toward olive on the ground this.lamp.range = 8;
     this.muzzle = new B.PointLight('muzzle', V(.1, 1.4, 1.3), G.scene); this.muzzle.parent = this.root; this.muzzle.intensity = 0; this.muzzle.range = 9; this.muzzleT = 0;
     this.focus = null; this.hover = null;
     this.path = null; this.goal = null; this.lock = null; this.auto = null; this.target = null; this.pendingUse = null; this.steering = false;

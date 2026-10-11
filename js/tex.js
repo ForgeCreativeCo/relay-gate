@@ -42,7 +42,7 @@ function concreteC() { const N = 512, c = cnv(N), x = c.getContext('2d'); x.fill
 function pavingC() { const N = 512, c = cnv(N), x = c.getContext('2d'); x.fillStyle = '#c4c0b8'; x.fillRect(0, 0, N, N);
   noise(x, N, 8, .45); noise(x, N, 64, .35); noise(x, N, 256, .3, 'overlay');
   for (let r = 0; r < 8; r++) for (let q = 0; q < 8; q++) { x.fillStyle = 'rgba(' + (rnd() < .5 ? '255,255,255' : '0,0,0') + ',' + R(0, .09) + ')'; x.fillRect(q * 64, r * 64, 64, 64); }
-  x.strokeStyle = 'rgba(25,24,22,.55)'; x.lineWidth = 2.5; for (let k = 0; k <= N; k += 64) { x.beginPath(); x.moveTo(0, k); x.lineTo(N, k); x.stroke(); x.beginPath(); x.moveTo(k, 0); x.lineTo(k, N); x.stroke(); }
+  x.strokeStyle = 'rgba(25,24,22,.3)'; x.lineWidth = 2; for (let k = 0; k <= N; k += 64) { x.beginPath(); x.moveTo(0, k); x.lineTo(N, k); x.stroke(); x.beginPath(); x.moveTo(k, 0); x.lineTo(k, N); x.stroke(); }
   cracks(x, N, 10, 'rgba(25,24,22,.5)', 1.2); blotches(x, N, 12, '40,36,32', .2, 100); specks(x, N, 2000, .2, .25);
   return c; }
 function asphaltC() { const N = 512, c = cnv(N), x = c.getContext('2d'); x.fillStyle = '#8a8a8a'; x.fillRect(0, 0, N, N);
@@ -81,7 +81,22 @@ export function makeTextures(scene) {
   };
 }
 
+/* Metal and anything glossy is physically based (roughness and metalness, reflecting the generated sky). Rough, non-metal surfaces
+   (ground, concrete, cloth) use the cheaper standard shader: they cover most of the screen and the physically based one cost
+   ~25 ms a frame there for no visible difference. Glowing, unlit and additive materials stay simple too. */
 export function makeMat(scene, name, hex, o = {}) {
+  if (o.metal && !o.unlit && !o.add) {
+    const m = new B.PBRMaterial(name, scene);
+    m.albedoColor = C(hex).toLinearSpace(); m.metallic = o.metal || 0; m.roughness = o.rough == null ? .9 : o.rough;
+    /* direct light is brightened to sit level with the standard-shaded surfaces around it (the two shaders respond differently to the same lights) */
+    m.usePhysicalLightFalloff = false; m.maxSimultaneousLights = 8; m.environmentIntensity = o.env == null ? .9 : o.env; m.directIntensity = 1.9;
+    if (o.tex) m.albedoTexture = o.tex;
+    if (o.bump) { m.bumpTexture = o.bump; m.bumpTexture.level = o.bumpLevel || .7; }
+    if (o.emissive) m.emissiveColor = C(o.emissive);
+    if (o.alpha != null) { m.alpha = o.alpha; m.backFaceCulling = false; }
+    if (o.twoSided) { m.backFaceCulling = false; m.twoSidedLighting = true; }
+    return m;
+  }
   const m = new B.StandardMaterial(name, scene);
   m.diffuseColor = C(hex); m.specularColor = new B.Color3(.05, .05, .05); m.maxSimultaneousLights = 8;
   if (o.tex) m.diffuseTexture = o.tex;
@@ -99,39 +114,39 @@ export function makeMat(scene, name, hex, o = {}) {
 export const LOOK = {
   sky: '#4a443d', fog: '#4a443d', fogD: .016, hemiSky: '#b0a494', hemiGround: '#2d2824', hemiI: .82,
   sun: '#e6d2b4', sunI: 1.15, sunDir: [-.55, -1, .4], ground: '#7d756b', road: '#5c5852', build: '#a39a8f', rubble: '#8a8178',
-  machine: '#ff2a2a', gate: '#1fe0ff', human: '#ffb24a', exposure: 1.3, contrast: 1.3, sat: -35, bloomW: .55, bloomT: .55, glowI: .9,
+  machine: '#ff2a2a', gate: '#1fe0ff', human: '#ffb24a', exposure: 1.5, contrast: 1.3, sat: -22, bloomW: .55, bloomT: .55, glowI: .9,
 };
 
 export function makeMaterials(scene, T) {
   const mat = (n, h, o) => makeMat(scene, n, h, o);
   T.dirt.uScale = T.dirt.vScale = T.dirtN.uScale = T.dirtN.vScale = 50;
   const M = {
-    ground: mat('ground', LOOK.ground, { tex: T.dirt, bump: T.dirtN, bumpLevel: .6 }),
-    road: mat('road', LOOK.road, { tex: T.asph, bump: T.asphN, bumpLevel: .5 }),
-    pave: mat('pave', '#9a948a', { tex: T.pave, bump: T.paveN, bumpLevel: .6 }),
-    conc: mat('conc', LOOK.build, { tex: T.conc, bump: T.concN, bumpLevel: .8 }),
-    rubble: mat('rubble', LOOK.rubble, { tex: T.conc, bump: T.concN, bumpLevel: 1 }),
-    lane: mat('lane', '#9a8442', { tex: T.asph }),
-    rust: mat('rust', '#6a5040', { tex: T.metal, bump: T.metalN, bumpLevel: .6, spec: .15, power: 16 }),
-    trunk: mat('trunk', '#4a4038', { tex: T.cloth }),
-    mech: mat('mech', '#3a3d44', { tex: T.metal, bump: T.metalN, bumpLevel: .9, spec: .3, power: 64 }),
-    mechDark: mat('mechDark', '#1d1f23', { tex: T.metal, bump: T.metalN, bumpLevel: .9, spec: .25, power: 48 }),
+    ground: mat('ground', LOOK.ground, { tex: T.dirt, bump: T.dirtN, bumpLevel: .6, rough: .95 }),
+    road: mat('road', LOOK.road, { tex: T.asph, bump: T.asphN, bumpLevel: .5, rough: .82 }),
+    pave: mat('pave', '#9a948a', { tex: T.pave, bump: T.paveN, bumpLevel: .6, rough: .88 }),
+    conc: mat('conc', LOOK.build, { tex: T.conc, bump: T.concN, bumpLevel: .8, rough: .92 }),
+    rubble: mat('rubble', LOOK.rubble, { tex: T.conc, bump: T.concN, bumpLevel: 1, rough: .95 }),
+    lane: mat('lane', '#9a8442', { tex: T.asph, rough: .75 }),
+    rust: mat('rust', '#6a5040', { tex: T.metal, bump: T.metalN, bumpLevel: .6, metal: .35, rough: .7 }),
+    trunk: mat('trunk', '#4a4038', { tex: T.cloth, rough: .95 }),
+    mech: mat('mech', '#5c616b', { tex: T.metal, bump: T.metalN, bumpLevel: .9, metal: .35, rough: .45, env: 1.5 }),
+    mechDark: mat('mechDark', '#363a42', { tex: T.metal, bump: T.metalN, bumpLevel: .9, metal: .35, rough: .5, env: 1.5 }),
     eye: mat('eye', '#000000', { unlit: true, emissive: LOOK.machine }),
     beam: mat('beam', '#000000', { unlit: true, emissive: LOOK.machine, alpha: .07, add: true }),
     charge: mat('charge', '#000000', { unlit: true, emissive: LOOK.machine }),
     bolt: mat('bolt', '#000000', { unlit: true, emissive: LOOK.machine }),
     ring: mat('ring', '#000000', { unlit: true, emissive: LOOK.machine, alpha: .3, add: true }),
-    gateFrame: mat('gateFrame', '#3a3c42', { tex: T.metal, bump: T.metalN, spec: .3, power: 48 }),
+    gateFrame: mat('gateFrame', '#555963', { tex: T.metal, bump: T.metalN, metal: .4, rough: .38, env: 1.5 }),
     gateNode: mat('gateNode', '#000000', { unlit: true, emissive: LOOK.gate }),
     gateDisc: mat('gateDisc', '#000000', { unlit: true, emissive: LOOK.gate, alpha: .3, add: true }),
-    uniform: mat('uniform', '#59663f', { tex: T.cloth }), armor: mat('armor', '#4b5136', { tex: T.metal, bump: T.metalN, spec: .12 }),
-    medic: mat('medic', '#4d5560', { tex: T.cloth }), medicArmor: mat('medicArmor', '#7a6a4a', { tex: T.metal, bump: T.metalN, spec: .12 }),
-    gun: mat('gun', '#24262b', { tex: T.metal, spec: .3, power: 40 }), skin: mat('skin', '#8a6a52'),
-    raider: mat('raider', '#6b4a33', { tex: T.cloth }), scarf: mat('scarf', '#8a3416', { tex: T.cloth }),
+    uniform: mat('uniform', '#59663f', { tex: T.cloth, rough: 1 }), armor: mat('armor', '#4b5136', { tex: T.metal, bump: T.metalN, metal: .2, rough: .6 }),
+    medic: mat('medic', '#4d5560', { tex: T.cloth, rough: 1 }), medicArmor: mat('medicArmor', '#7a6a4a', { tex: T.metal, bump: T.metalN, metal: .2, rough: .6 }),
+    gun: mat('gun', '#2a2c31', { tex: T.metal, metal: .7, rough: .35 }), skin: mat('skin', '#8a6a52', { rough: .7 }),
+    raider: mat('raider', '#6b4a33', { tex: T.cloth, rough: 1 }), scarf: mat('scarf', '#8a3416', { tex: T.cloth, rough: 1 }),
     visor: mat('visor', '#000000', { unlit: true, emissive: '#ffb24a' }), goggle: mat('goggle', '#000000', { unlit: true, emissive: '#d8641c' }),
     fire: mat('fire', '#000000', { unlit: true, emissive: '#ff7a1a' }), tarp: mat('tarp', '#6b5a3e', { tex: T.cloth, twoSided: true }),
     tarpB: mat('tarpB', '#4f5a4a', { tex: T.cloth, twoSided: true }),
-    sand: mat('sand', '#8c7b5a', { tex: T.cloth }), crate: mat('crate', '#2a2a33', { tex: T.metal, bump: T.metalN, spec: .2 }),
+    sand: mat('sand', '#8c7b5a', { tex: T.cloth, rough: 1 }), crate: mat('crate', '#3a3a44', { tex: T.metal, bump: T.metalN, metal: .15, rough: .6 }),
     wood: mat('wood', '#6a5238', { tex: T.cloth }),
     lamp: mat('lamp', '#000000', { unlit: true, emissive: '#ffcf7a' }),
     tracer: mat('tracer', '#000000', { unlit: true, emissive: '#ffc35a' }),

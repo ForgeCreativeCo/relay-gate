@@ -28,6 +28,7 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `js/main.js` | Startup, lighting, post-processing, the frame loop, title screen |
 | `js/core.js` | Shared game state and helpers (random, collision, line of sight) |
 | `js/tex.js` | Procedural textures, materials and the Ash & Neon colour palette |
+| `js/look.js` | Generated reflection sky, the ground detail layer (grime, scorch, oil, cracks, road paint, puddles) and scattered debris |
 | `js/geo.js` | Geometry builder (boxes, prisms, cylinders) |
 | `js/fx.js` | Particles: ash, fire, sparks, explosions, smoke |
 | `js/region1.js` | The Dead City map: streets, ruins, props, the relay gate |

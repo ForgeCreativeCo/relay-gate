@@ -24,7 +24,7 @@ function cfg(p, o) {
 export function makeFx() {
   const FX = {};
   FX.weatherAt = V(0, 2, 0);
-  FX.weather = cfg(ps('ash', 2500, FX.weatherAt), { c1: [.78, .74, .7, .75], c2: [.52, .5, .47, .55], size: [.06, .16], life: [10, 16], pow: [.4, 1.2], d1: [-.4, -1, -.2], d2: [.4, -1, .3], box: [[-32, 0, -32], [32, 18, 32]], rate: 480 });
+  FX.weather = cfg(ps('ash', 2500, FX.weatherAt), { c1: [.78, .74, .7, .75], c2: [.52, .5, .47, .55], size: [.06, .16], life: [10, 16], pow: [.4, 1.2], d1: [-.4, -1, -.2], d2: [.4, -1, .3], box: [[-32, 0, -32], [32, 9, 32]], rate: 480 });   // kept well below the camera, or flakes drift past the lens as big blurry discs
   FX.weather.start();
   const burst = (name, cap, o) => { const p = cfg(ps(name, cap, V(0, 0, 0)), o); p.manualEmitCount = 0; p.start(); return p; };
   FX.sparks = burst('sparks', 500, { c1: [1, .95, .7, 1], c2: [1, .7, .3, 1], size: [.05, .12], life: [.2, .5], pow: [3, 7], d1: [-1, .2, -1], d2: [1, 1.4, 1], grav: [0, -14, 0], add: true });

@@ -28,6 +28,8 @@ const ob = (x, z, hw, hd, h) => G.obstacles.push({ x, z, hw, hd, h });
 export function buildRegion(M) {
   const scene = G.scene;
   G.open = Object.values(AREAS);
+  /* where the ground detail pass should put scorch marks and oil stains */
+  G.decalHints = { scorch: [], oil: [] };
   const BK = Buckets(40), RUB = [[], [], []], SAND = [];
   const at = (x, z, m) => BK.at(x, z, m);
 
@@ -106,12 +108,12 @@ export function buildRegion(M) {
     gprism(g, [[-2.1, .32], [2.05, .32], [2.18, .7], [1.9, .86], [-2.05, .92], [-2.16, .62]], -.88, .88, P, { uv: .5 });
     gprism(g, [[-1.5, .86], [1.05, .86], [.45, 1.42], [-1.15, 1.45]], -.8, .8, P, { tint: .45, uv: .5 });
     [[-1, 1.3], [1, 1.3], [-1, -1.35], [1, -1.35]].forEach(([s, zz], k) => { if (burnt && k === 2) return; gcyl(g, { r0: .36, h: .24, seg: 10, M: MT(0, 0, 0, 0, 0, Math.PI / 2).multiply(MT(s * .86, .36, zz)).multiply(P), tint: .4 }); });
-    ob(x, z, 1.7, 1.7, 1.5); };
+    ob(x, z, 1.7, 1.7, 1.5); G.decalHints.oil.push([x, z, 1.6]); if (burnt) G.decalHints.scorch.push([x, z, 3.2]); };
   const bus = (x, z, ry) => { const g = at(x, z, 'rust'), P = MT(0, 0, 0, 0, ry, .05).multiply(MT(x, 0, z));
     gprism(g, [[-5.2, .4], [5.2, .4], [5.3, 2.9], [-5.3, 2.95]], -1.25, 1.25, P, { uv: .4 });
     for (let k = -4; k <= 4; k += 1.6) gbox(g, { M: MT(1.27, 2.1, k).multiply(P), w: .04, h: .8, d: 1.2, tint: .25, ao: false });
     [[-1, 3.6], [1, 3.6], [-1, -3.6], [1, -3.6]].forEach(([s, zz]) => gcyl(g, { r0: .5, h: .3, seg: 10, M: MT(0, 0, 0, 0, 0, Math.PI / 2).multiply(MT(s * 1.15, .5, zz)).multiply(P), tint: .4 }));
-    ob(x, z, 1.6 + Math.abs(Math.sin(ry)) * 4, 1.6 + Math.abs(Math.cos(ry)) * 4, 3); };
+    ob(x, z, 1.6 + Math.abs(Math.sin(ry)) * 4, 1.6 + Math.abs(Math.cos(ry)) * 4, 3); G.decalHints.oil.push([x, z, 2.6]); };
   const tank = (x, z, ry) => { const g = at(x, z, 'rust'), M0 = MT(0, 0, 0, 0, ry, .04).multiply(MT(x, 0, z));
     gprism(g, [[-2.7, .35], [2.3, .35], [2.9, .9], [2.5, 1.35], [-2.5, 1.4], [-2.8, 1.0]], -1.45, 1.45, M0, { uv: .4 });
     for (const s of [-1, 1]) { gprism(g, [[-2.9, .55], [-2.55, .08], [2.55, .08], [2.95, .55], [2.65, 1.0], [-2.65, 1.0]], s > 0 ? 1.45 : -2.05, s > 0 ? 2.05 : -1.45, M0, { tint: .55, uv: .6 });
@@ -119,14 +121,14 @@ export function buildRegion(M) {
     const tur = MT(0, 0, -.3, 0, .55, 0).multiply(M0);
     gprism(g, [[-1.4, 1.4], [1.2, 1.4], [1.7, 1.75], [1.0, 2.2], [-1.2, 2.25], [-1.6, 1.85]], -1.1, 1.1, tur, { uv: .4 });
     gcyl(g, { r0: .13, r1: .11, h: 4, seg: 8, M: MT(0, 2, 0).multiply(MT(0, 0, 0, Math.PI / 2 + .14, 0, 0)).multiply(MT(0, 1.75, 1.8)).multiply(tur), tint: .85 });
-    ob(x, z, 2.8, 3, 2.4); };
+    ob(x, z, 2.8, 3, 2.4); G.decalHints.oil.push([x, z, 2.4]); G.decalHints.scorch.push([x, z, 4]); };
   const barrier = (x, z, ry, tip) => { gprism(at(x, z, 'conc'), BARRIER, -1.2, 1.2, MT(x, tip ? .32 : 0, z, 0, ry + Math.PI / 2, tip ? 1.4 : 0), { tint: R(.85, 1), uv: .4 });
     const c = Math.abs(Math.cos(ry)), s = Math.abs(Math.sin(ry)); ob(x, z, .35 * c + 1.2 * s, 1.2 * c + .35 * s, .9); };
   const pole = (x, z, dir, bend) => { const g = at(x, z, 'rust'), Mb = MT(x, 0, z, bend || 0, 0, (bend || 0) * .4);
     gcyl(g, { r0: .1, r1: .07, h: 6.5, seg: 6, M: MT(0, 3.25, 0).multiply(Mb), ao: false });
     gbox(g, { M: MT(dir * .8, 6.4, 0).multiply(Mb), w: 1.8, h: .12, d: .14, ao: false }); gbox(g, { M: MT(dir * 1.6, 6.3, 0).multiply(Mb), w: .5, h: .16, d: .24, ao: false }); };
   const barrel = (x, z, burning) => { const g = at(x, z, 'rust'); gcyl(g, { r0: .4, h: 1.1, seg: 12, x, y: .55, z, uv: .8 }); for (const yy of [.2, .55, .9]) gcyl(g, { r0: .42, h: .05, seg: 12, x, y: yy, z, tint: .7 }); ob(x, z, .45, .45, 1.1);
-    if (burning) { G.FX.campfire(V(x, 1.1, z)); G.lightSources.push({ pos: V(x, 1.9, z), color: C('#ff8a2b'), range: 9, intensity: 1.6, flicker: true }); } };
+    if (burning) { G.decalHints.scorch.push([x, z, 1.6]); G.FX.campfire(V(x, 1.1, z)); G.lightSources.push({ pos: V(x, 1.9, z), color: C('#ff6418'), range: 9, intensity: 1.45, flicker: true }); } };
   const crate = (x, z, ry, s = 1) => { gbox(at(x, z, 'crate'), { x, y: .35 * s, z, w: 1.1 * s, h: .7 * s, d: .8 * s, ry, uv: .6 }); ob(x, z, .6 * s, .6 * s, .7 * s); };
   const sandbags = (x0, z0, x1, z1, rows = 3) => { const len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(len / .72)), a = Math.atan2(x1 - x0, z1 - z0);
     for (let r = 0; r < rows; r++) for (let k = 0; k < n - (r % 2); k++) { const t = (k + .5 + (r % 2) * .5) / n;
@@ -139,7 +141,7 @@ export function buildRegion(M) {
     for (let k = 0; k < 5; k++) gcyl(g, { r0: .1, h: 1.2, seg: 6, M: MT(0, 0, 0, Math.PI / 2, k * .63, 0).multiply(MT(x, .12, z)), ao: false, tint: .5 });
     for (let k = 0; k < 9; k++) { const a = k / 9 * 6.28; gbox(at(x, z, 'conc'), { x: x + Math.cos(a) * .75, y: .1, z: z + Math.sin(a) * .75, w: .28, h: .2, d: .22, ry: a, tint: .7 }); }
     for (let k = 0; k < 4; k++) { const f = B.MeshBuilder.CreateCylinder('flame', { height: R(.6, 1.1), diameterTop: 0, diameterBottom: R(.25, .45), tessellation: 6 }, scene); f.position.set(x + R(-.2, .2), .45, z + R(-.2, .2)); f.material = M.fire; f.isPickable = false; G.flames.push(f); }
-    G.FX.campfire(V(x, .3, z)); G.lightSources.push({ pos: V(x, 1.3, z), color: C('#ff8a2b'), range: 13, intensity: 2.2, flicker: true }); ob(x, z, .8, .8, .5); };
+    G.FX.campfire(V(x, .3, z)); G.lightSources.push({ pos: V(x, 1.3, z), color: C('#ff6418'), range: 13, intensity: 1.9, flicker: true }); ob(x, z, .8, .8, .5); G.decalHints.scorch.push([x, z, 1.8]); };
   const block = (x, z, w, d, h) => { gbox(at(x, z, 'conc'), { x, y: h / 2, z, w, h, d, tint: R(.8, 1) }); ob(x, z, w / 2, d / 2, h); };
   G.flames = [];
 

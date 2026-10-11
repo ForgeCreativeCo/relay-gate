@@ -9,6 +9,7 @@ import { Player, Ally } from './actors.js';
 import { makeInput } from './input.js';
 import { makeNav } from './nav.js';
 import { makeAudio } from './audio.js';
+import { makeEnvironment, makeGroundDetail, scatterDebris } from './look.js';
 import { makeSave } from './save.js';
 import { makeGame, freshProgress, OBJECTIVES } from './game.js';
 import { makeUI } from './ui.js';
@@ -41,6 +42,7 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
   G.boom = (pos, i) => { boomL.position.copyFrom(pos); boomL.position.y += 1.5; boomL.intensity = Math.max(boomL.intensity, i); };
 
   /* materials, effects, post-processing */
+  makeEnvironment(scene);
   const T = makeTextures(scene); const M = G.M = makeMaterials(scene, T);
   G.glow = new B.GlowLayer('glow', scene, { mainTextureSamples: 1, blurKernelSize: 48 }); G.glow.intensity = LOOK.glowI;
   /* only things that actually glow go through the glow pass (it used to redraw every mesh in the scene a second time, as black) */
@@ -51,10 +53,13 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
   try { if (B.SSAO2RenderingPipeline.IsSupported) { ssao = new B.SSAO2RenderingPipeline('ssao', scene, { ssaoRatio: .5, blurRatio: .5 }, [cam], true); ssao.radius = 1.4; ssao.totalStrength = 1.2; ssao.base = .15; ssao.samples = 12; ssao.maxZ = 110; ssao.minZAspect = .5; ssao.expensiveBlur = false; ssaoOn = true; } } catch (e) { ssao = null; }
   const pipe = new B.DefaultRenderingPipeline('pipe', true, scene, [cam]);
   pipe.fxaaEnabled = true; pipe.bloomKernel = 64; pipe.bloomScale = .5; pipe.bloomWeight = LOOK.bloomW; pipe.bloomThreshold = LOOK.bloomT;
-  pipe.grain.animated = true; pipe.grain.intensity = 6; pipe.chromaticAberration.aberrationAmount = 8; pipe.chromaticAberration.radialIntensity = .6;
+  pipe.grain.animated = true; pipe.grain.intensity = 4; pipe.chromaticAberration.aberrationAmount = 2.5; pipe.chromaticAberration.radialIntensity = .8;   // a hint of lens fringing at the edges, not a smear
   const ip = pipe.imageProcessing; ip.toneMappingEnabled = true; ip.toneMappingType = B.ImageProcessingConfiguration.TONEMAPPING_ACES; ip.exposure = LOOK.exposure; ip.contrast = LOOK.contrast;
   ip.vignetteEnabled = true; ip.vignetteWeight = 1.8; ip.vignetteColor = new B.Color4(0, 0, 0, 0);
-  const curves = new B.ColorCurves(); curves.globalSaturation = LOOK.sat; ip.colorCurvesEnabled = true; ip.colorCurves = curves;
+  /* grade: warm highlights, so fire and lamplight glow against the ash (a teal shadow tint was tried, but mixed with firelight into green) */
+  const curves = new B.ColorCurves(); curves.globalSaturation = LOOK.sat;
+  curves.highlightsHue = 35; curves.highlightsDensity = 30; curves.highlightsSaturation = 20;
+  ip.colorCurvesEnabled = true; ip.colorCurves = curves;
   /* Resolution governor. High aims for the display's full sharpness (up to 2x on high-density screens), Low for 1x.
      Pixel count is what this scene costs most, so when frames run slow the internal resolution steps down, and it climbs back when there's room. */
   const RES = { max: 1, scale: 99, floor: .6, acc: 0, n: 0, good: 0, hold: 0 };
@@ -81,7 +86,7 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
   G.settings = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
   G.audio = makeAudio(); G.audio.apply();
   G.progress = freshProgress(); G.inv = newInventory();
-  G.region = buildRegion(M); G.nav = makeNav();
+  G.region = buildRegion(M); G.nav = makeNav(); makeGroundDetail(scene); scatterDebris(scene, M);
   G.CB = makeCombat(M); G.drops = makeDrops(M);
   G.input = makeInput(canvas); G.save = makeSave(); G.UI = makeUI(); G.game = makeGame();
   G.player = new Player(); G.actors.push(G.player); G.player.pos.set(0, 0, -5);
