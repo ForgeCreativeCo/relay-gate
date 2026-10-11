@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body style="margin:0">
+<title>Relay Gate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600&family=Saira+Stencil+One&display=swap">
+<style>
+/* Layout: full-bleed 3D scene; HUD pinned to the corners like a salvaged military display; menus are panels over the frozen scene. One committed dark look. */
+:root{
+  color-scheme: dark;
+  --void:#0d0f0e;
+  --panel:rgba(14,16,15,.78);
+  --panel-solid:#141716;
+  --ink:#ece6d7;
+  --dim:#a8a395;
+  --line:rgba(236,230,215,.18);
+  --amber:#ffb340;
+  --machine:#ff4a3d;
+  --gate:#1fe0ff;
+  --good:#7ed87a;
+  --bad:#ff7a6a;
+  --f-display:"Saira Stencil One","Impact","Arial Narrow Bold",sans-serif;
+  --f-ui:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--void);color:var(--ink);font-family:var(--f-ui);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+button{font-family:var(--f-ui);color:var(--ink)}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.hud{position:fixed;inset:0;pointer-events:none}
+.hud > *{pointer-events:auto}
+
+/* top-left: where you are, what to do, how you're doing */
+.tl{position:fixed;left:16px;top:calc(12px + env(safe-area-inset-top,0px));display:grid;gap:6px;max-width:min(340px,calc(100% - 150px));pointer-events:none;text-shadow:0 1px 8px rgba(0,0,0,.75)}
+.eyebrow{font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--amber)}
+.obj{font-size:15px;font-weight:600;line-height:1.3;letter-spacing:.02em}
+.obj.flash{animation:objIn .9s ease-out}
+@keyframes objIn{0%{color:var(--amber);transform:translateX(-6px)}100%{color:var(--ink);transform:none}}
+.bars{display:grid;gap:5px;margin-top:4px}
+.barrow{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:600;color:var(--dim)}
+.barrow b{min-width:46px;color:var(--amber);font-weight:600}
+.bar{height:6px;background:rgba(236,230,215,.14);overflow:hidden;flex:0 0 150px}
+.bar i{display:block;height:100%;width:100%;transform-origin:left center;background:var(--amber)}
+.barrow.low b{color:var(--machine)} .barrow.low .bar i{background:var(--machine)}
+.barrow.ally .bar{flex-basis:90px;height:4px} .barrow.ally .bar i{background:#d8c08a}
+.barrow small{font-size:10px;letter-spacing:.06em;text-transform:none;color:var(--dim);font-variant-numeric:tabular-nums}
+.feed{display:grid;gap:3px;margin-top:6px}
+.feed div{font-size:12px;font-weight:500;line-height:1.35;letter-spacing:.02em;padding-left:8px;border-left:2px solid var(--amber);transition:opacity .6s,transform .6s}
+.feed div.out{opacity:0;transform:translateX(-6px)}
+
+/* top-right: pack and menu */
+.tr{position:fixed;right:16px;top:calc(12px + env(safe-area-inset-top,0px));display:flex;gap:6px;align-items:flex-start}
+.chip{position:relative;font:600 11px/1 var(--f-ui);letter-spacing:.12em;text-transform:uppercase;background:var(--panel);border:1px solid var(--line);padding:10px 12px;border-radius:2px;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.chip:hover{border-color:var(--amber)}
+.chip .dot{position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.fps{font:500 10px var(--f-ui);color:var(--dim);font-variant-numeric:tabular-nums;padding-top:12px}
+
+/* boss bar */
+.boss{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);width:min(420px,calc(100% - 300px));display:grid;gap:5px;pointer-events:none;text-shadow:0 1px 6px rgba(0,0,0,.8)}
+.boss .bn{display:flex;justify-content:space-between;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--machine)}
+.boss .bar{flex:none;height:8px;width:100%}
+.boss .bar i{background:var(--machine)}
+.pips{display:flex;gap:10px;flex-wrap:wrap}
+.pip{display:flex;align-items:center;gap:5px;font-size:10px;letter-spacing:.06em;color:var(--dim)}
+.pip .bar{flex:0 0 46px;height:3px}
+.pip .bar i{background:var(--machine)}
+.pip.dead{opacity:.45;text-decoration:line-through}
+.pip.on{color:var(--ink)} .pip.on .bar{box-shadow:0 0 0 1px var(--amber)}
+
+/* weapon panel */
+.weapon{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;gap:3px;justify-items:end;text-shadow:0 1px 6px rgba(0,0,0,.85);pointer-events:none}
+.weapon .wn{font-size:12px;font-weight:600;letter-spacing:.06em}
+.weapon .ammo{font-size:30px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.weapon .ammo small{font-size:14px;color:var(--dim);font-weight:500}
+.weapon .lock{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.weapon .lock.on{color:var(--machine)}
+.weapon .alt{font-size:10px;color:var(--dim);letter-spacing:.06em}
+body[data-mode="touch"] .weapon{right:auto;left:50%;transform:translateX(-50%);justify-items:center;bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+body[data-mode="touch"] .weapon .ammo{font-size:22px}
+.prompt{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font-size:13px;font-weight:600;letter-spacing:.04em;padding:7px 12px;background:var(--panel);border:1px solid var(--amber);border-radius:2px;pointer-events:none;white-space:nowrap}
+.prompt kbd{font:600 11px var(--f-ui);color:var(--amber);border:1px solid var(--amber);padding:1px 5px;margin-right:6px;border-radius:2px}
+body[data-mode="touch"] .prompt{display:none}
+.tips{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font-size:11px;color:var(--dim);letter-spacing:.05em;text-align:center;width:calc(100% - 32px);pointer-events:none;text-shadow:0 1px 6px rgba(0,0,0,.9);transition:opacity 1s}
+
+/* touch controls: tapping the scene moves and targets, so only a few buttons remain */
+.tb{position:fixed;border:1.5px solid var(--line);background:var(--panel);font-weight:600;font-size:10px;letter-spacing:.12em;text-transform:uppercase;touch-action:none;border-radius:50%;width:60px;height:60px;display:grid;place-items:center;text-align:center;line-height:1.1;padding:4px}
+.tb.on{background:rgba(255,179,64,.3)}
+.tb.dash{right:22px;bottom:calc(96px + env(safe-area-inset-bottom,0px));width:76px;height:76px;border:2px solid var(--amber);color:var(--amber);font-size:11px;background:rgba(40,24,6,.55)}
+.tb.swap{right:30px;bottom:calc(186px + env(safe-area-inset-bottom,0px));width:50px;height:50px;font-size:9px}
+.tb.use{right:22px;bottom:calc(250px + env(safe-area-inset-bottom,0px));width:auto;min-width:96px;height:42px;border-radius:2px;border-color:var(--amber);color:var(--amber);padding-inline:10px}
+.tb.part{right:110px;bottom:calc(110px + env(safe-area-inset-bottom,0px));width:auto;min-width:80px;height:36px;border-radius:2px;border-color:rgba(255,74,61,.6);font-size:9px;padding-inline:8px}
+.tb.cmd{left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:auto;min-width:84px;height:34px;border-radius:2px;font-size:9px;padding-inline:8px}
+body:not([data-mode="touch"]) .touchonly{display:none!important}
+
+/* world-anchored bits */
+.plate{position:fixed;left:0;top:0;min-width:150px;padding:6px 8px;background:var(--panel);border:1px solid rgba(255,74,61,.5);border-radius:2px;display:grid;gap:4px;pointer-events:none;will-change:transform}
+.plate .pn{font-size:9px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:var(--machine)}
+.plate .bar{flex:none;width:100%;height:4px}
+.plate .bar i{background:var(--machine)}
+.mini{position:fixed;left:0;top:0;width:44px;height:3px;background:rgba(0,0,0,.5);pointer-events:none;will-change:transform}
+.mini i{display:block;height:100%;transform-origin:left;background:var(--machine)}
+.mini.raider i{background:#e08a4a}
+.dmg{position:fixed;left:0;top:0;font-weight:600;font-size:14px;text-shadow:0 1px 4px rgba(0,0,0,.95);pointer-events:none;font-variant-numeric:tabular-nums;will-change:transform}
+.dmg.crit{color:var(--amber);font-size:17px}
+.tag{position:fixed;left:0;top:0;text-align:center;white-space:nowrap;pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,.95);display:grid;will-change:transform}
+.tag b{font-size:9px;letter-spacing:.2em;text-transform:uppercase}
+.tag span{font-size:11px;font-weight:600}
+.marker{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;will-change:transform}
+.marker i{position:absolute;left:-7px;top:-7px;width:14px;height:14px;border:2px solid var(--amber);transform:rotate(45deg);box-shadow:0 0 10px rgba(255,179,64,.5)}
+.marker span{position:absolute;left:12px;top:-8px;font-size:11px;font-weight:600;color:var(--amber);text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;font-variant-numeric:tabular-nums}
+.marker.edge i{border-radius:0 50% 50% 50%}
+.hurt{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(190,20,10,.6) 100%)}
+
+/* screens: title, pack, menu, end */
+.screen{position:fixed;inset:0;display:grid;place-items:center;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px));background:rgba(8,9,9,.62);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);z-index:5}
+.sheet{width:min(920px,100%);max-height:100%;overflow:auto;background:var(--panel-solid);border:1px solid var(--line);border-radius:2px;display:grid;gap:14px;padding:18px}
+.sheet h2{font-family:var(--f-display);font-weight:400;font-size:28px;letter-spacing:.03em;margin:0;line-height:1}
+.sheet h3{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);margin:0;font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:600 12px/1 var(--f-ui);letter-spacing:.1em;text-transform:uppercase;padding:12px 14px;background:transparent;border:1px solid var(--line);border-radius:2px;cursor:pointer}
+.btn:hover{border-color:var(--amber)}
+.btn.primary{background:var(--amber);color:#1a1205;border-color:var(--amber)}
+.btn.danger{border-color:rgba(255,122,106,.5);color:var(--bad)}
+.btn[aria-pressed="true"]{border-color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber)}
+.btn:disabled{opacity:.4;cursor:default}
+.muted{color:var(--dim);font-size:13px;line-height:1.5;margin:0}
+
+#title{background:radial-gradient(ellipse at 50% 40%,rgba(31,224,255,.08),rgba(8,9,9,.75) 60%)}
+.titlebox{display:grid;gap:16px;justify-items:center;text-align:center;max-width:520px}
+.titlebox h1{font-family:var(--f-display);font-weight:400;font-size:clamp(48px,11vw,96px);line-height:.9;margin:0;letter-spacing:.02em;text-shadow:0 0 30px rgba(31,224,255,.25)}
+.titlebox .sub{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--amber);font-weight:600}
+.titlebox .row{justify-content:center}
+.titlebox .muted{max-width:42ch}
+
+.packgrid{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px}
+@media (max-width:640px){.packgrid{grid-template-columns:minmax(0,1fr)}}
+.slots{display:grid;gap:6px;align-content:start}
+.slot{display:grid;grid-template-columns:42px minmax(0,1fr);gap:8px;align-items:center;padding:7px;border:1px solid var(--line);border-radius:2px;background:transparent;text-align:left;cursor:pointer;min-height:56px}
+.slot.sel,.tile.sel{box-shadow:0 0 0 1px var(--amber);border-color:var(--amber)}
+.slot .lab{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+.slot .nm{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot .pw{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.ico{width:42px;height:42px;display:grid;place-items:center;border:1px solid var(--line);font-size:10px;font-weight:600;letter-spacing:.08em;background:rgba(255,255,255,.03)}
+.stats{display:grid;grid-template-columns:auto auto;gap:4px 14px;font-size:12px}
+.stats dt{color:var(--dim)} .stats dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.items{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px;align-content:start}
+.tile{aspect-ratio:1;max-width:100%;display:grid;place-items:center;align-content:center;gap:2px;border:1px solid var(--line);border-radius:2px;background:rgba(255,255,255,.03);cursor:pointer;padding:2px;position:relative}
+.tile .t{font-size:10px;font-weight:600;letter-spacing:.08em}
+.tile .p{font-size:10px;color:var(--dim);font-variant-numeric:tabular-nums}
+.tile.empty{cursor:default;opacity:.35}
+.tile .up{position:absolute;top:3px;right:4px;font-size:10px;color:var(--good);font-weight:600}
+.detail{border-top:1px solid var(--line);padding-top:12px;display:grid;gap:8px}
+.detail .dn{font-size:17px;font-weight:600}
+.detail .dt{font-size:10px;letter-spacing:.18em;text-transform:uppercase}
+.cmp{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:3px 12px;font-size:12px;font-variant-numeric:tabular-nums}
+.cmp .k{color:var(--dim)} .cmp .v{text-align:right;font-weight:600} .cmp .d{text-align:right;min-width:52px}
+.up-t{color:var(--good)} .down-t{color:var(--bad)}
+.aff{margin:0;padding:0;list-style:none;display:grid;gap:3px;font-size:12px}
+.aff li::before{content:"◆ ";color:var(--amber);font-size:9px}
+.confirm{display:none;gap:8px;align-items:center;flex-wrap:wrap}
+.confirm.show{display:flex}
+.endstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.endstats div{border:1px solid var(--line);padding:10px;display:grid;gap:2px}
+.endstats b{font-size:22px;font-variant-numeric:tabular-nums}
+.endstats span{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px}
+.keys kbd{font:600 11px var(--f-ui);color:var(--amber)}
+.fail{position:fixed;inset:0;display:grid;place-items:center;padding-inline:16px;text-align:center;font-size:15px;line-height:1.5;z-index:9}
+@media (max-width:560px){
+  .obj{font-size:13px}
+  .bar{flex-basis:110px}
+  .boss{top:calc(118px + env(safe-area-inset-top,0px));width:calc(100% - 32px)}
+  .tl{max-width:calc(100% - 140px)}
+}
+@media (prefers-reduced-motion:reduce){.obj.flash{animation:none}.feed div{transition:none}}
+</style>
+
+<canvas id="c" aria-label="Relay Gate game view"></canvas>
+
+<div class="hud" id="hud" hidden>
+  <div class="tl">
+    <div class="eyebrow">Region 01 · Dead City</div>
+    <div class="obj" id="obj"></div>
+    <div class="bars">
+      <div class="barrow" id="hpRow"><b>Health</b><div class="bar"><i id="hpFill"></i></div><small id="armorTxt"></small></div>
+      <div class="barrow ally" id="allyRow" hidden><b>Mara</b><div class="bar"><i id="allyFill"></i></div><small id="allyTxt"></small></div>
+    </div>
+    <div class="feed" id="feed" aria-live="polite"></div>
+  </div>
+  <div class="tr">
+    <span class="fps" id="fps" hidden></span>
+    <button class="chip" id="packBtn" type="button">Pack<span class="dot" id="packDot" hidden></span></button>
+    <button class="chip" id="menuBtn" type="button">Menu</button>
+  </div>
+  <div class="boss" id="boss" hidden>
+    <div class="bn"><span id="bossName">The Warden</span><span id="bossPhase"></span></div>
+    <div class="bar"><i id="bossFill"></i></div>
+    <div class="pips" id="bossPips"></div>
+  </div>
+  <div class="weapon" id="weapon">
+    <div class="wn" id="wName"></div>
+    <div class="ammo" id="wAmmo"></div>
+    <div class="lock" id="wLock"></div>
+    <div class="alt" id="wAlt"></div>
+  </div>
+  <div class="prompt" id="prompt" hidden></div>
+  <div class="tips" id="tips"></div>
+  <button class="tb dash touchonly" id="dashBtn" type="button">Dodge</button>
+  <button class="tb swap touchonly" id="swapBtn" type="button">Swap</button>
+  <button class="tb use touchonly" id="useBtn" type="button" hidden>Use</button>
+  <button class="tb part touchonly" id="partBtn" type="button" hidden>Aim: Core</button>
+  <button class="tb cmd touchonly" id="cmdBtn" type="button" hidden>Mara: Follow</button>
+  <div class="marker" id="marker" hidden><i></i><span id="markerTxt"></span></div>
+  <div class="hurt" id="hurt"></div>
+</div>
+
+<section class="screen" id="title">
+  <div class="titlebox">
+    <div class="sub">Region 01 · Dead City</div>
+    <h1>Relay Gate</h1>
+    <p class="muted" id="titleInfo">Checking for your save…</p>
+    <div class="row">
+      <button class="btn primary" id="contBtn" type="button" disabled>Continue</button>
+      <button class="btn" id="newBtn" type="button" disabled>New game</button>
+    </div>
+    <div class="confirm" id="newConfirm"><span class="muted">Start over? Your gear and progress will be wiped.</span><button class="btn danger" id="newYes" type="button">Start over</button><button class="btn" id="newNo" type="button">Keep my save</button></div>
+  </div>
+</section>
+
+<section class="screen" id="pack" hidden>
+  <div class="sheet" role="dialog" aria-label="Pack">
+    <div class="row" style="justify-content:space-between"><h2>Pack</h2><div class="row"><span class="muted" id="scrapTxt"></span><button class="btn" id="packClose" type="button">Close</button></div></div>
+    <div class="packgrid">
+      <div class="slots">
+        <h3>Equipped</h3>
+        <div id="slotList" class="slots"></div>
+        <dl class="stats" id="statList"></dl>
+      </div>
+      <div style="display:grid;gap:10px;align-content:start;min-width:0">
+        <h3 id="packCount">Items</h3>
+        <div class="items" id="itemGrid"></div>
+        <div class="detail" id="detail" hidden></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="menu" hidden>
+  <div class="sheet" role="dialog" aria-label="Menu" style="width:min(520px,100%)">
+    <div class="row" style="justify-content:space-between"><h2>Menu</h2><button class="btn primary" id="resume" type="button">Resume</button></div>
+    <h3>Graphics</h3>
+    <div class="row"><button class="btn" id="qHigh" type="button">High</button><button class="btn" id="qLow" type="button">Low</button><button class="btn" id="fpsTog" type="button">Show fps</button></div>
+    <h3>Controls</h3>
+    <div class="row"><button class="btn" id="cAuto" type="button">Auto</button><button class="btn" id="cTouch" type="button">Touch</button><button class="btn" id="cMouse" type="button">Mouse &amp; keys</button></div>
+    <div class="keys"><kbd>Click ground</kbd><span>Walk there (hold to keep steering)</span><kbd>Click enemy</kbd><span>Lock on · click a part to target it</span><kbd>Auto</kbd><span>With no lock, your gun fires at the nearest threat in range</span><kbd>S</kbd><span>Stop and drop the lock</span><kbd>T</kbd><span>Target the next part</span><kbd>Space</kbd><span>Dodge toward the cursor</span><kbd>Q</kbd><span>Swap weapon</span><kbd>E</kbd><span>Talk, open, use (or just click it)</span><kbd>I</kbd><span>Pack</span><kbd>C</kbd><span>Tell Mara to follow or hold</span></div>
+    <h3>Run</h3>
+    <div class="row"><button class="btn" id="toCheckpoint" type="button">Back to checkpoint</button><button class="btn danger" id="wipeBtn" type="button">Start over</button></div>
+    <div class="confirm" id="wipeConfirm"><span class="muted">Wipe your gear and progress?</span><button class="btn danger" id="wipeYes" type="button">Wipe it</button><button class="btn" id="wipeNo" type="button">Cancel</button></div>
+    <p class="muted" id="saveInfo"></p>
+  </div>
+</section>
+
+<section class="screen" id="end" hidden>
+  <div class="sheet" style="width:min(560px,100%)">
+    <h3>Region 01</h3>
+    <h2>Dead City cleared</h2>
+    <p class="muted">The relay gate hums open. Region 02 is next on the build list. Until then, the city is yours: keep exploring, or run it again with the gear you've earned.</p>
+    <div class="endstats"><div><b id="eKills">0</b><span>Machines down</span></div><div><b id="eRuns">1</b><span>Runs cleared</span></div><div><b id="eGear">0</b><span>Best weapon</span></div></div>
+    <div class="row"><button class="btn primary" id="again" type="button">Run it again with your gear</button><button class="btn" id="explore" type="button">Keep exploring</button></div>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/babylonjs@7.31.0/babylon.js"></script>
+<script>
+/* If the 3D engine or the game code fails to load, say so instead of leaving the title screen stuck on "Checking for your save…". */
+(function () {
+  function fail(msg) { if (document.querySelector('.fail')) return; var d = document.createElement('div'); d.className = 'fail'; d.textContent = msg; document.body.appendChild(d); document.getElementById('title').hidden = true; }
+  window.__bootFail = fail;
+  if (!window.BABYLON) fail('The 3D engine could not be downloaded. Check your internet connection and reload the page.');
+  window.addEventListener('error', function (e) { if (e.target && e.target.tagName && e.target.tagName !== 'SCRIPT') return; if (!window.__booted) fail('Relay Gate hit an error while loading: ' + (e.message || 'a game file could not be loaded') + '. Reload to try again.'); }, true);
+  window.addEventListener('unhandledrejection', function (e) { if (!window.__booted) fail('Relay Gate hit an error while loading: ' + ((e.reason && e.reason.message) || e.reason) + '. Reload to try again.'); });
+})();
+</script>
+<script type="module" src="js/main.js"></script>
+
+</body>
+</html>
