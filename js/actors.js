@@ -151,7 +151,7 @@ export class Player extends Actor {
   /* fire: left click (locks on to an enemy, walks into range if needed); move: right click; tap: touch, which does both */
   command(c) {
     if (this.down > 0) return;
-    if (c.kind === 'fire') { const e = this.enemyAt(c.x, c.y); if (e) this.setLock(e.actor, e.part); return; }   // a lock holds until you move away (right-click) or press S
+    if (c.kind === 'fire') return;   // left button only fires (while held); targets are picked automatically
     if (c.kind === 'tap') { const e = this.enemyAt(c.x, c.y, true); if (e) { this.setLock(e.actor, e.part); return; } }
     const g = this.groundAt(c.x, c.y); if (!g) return;
     this.lock = null; this.steering = true; this.pendingUse = null;
@@ -187,13 +187,15 @@ export class Player extends Actor {
     if (I.steer && this.steering) { this.steerT -= dt; if (this.steerT <= 0) { this.steerT = .15; const g = this.groundAt(I.steer.x, I.steer.y); if (g) this.moveTo(g.x, g.z, true); } }
     if (I.mode === 'mouse' && I.pointer) { this.hover = this.actorAt(I.pointer.x, I.pointer.y); G.canvas.style.cursor = this.hover && this.hover.actor.faction !== 'player' ? 'crosshair' : 'pointer'; } else this.hover = null;
 
-    /* target. Mouse: the locked enemy, or while left is held the enemy under or near the cursor, else wherever it points.
-       Touch: the locked enemy, else the nearest threat, and the gun fires by itself. A locked enemy is chased into range and line of sight. */
+    /* target: picked automatically (the nearest threat in range with a clear shot, sticking with it while it lasts).
+       Mouse: fires only while left is held; a threat under the cursor gets priority (and the part you point at), and with nothing in range shots go toward the cursor.
+       Touch: fires by itself; tapping an enemy locks on and walks you into range. */
     const w = this.weapon, s = w && wstats(w), mouse = I.mode === 'mouse', firing = !mouse || I.fireHeld;
-    let T = mouse ? this.lockedActor() : this.pickTarget(dt), aimPart = null, aimPt = null;
-    if (mouse && !T && I.fireHeld && I.pointer) {
-      const e = this.hover && this.hover.actor.faction !== 'player' && !this.hover.actor.untargetable ? this.hover : this.enemyAt(I.pointer.x, I.pointer.y);
-      if (e) { T = e.actor; aimPart = e.part; } else { const g = this.groundAt(I.pointer.x, I.pointer.y); if (g && Math.hypot(g.x - p.x, g.z - p.z) > 1) aimPt = V(g.x, 1.2, g.z); }
+    let T = this.pickTarget(dt), aimPart = null, aimPt = null;
+    if (mouse && firing && !this.lock) {
+      const hv = this.hover && this.hover.actor;
+      if (hv && hostile(this, hv) && !hv.untargetable && dist2(p, hv.pos) <= s.range && clearShot(p, hv.pos)) { T = hv; aimPart = this.hover.part; }
+      else if (!T && I.pointer) { const g = this.groundAt(I.pointer.x, I.pointer.y); if (g && Math.hypot(g.x - p.x, g.z - p.z) > 1) aimPt = V(g.x, 1.2, g.z); }
     }
     const inRange = !!(T && s && dist2(p, T.pos) <= s.range && clearShot(p, T.pos));
     if (this.lock) {
