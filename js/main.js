@@ -41,7 +41,10 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
 
   /* materials, effects, post-processing */
   const T = makeTextures(scene); const M = G.M = makeMaterials(scene, T);
-  G.glow = new B.GlowLayer('glow', scene, { mainTextureSamples: 2, blurKernelSize: 48 }); G.glow.intensity = LOOK.glowI;
+  G.glow = new B.GlowLayer('glow', scene, { mainTextureSamples: 1, blurKernelSize: 48 }); G.glow.intensity = LOOK.glowI;
+  /* only things that actually glow go through the glow pass (it used to redraw every mesh in the scene a second time, as black) */
+  const canGlow = G.glow._canRenderMesh.bind(G.glow);
+  G.glow._canRenderMesh = (mesh, mat) => { const c = mat.emissiveColor; return canGlow(mesh, mat) && ((c && c.r + c.g + c.b > .01) || !!mat.emissiveTexture); };
   G.FX = makeFx();
   let ssao = null, ssaoOn = false;
   try { if (B.SSAO2RenderingPipeline.IsSupported) { ssao = new B.SSAO2RenderingPipeline('ssao', scene, { ssaoRatio: .5, blurRatio: .5 }, [cam], true); ssao.radius = 1.4; ssao.totalStrength = 1.2; ssao.base = .15; ssao.samples = 12; ssao.maxZ = 110; ssao.minZAspect = .5; ssao.expensiveBlur = false; ssaoOn = true; } } catch (e) { ssao = null; }
@@ -51,10 +54,24 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
   const ip = pipe.imageProcessing; ip.toneMappingEnabled = true; ip.toneMappingType = B.ImageProcessingConfiguration.TONEMAPPING_ACES; ip.exposure = LOOK.exposure; ip.contrast = LOOK.contrast;
   ip.vignetteEnabled = true; ip.vignetteWeight = 1.8; ip.vignetteColor = new B.Color4(0, 0, 0, 0);
   const curves = new B.ColorCurves(); curves.globalSaturation = LOOK.sat; ip.colorCurvesEnabled = true; ip.colorCurves = curves;
+  /* Resolution governor. High aims for the display's full sharpness (up to 2x on high-density screens), Low for 1x.
+     Pixel count is what this scene costs most, so when frames run slow the internal resolution steps down, and it climbs back when there's room. */
+  const RES = { max: 1, scale: 99, floor: .6, acc: 0, n: 0, good: 0, hold: 0 };
+  const applyRes = () => engine.setHardwareScalingLevel(1 / RES.scale);
+  G.res = RES;
+  function governRes(ms) {
+    if (document.hidden || ms > 250) return;
+    RES.acc += ms; RES.n++; if (RES.acc < 1000) return;
+    const avg = RES.acc / RES.n; RES.acc = RES.n = 0; RES.hold = Math.max(0, RES.hold - 1);
+    if (avg > 22 && RES.scale > RES.floor) { RES.scale = Math.max(RES.floor, RES.scale * (avg > 40 ? .7 : .85)); RES.good = 0; RES.hold = 8; applyRes(); }   // under ~45 fps: fewer pixels
+    else if (avg < 17.5 && RES.scale < RES.max) { if (++RES.good >= 3 && !RES.hold) { RES.scale = Math.min(RES.max, RES.scale * 1.1); RES.good = 0; applyRes(); } }
+    else RES.good = 0;
+  }
   G.setQuality = (q) => {
     const h = q !== 'low'; G.settings.quality = h ? 'high' : 'low';
-    engine.setHardwareScalingLevel(h ? 1 / Math.min(window.devicePixelRatio || 1, 2) : 1);
-    sun.shadowEnabled = h; pipe.bloomEnabled = h; pipe.grainEnabled = h; pipe.chromaticAberrationEnabled = h; pipe.samples = h ? 4 : 1; G.glow.blurKernelSize = h ? 48 : 24;
+    RES.max = h ? Math.min(window.devicePixelRatio || 1, 2) : 1; RES.floor = h ? .6 : .5; RES.scale = Math.min(RES.max, Math.max(RES.floor, RES.scale)); RES.hold = 0; applyRes();
+    /* FXAA smooths edges; 4x multisampling on top of it cost a fifth of the frame for little visible difference */
+    sun.shadowEnabled = h; pipe.bloomEnabled = h; pipe.grainEnabled = h; pipe.chromaticAberrationEnabled = h; pipe.samples = 1; G.glow.blurKernelSize = h ? 48 : 24;
     if (ssao && ssaoOn !== h) { try { const mgr = scene.postProcessRenderPipelineManager; if (h) mgr.attachCamerasToRenderPipeline('ssao', cam); else mgr.detachCamerasFromRenderPipeline('ssao', cam); ssaoOn = h; } catch (e) {} }
     G.FX.weather.emitRate = (h ? 480 : 200) * (reduced ? .4 : 1); fit(); if (G.save) G.save.soon();
   };
@@ -114,7 +131,7 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
     G.UI.update(dt);
   }
   G.step = step;
-  engine.runRenderLoop(() => { const dt = Math.min(engine.getDeltaTime() / 1000, .05); if (G.started && !G.paused) step(dt); scene.render(); });
+  engine.runRenderLoop(() => { const raw = engine.getDeltaTime(), dt = Math.min(raw / 1000, .05); governRes(raw); if (G.started && !G.paused) step(dt); scene.render(); });
   if (location.hash === '#debug') window.__G = G;
 
   /* ---------- title screen ---------- */

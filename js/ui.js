@@ -100,7 +100,7 @@ export function makeUI() {
       if (!s.ok || x < m || x > innerWidth - m || y < top || y > innerHeight - 120) { edge = true; const cx = innerWidth / 2, cy = innerHeight / 2; let dx = s.ok ? x - cx : -(x - cx), dy = s.ok ? y - cy : -(y - cy); const k = Math.min((innerWidth / 2 - m) / Math.abs(dx || 1), (innerHeight / 2 - 120) / Math.abs(dy || 1)); x = cx + dx * k; y = cy + dy * k; }
       mk.classList.toggle('edge', edge); mk.style.transform = `translate(${x | 0}px,${y | 0}px)`; } else mk.hidden = true;
     if (tipsT > 0) { tipsT -= dt; if (tipsT <= 0) $('tips').style.opacity = 0; }
-    fpsT -= dt; if (fpsT <= 0) { fpsT = .5; const v = G.engine.getFps(); $('fps').textContent = (isFinite(v) ? Math.min(240, Math.round(v)) : '--') + ' fps'; }
+    fpsT -= dt; if (fpsT <= 0) { fpsT = .5; const v = G.engine.getFps(); $('fps').textContent = (isFinite(v) ? Math.min(240, Math.round(v)) : '--') + ' fps' + (G.res ? ' · ' + Math.round(G.res.scale * 100) + '% res' : ''); }
   };
 
   /* ---------- pack ---------- */
