@@ -282,7 +282,7 @@ export const REGION = {
   clearedText: 'The cooling hall is quiet. That\'s the end of the test section; the rest of the station is still being built.',
   preparing: 'Powering up the station…',
   indoor: true, noHorn: true,
-  ambience: [{ name: 'ambStation', url: 'sfx/ambience-station.mp3', from: 0, to: 999 }],   // "Drone, unsettling feeling", the whole recording
+  ambience: [{ name: 'ambStation', url: 'sfx/ambience-station.mp3', from: 0, to: 101 }],   // "Drone, unsettling feeling", the whole recording (101 s)
   /* while the region is being built it saves to its own slot in this browser, never to your account */
   save: { key: 'relay-gate-save-r02-preview', localOnly: true },
   look: {

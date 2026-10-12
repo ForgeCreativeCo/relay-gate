@@ -23,6 +23,7 @@ const TUNE = {
   near: [26, 34],                         // how far from you they arrive: past the edge of the view
   gate: [16, 45, .35],                    // with the gate this far from you (nearest, farthest), this share of groups step out of it
   wreck: 15,                              // seconds a wreck lies there before it is cleared away
+  horn: 20,                               // the horn sounds when a group arrives, but not more often than this many seconds
   xp: { drone: 2, husk: 3, walker: 12, warden: 40 },   // what each kill is worth (Mara's count too)
   level: [8, 6, 1.2],                     // XP for the next level: the first number, plus the second per level so far, plus the third times that count squared
 };
@@ -138,6 +139,7 @@ export function survival(arena) {
     clearedText: '',
     preparing: arena.preparing,
     endless: true,   // no checkpoints to continue from: every visit is a new run, and going down ends it
+    hornSignals: true,   // the horn means a wave has arrived, so it never sounds at random here (audio.js)
     medic: true,     // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
     indoor: arena.indoor, noHorn: arena.noHorn, ambience: arena.ambience, look: arena.look,
     /* its own slot in this browser, so a run never touches your campaign save */
@@ -154,7 +156,7 @@ export function survival(arena) {
     /* a run starts from nothing: the starter rifle, an empty pack, level 1, the clock at zero */
     spawn(R) {
       G.inv = newInventory(); G.boost = {}; G.player.recalc(); G.ally.recalc(); G.ally.healCD = G.ally.reviveCD = 0; G.ally.revives = 0; G.progress.kills = 0;
-      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, warden: null, wardens: 0, bosses: { walker: 0, warden: 0 } };
+      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, hornAt: 0, warden: null, wardens: 0, bosses: { walker: 0, warden: 0 } };
       if (arena.begin) arena.begin(R, RUN);
     },
     interactables() {},
@@ -186,7 +188,9 @@ export function survival(arena) {
       }
       RUN.mine = RUN.mine.filter(a => !a.gone);
       if (RUN.due.length && G.t >= RUN.dueAt && G.player.down <= 0) { milestone(R, p); RUN.dueAt = G.t + 1; }
-      if (G.t >= RUN.nextAt && G.player.down <= 0) RUN.nextAt = G.t + (group(R, p, m) ? ramp(T.gap, m) * rand(.8, 1.2) * RUN.gapK * (RUN.warden && RUN.warden.alive ? T.boss.ease : 1) : 1);
+      if (G.t >= RUN.nextAt && G.player.down <= 0) { const came = group(R, p, m);
+        if (came && G.t >= RUN.hornAt) { G.audio.horn(true); RUN.hornAt = G.t + T.horn; }
+        RUN.nextAt = G.t + (came ? ramp(T.gap, m) * rand(.8, 1.2) * RUN.gapK * (RUN.warden && RUN.warden.alive ? T.boss.ease : 1) : 1); }
       if (G.t >= RUN.hudAt) { RUN.hudAt = G.t + .25; G.UI.objective(`Survive · ${clock(RUN.time)} · ${G.progress.kills} down`); G.UI.xp(RUN.level, RUN.xp / need(RUN.level)); }
       if (RUN.xp >= need(RUN.level) && G.player.down <= 0) levelUp(R);
     },

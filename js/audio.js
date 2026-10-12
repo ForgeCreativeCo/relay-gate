@@ -55,7 +55,8 @@ const CLIPS = {
 const GRAIN_CURVE = Float32Array.from({ length: 64 }, (_, i) => Math.sin(Math.PI * i / 63));
 const HUM = { url: 'sfx/drone-hum.mp3', from: 2.4, to: 6, grain: 1, every: .5, gain: .25, drones: 3 };
 /* Background ambience: two long soundscapes that alternate, each crossfading into the next, under everything else.
-   Now and then a horn sounds somewhere far off: filtered, quieter, and from a random side.
+   Now and then a horn sounds somewhere far off: filtered, quieter, and from a random side. Where the horn is a signal instead (G.R.hornSignals:
+   survival sounds it when a wave arrives) it never sounds at random, and the signal is shorter, clearer and at the main volume, not the ambience's.
    A region can bring its own soundscapes instead (G.R.ambience, in the same shape as `beds`); a single one crossfades into itself. */
 const AMBIENCE = {
   beds: [
@@ -63,7 +64,7 @@ const AMBIENCE = {
     { name: 'ambWaste', url: 'sfx/ambience-wasteland.mp3', from: 0, to: 60 },        // "A post-apocalyptic ambient soundscape"
   ],
   gain: .3, fade: 6,
-  horn: { name: 'horn', url: 'sfx/horn.mp3', from: .7, to: 9.4, gain: .5, first: [25, 50], every: [75, 160] },   // "Apocalyptic horn"
+  horn: { name: 'horn', url: 'sfx/horn.mp3', from: .7, to: 9.4, gain: .5, first: [25, 50], every: [75, 160], signal: .5, signalLen: 4.5 },   // "Apocalyptic horn"
 };
 const MAX_VOICES = 24, HEAR = 42;   // simultaneous sounds; distance (m) at which machines fall silent
 
@@ -172,14 +173,14 @@ export function makeAudio() {
     src.connect(g); g.connect(A.amb); src.start(when, offset, dur); src.onended = () => { src.disconnect(); g.disconnect(); };
     return dur;
   }
-  function horn() {
-    const H = AMBIENCE.horn, buf = A.buffers[H.name]; if (!buf) return;
-    const t = A.ctx.currentTime, src = A.ctx.createBufferSource(), lp = A.ctx.createBiquadFilter(), g = A.ctx.createGain(), dur = H.to - H.from;
-    lp.type = 'lowpass'; lp.frequency.value = 1400 + Math.random() * 1600;   // far away: the highs are gone
+  function horn(signal) {
+    const H = AMBIENCE.horn, buf = A.buffers[H.name]; if (!buf || A.ctx.state !== 'running') return;
+    const t = A.ctx.currentTime, src = A.ctx.createBufferSource(), lp = A.ctx.createBiquadFilter(), g = A.ctx.createGain(), dur = signal ? Math.min(H.signalLen, H.to - H.from) : H.to - H.from;
+    lp.type = 'lowpass'; lp.frequency.value = signal ? 3800 : 1400 + Math.random() * 1600;   // far away: the highs are gone
     src.buffer = buf; src.playbackRate.value = .94 + Math.random() * .1;
-    const v = H.gain * (.7 + Math.random() * .3); g.gain.setValueAtTime(v, t); g.gain.setValueAtTime(v, t + dur - .5); g.gain.linearRampToValueAtTime(0, t + dur);
-    let out = g; if (A.ctx.createStereoPanner) { const p = A.ctx.createStereoPanner(); p.pan.value = (Math.random() < .5 ? -1 : 1) * (.3 + Math.random() * .4); g.connect(p); out = p; }
-    src.connect(lp); lp.connect(g); out.connect(A.amb); src.start(t, H.from, dur);
+    const v = signal ? H.signal : H.gain * (.7 + Math.random() * .3), tail = signal ? 1.6 : .5; g.gain.setValueAtTime(v, t); g.gain.setValueAtTime(v, t + dur - tail); g.gain.linearRampToValueAtTime(0, t + dur);
+    let out = g; if (A.ctx.createStereoPanner) { const p = A.ctx.createStereoPanner(); p.pan.value = (Math.random() < .5 ? -1 : 1) * (signal ? .15 : .3 + Math.random() * .4); g.connect(p); out = p; }
+    src.connect(lp); lp.connect(g); out.connect(signal ? A.master : A.amb); src.start(t, H.from, dur);
     src.onended = () => { src.disconnect(); lp.disconnect(); g.disconnect(); if (out !== g) out.disconnect(); };
   }
   /* Keeps the beds queued a little ahead and times the horn. Runs once a second; does nothing until audio is unlocked. */
@@ -187,7 +188,7 @@ export function makeAudio() {
     if (!ambOn || A.ctx.state !== 'running') return;
     const now = A.ctx.currentTime;
     if (!hornAt) hornAt = now + rnd(AMBIENCE.horn.first);
-    if (now >= hornAt) { if (!G.R.noHorn) horn(); hornAt = now + rnd(AMBIENCE.horn.every); }   // indoors there's no horn on the wind
+    if (now >= hornAt) { if (!G.R.noHorn && !G.R.hornSignals) horn(); hornAt = now + rnd(AMBIENCE.horn.every); }   // indoors there's no horn on the wind
     if (bedAt > now + 2) return;
     const bed = BEDS[bedIdx]; if (!A.buffers[bed.name]) { bedIdx = (bedIdx + 1) % BEDS.length; return; }
     const when = Math.max(now + .05, bedAt), offset = firstBed ? bed.from + Math.random() * (bed.to - bed.from) * .5 : bed.from;   // start somewhere in the middle the first time
@@ -197,7 +198,7 @@ export function makeAudio() {
   setInterval(tickAmbience, 1000);
   /* the long soundscapes (~3-4 MB) are fetched only once the game starts, so they don't compete with loading it; the horn only where it sounds */
   let ambLoaded = false;
-  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of BEDS) A.load(b.name, b.url); if (!G.R.noHorn) A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
+  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of BEDS) A.load(b.name, b.url); if (!G.R.noHorn || G.R.hornSignals) A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
   A.horn = horn;
 
   for (const k in BANKS) A.load(k, BANKS[k].url);

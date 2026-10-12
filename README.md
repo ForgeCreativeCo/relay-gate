@@ -22,6 +22,8 @@ You need an internet connection the first time, because Babylon.js and the fonts
 
 Press **Survival** on the title screen, or add `?mode=survival` to the address, e.g. http://localhost:8000/?mode=survival. You start in the gate plaza with Mara and the starter rifle. Machines arrive from past the edge of the view (and some step out of the gate), sooner and in bigger groups as the clock runs: drones and husks first, Hunter Walkers from two and a half minutes. Going down ends the run and shows how long you lasted, your kills and your best time. Every run starts again from nothing; only your best time is kept, in this browser, in its own slot that never touches your Dead City save.
 
+A horn sounds when a group of machines arrives, in both arenas. Groups come every few seconds once a run is going, so it sounds at most once every twenty seconds (`horn` in the block at the top of `js/survival.js`).
+
 Kills give XP (Mara's count too): 2 for a drone, 3 for a husk, 12 for a walker. Each level stops the game and offers three upgrades, picked at random from fourteen; choose one with a click, a tap or the 1, 2 and 3 keys. Each card says whose it is (weapon, you or Mara), how many times you have taken it, what it comes to with this pick, and whether a boss arrives after it. They cover your gun (damage, fire rate, critical hits, range, healing on kills), you (health, regeneration, armour, speed, dodge) and Mara (her damage, her health and how soon she gets back up), and they last for the run. The XP values, the cost of each level and the upgrades themselves are at the top of `js/survival.js`.
 
 Bosses come with your level. Every third level a Hunter Walker arrives a few seconds after you pick your upgrade, and every tenth level it is the Warden instead, with its health bar, its phases and the drones and husks it calls in. They step out of the gate when it is in reach. While a Warden is alive the ordinary groups come more slowly; when it goes down it drops its machine-forged loot. Each Warden after the first is tougher. Walkers also start turning up with the ordinary groups from six minutes in.
@@ -84,7 +86,7 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `sfx/ambience-terror.mp3` | Background ambience ("Terror ambience", freesound_community on Pixabay) |
 | `sfx/ambience-station.mp3` | Relay Station background ambience ("Drone, unsettling feeling, creepy ambient background", Fronbondi_Skegs on Pixabay) |
 | `sfx/ambience-wasteland.mp3` | Background ambience ("A post-apocalyptic ambient soundscape", Fronbondi_Skegs on Pixabay) |
-| `sfx/horn.mp3` | A distant horn now and then ("Apocalyptic horn", Alex Jauk on Pixabay) |
+| `sfx/horn.mp3` | In the campaign, a distant horn now and then. In survival it sounds when a wave arrives, and never at random ("Apocalyptic horn", Alex Jauk on Pixabay) |
 | `sfx/player-step.mp3` | Player footsteps ("Step", Pixabay) |
 
 ## Controls
