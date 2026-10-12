@@ -1,13 +1,11 @@
-/* Region 02, The Relay Station: indoors. The map (rooms, corridors, doors, power) and the run through it.
+/* Region 02, The Relay Station: indoors. The map (rooms, corridors, doors, power) and how it plays as a survival arena.
    Walls are generated around the walkable rectangles. The ones on the camera's side sink into the floor while you're behind them,
    so a room never hides who's in it. Each room belongs to a power zone that can be dark, flickering or lit.
-   This is the test section: the gate room, a service corridor and the cooling hall, plus the freight bay that runs south of all three.
-   The bay's two blast doors stay shut in the campaign (the run through the corridor depends on it); survival opens everything. */
+   The rooms: the gate room, a service corridor with two alcoves, the cooling hall, and the freight bay that runs south of all three. */
 import { B, G, V, C, R, damp, dist2 } from './core.js';
 import { Geo, gbox, gcyl, gmesh } from './geo.js';
 import { makeMat } from './tex.js';
 import { makeNav } from './nav.js';
-import { Drone, Walker, Husk } from './machines.js';
 import { buildGate } from './gate.js';
 import { survival } from './survival.js';
 
@@ -26,15 +24,9 @@ const ROOMS = {
   linkE: { r: [37.5, -14, 43.5, -11], zone: 'bay' },   // the bay to the cooling hall
 };
 const GATE = { x: 0, z: 8.4, y: 4.4 };
-const CONSOLE = { x: 27.2, z: .5 };      // the hall door's lock, where Mara works
+const CONSOLE = { x: 27.2, z: .5 };      // the hall door's lock panel
 const BREAKER = { x: 52.6, z: 12.4 };    // the cooling hall's power
-export const CHECKPOINTS = [
-  { id: 'gate', name: 'Gate room', x: 0, z: 3 },
-  { id: 'corridor', name: 'Service corridor', x: 12, z: 0 },
-  { id: 'hall', name: 'Cooling hall', x: 36, z: 0 },   // far enough in that it can't be reached through the closed door
-];
-
-const CELL = .5, THICK = 2, WALL_H = 4, CUT_H = .7, HACK_TIME = 12;
+const CELL = .5, THICK = 2, WALL_H = 4, CUT_H = .7;
 const ob = (x, z, hw, hd, h) => { const o = { x, z, hw, hd, h }; G.obstacles.push(o); return o; };
 
 /* ---------- power zones: the materials of a zone's walls, floor and lights dim and brighten together ---------- */
@@ -219,7 +211,7 @@ export function buildRegion(M) {
   for (const x of [-4.6, 8, 20, 31]) lamp('bay', x, -13, 0, -1);
   lamp('bay', 44, -20, -1, 0); lamp('bay', 44, -28, -1, 0);
   alarm('bay', 14, -13, 0, -1); alarm('bay', 26, -13, 0, -1); alarm('bay', 44, -24, -1, 0);
-  alarm('gate', 9, 3, -1, 0); alarm('gate', -8.2, 10, 0, -1); alarm('corridor', 18.8, 1.5, 0, -1); alarm('corridor', 25, 1.5, 0, -1);   // only the hall goes dark in the campaign; in survival everything does
+  alarm('gate', 9, 3, -1, 0); alarm('gate', -8.2, 10, 0, -1); alarm('corridor', 18.8, 1.5, 0, -1); alarm('corridor', 25, 1.5, 0, -1);   // every zone can go dark when the power fails
 
   /* ---------- the gate room: the gate you came through, cable runs, kit left by whoever was here before ---------- */
   const gate = buildGate(M, GATE);
@@ -260,10 +252,9 @@ export function buildRegion(M) {
     crate(-4.8, -30.6, .1, 1, 'bay'); crate(-4.9, -29.2, -.15, 1, 'bay'); crate(-3.5, -30.8, .3, .7, 'bay'); crate(42.6, -30.7, .2, 1, 'bay'); crate(41.2, -30.9, -.1, 1, 'bay'); crate(42.8, -29.3, .1, .7, 'bay');
     crate(34.5, -14.1, .05, 1, 'bay'); crate(-5, -14.2, .2, 1, 'bay'); }
 
-  /* ---------- the hall door (Mara opens it), and the corridor door the station seals behind you ---------- */
+  /* ---------- doors: both ends of the corridor, and the freight bay's two blast doors. All stand open; a power failure seals a pair ---------- */
   door(M, 'west', 9.5, 0, 'x', 3, 'corridor');
   door(M, 'hall', 29.5, 0, 'x', 3, 'corridor');
-  /* the freight bay's blast doors: shut for good in the campaign */
   door(M, 'south', 0, -10.5, 'z', 6, 'bay');
   door(M, 'east', 40.5, -12.5, 'z', 6, 'bay');
 
@@ -274,107 +265,21 @@ export function buildRegion(M) {
   return { gate };
 }
 
-/* ---------- the run: objectives, encounters and story beats ---------- */
-let hack = null, hallSaid = false, greeted = false, lastT = 0;
-export const REGION = {
-  num: '02', name: 'The Relay Station',
-  blurb: 'Through the gate and into the station that runs it. A first test section: the gate room, a service corridor and the cooling hall.',
-  clearedText: 'The cooling hall is quiet. That\'s the end of the test section; the rest of the station is still being built.',
-  preparing: 'Powering up the station…',
-  indoor: true, noHorn: true,
-  ambience: [{ name: 'ambStation', url: 'sfx/ambience-station.mp3', from: 0, to: 101 }],   // "Drone, unsettling feeling", the whole recording (101 s)
-  /* while the region is being built it saves to its own slot in this browser, never to your account */
-  save: { key: 'relay-gate-save-r02-preview', localOnly: true },
-  look: {
-    sky: '#06080a', fog: '#06080a', fogD: .01, hemiSky: '#8e9aac', hemiGround: '#1c1e22', hemiI: .5,
-    sun: '#dde8f6', sunI: .75, sunDir: [-.3, -1, .25], exposure: 1.45, contrast: 1.3, sat: -14, bloomW: .6, bloomT: .5, glowI: 1,
-    weatherK: .12,   // a little dust in the air instead of ash
-    env: { zenith: [26, 30, 36], horizon: [62, 70, 80], ground: [12, 13, 16], sun: .1, gate: .7 },
-  },
-  build: buildRegion,
-  start: { x: 0, z: 4.5 },
-  allyWait: { x: -1.6, z: 3.1, face: 0 },
-  fresh: () => ({ mara: true, doors: {}, power: false }),   // Mara came through the gate with you
-  gate: GATE,
-  checkpoints: CHECKPOINTS,
-  objectives: [
-    { id: 'out', text: 'Find a way out of the gate room', at: () => V(14, 0, 0) },
-    { id: 'door', text: 'Get the hall door open', at: () => V(CONSOLE.x, 0, CONSOLE.z) },
-    { id: 'hold', text: 'Hold the corridor while Mara works the lock', at: () => null },
-    { id: 'power', text: 'Restore power to the cooling hall', at: () => V(BREAKER.x, 0, BREAKER.z - .8) },
-    { id: 'hall', text: 'Clear the cooling hall', at: () => V(44, 0, 1) },
-    { id: 'done', text: 'End of the test section · More of the station is on the way', at: () => null },
-  ],
-  rerunFrom: 'out',
-
-  spawn(R) {
-    const P = G.progress; P.doors = P.doors || {};
-    hack = null; hallSaid = false;
-    /* the station's state from the save */
-    setDoor('west', true, true); setDoor('hall', !!P.doors.hall, true);
-    setPower('hall', P.power ? 1 : 0, true);
-    /* husks slumped in the corridor's alcoves */
-    R.encounter('corridor', { when: p => p.x > 10, spawn: e => [[15.75, 4.3, Math.PI], [22.75, -4.3, 0]].forEach(([x, z, face]) => R.add(new Husk(x, z, { slumped: true, face, wakeR: 4 }), e)) });
-    /* the hall's machines hang dead until the power comes back */
-    R.encounter('hall', { when: () => G.progress.power,
-      spawn: e => { R.add(new Walker(44, 1, { patrolR: 3, leash: 11 }), e); [[38, 7], [46, -6], [49, 8], [41, -4]].forEach(([x, z]) => R.add(new Drone(x, z), e));
-        R.add(new Husk(42, 12.6, { slumped: true, face: Math.PI }), e); },
-      onClear: () => { R.say('The cooling hall is clear', '#ffb24a'); R.step('done'); } });
-  },
-
-  interactables(R, P, L) {
-    /* at 'hold' too: a reload mid-hack starts it over */
-    if (!P.doors.hall && !hack && (R.atStep('door') || R.atStep('hold'))) L.push({ pos: V(CONSOLE.x, 0, CONSOLE.z), r: 2.6, label: 'Have Mara open the door', use: () => startHack(R) });
-    if (!P.power && P.doors.hall) L.push({ pos: V(BREAKER.x, 0, BREAKER.z), r: 2.4, label: 'Restore power', use: () => {
-      P.power = true; setPower('hall', 1); R.step('hall'); G.save.soon();
-      R.say('Power restored to the cooling hall', '#1fe0ff');
-      /* the husk slumped in the hall gets up too, so clearing the hall never waits on one you can't find */
-      setTimeout(() => { R.say('Something in here is waking up', '#ff6a5a'); for (const a of G.actors) if (a.kind === 'husk' && a.alive && a.state === 'slumped' && a.pos.x > 30) { a.target = G.player; a.wake(); } }, 1400); } });
-  },
-
-  onBossPhase() {},
-
-  update(R, p) {
-    const dt = Math.min(.05, Math.max(0, G.t - lastT)); lastT = G.t;
-    if (!greeted && G.started && R.atStep('out')) { greeted = true;
-      R.say('The gate powers down behind you', '#1fe0ff');
-      setTimeout(() => R.say('Mara: "So this is where the gates lead. Whatever runs them is in here somewhere."', '#ffb24a'), 1800); }
-    if (R.atStep('out') && p.x > 10) R.step('door');
-    runStation(dt);
-    if (hack) updateHack(R, dt);
-  },
+/* ---------- how the station looks and sounds: dark, cold light, a little dust, and an uneasy drone ---------- */
+const LOOK = {
+  sky: '#06080a', fog: '#06080a', fogD: .01, hemiSky: '#8e9aac', hemiGround: '#1c1e22', hemiI: .5,
+  sun: '#dde8f6', sunI: .75, sunDir: [-.3, -1, .25], exposure: 1.45, contrast: 1.3, sat: -14, bloomW: .6, bloomT: .5, glowI: 1,
+  weatherK: .12,   // a little dust in the air instead of ash
+  env: { zenith: [26, 30, 36], horizon: [62, 70, 80], ground: [12, 13, 16], sun: .1, gate: .7 },
 };
+const AMBIENCE = [{ name: 'ambStation', url: 'sfx/ambience-station.mp3', from: 0, to: 101 }];   // "Drone, unsettling feeling", the whole recording (101 s)
+
 /* the station's own moving parts, whatever is being played in it: sinking walls, doors, and power fading in and out */
 function runStation(dt) {
   updateCuts(dt); updateDoors(dt);
   for (const Z of Object.values(zones)) {
     if (Z.k !== Z.target) { Z.k += Math.sign(Z.target - Z.k) * Math.min(Math.abs(Z.target - Z.k), dt * .5); applyPower(Z, Math.random() < .3 ? .2 : 1); }   // power comes back in stutters
     else if (Z.flicker && Z.k > 0) applyPower(Z, Math.random() < .04 ? .25 : 1);
-  }
-}
-
-/* ---------- Mara works the hall door's lock; the station seals the corridor and sends husks ---------- */
-function startHack(R) {
-  hack = { t: 0, foes: [], said: 0 };
-  R.step('hold');
-  R.say('Mara: "Old lock. Give me a few seconds, and keep them off me."', '#ffb24a');
-  setDoor('west', false); R.say('Lockdown · The corridor has sealed behind you', '#ff6a5a');
-  setTimeout(() => { if (!hack) return; R.say('Something is moving in the vents', '#ff6a5a');
-    for (const [x, z] of [[15.75, 4.2], [22.75, -4.2], [10.6, -.6]]) { const h = R.add(new Husk(x, z, { leash: 40 })); h.dormant = false; h.target = G.player; hack.foes.push(h); } }, 2500);
-  for (const a of G.actors) if (a.kind === 'husk' && a.alive && a.state === 'slumped' && a.pos.x > 9 && a.pos.x < 30) { a.target = G.player; a.wake(); }
-}
-function updateHack(R, dt) {
-  const A = G.ally, P = G.progress, at = V(CONSOLE.x, 0, CONSOLE.z);
-  if (A.down <= 0) { if (A.mode !== 'hold') { A.mode = 'hold'; A.hold = at; } else A.hold = at; }
-  const working = A.down <= 0 && Math.hypot(A.pos.x - at.x, A.pos.z - at.z) < 1.4;
-  if (working) hack.t += dt;
-  const pct = Math.min(100, Math.round(hack.t / HACK_TIME * 100));
-  if (Math.floor(G.t * 2) !== hack.said) { hack.said = Math.floor(G.t * 2); G.UI.objective(working || pct >= 100 ? `Hold the corridor while Mara works the lock · ${pct}%` : 'Hold the corridor · Mara needs to get back to the lock'); }
-  const clear = hack.t >= 2.6 && hack.foes.every(f => !f.alive) && !G.actors.some(a => a.kind === 'husk' && a.alive && a.state !== 'slumped' && a.pos.x > 9 && a.pos.x < 30);
-  if (pct >= 100 && clear) {
-    hack = null; A.mode = 'follow';
-    P.doors.hall = true; setDoor('hall', true); setDoor('west', true);
-    R.say('Mara: "Got it. Lockdown\'s lifted too."', '#ffb24a'); R.step('power'); G.save.soon();
   }
 }
 
@@ -389,9 +294,9 @@ const SEALS = [{ doors: ['hall', 'east'], say: 'the cooling hall' }, { doors: ['
 const DARK = { first: 50, every: 65, lasts: 22, rush: .6 };   // seconds to the first power failure, between failures, and how long one lasts; while it's dark the time between groups is multiplied by rush
 let dark = null;
 export const SURVIVAL = survival({
-  num: '02', name: 'The Relay Station', startName: 'Gate room',
+  num: '02', name: 'The Relay Station',
   blurb: 'The station\'s gate is stuck open, there are husks in the vents, and the power keeps failing. Last as long as you can.',
-  preparing: REGION.preparing, indoor: true, noHorn: true, ambience: REGION.ambience, look: REGION.look,
+  preparing: 'Powering up the station…', indoor: true, noHorn: true, ambience: AMBIENCE, look: LOOK,
   build: buildRegion, gate: GATE, start: { x: 0, z: 1 },
   saveKey: 'relay-gate-survival-station-v1',
   /* a smaller space than the city: fewer machines at once */

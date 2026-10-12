@@ -145,8 +145,7 @@ export function makeMaterials(scene, T) {
     uniform: mat('uniform', '#59663f', { tex: T.cloth, rough: 1 }), armor: mat('armor', '#4b5136', { tex: T.metal, bump: T.metalN, metal: .2, rough: .6 }),
     medic: mat('medic', '#4d5560', { tex: T.cloth, rough: 1 }), medicArmor: mat('medicArmor', '#7a6a4a', { tex: T.metal, bump: T.metalN, metal: .2, rough: .6 }),
     gun: mat('gun', '#2a2c31', { tex: T.metal, metal: .7, rough: .35 }), skin: mat('skin', '#8a6a52', { rough: .7 }),
-    raider: mat('raider', '#6b4a33', { tex: T.cloth, rough: 1 }), scarf: mat('scarf', '#8a3416', { tex: T.cloth, rough: 1 }),
-    visor: mat('visor', '#000000', { unlit: true, emissive: '#ffb24a' }), goggle: mat('goggle', '#000000', { unlit: true, emissive: '#d8641c' }),
+    visor: mat('visor', '#000000', { unlit: true, emissive: '#ffb24a' }),
     /* the squad: the player's operator kit (olive, amber) and Mara's medic gear (slate, green) */
     fatigue: mat('fatigue', '#6a7448', { tex: T.cloth, rough: 1 }), carrier: mat('carrier', '#33382a', { tex: T.cloth, rough: 1 }),
     pad: mat('pad', '#363b2c', { tex: T.metal, bump: T.metalN, metal: .2, rough: .6 }), webbing: mat('webbing', '#2f3328', { tex: T.cloth, rough: 1 }),
@@ -158,17 +157,12 @@ export function makeMaterials(scene, T) {
     bone: mat('bone', '#cfc6ae', { tex: T.cloth, rough: 1 }), medRed: mat('medRed', '#9c2f1c'),
     leather: mat('leather', '#4a3626', { tex: T.cloth, rough: 1 }), medBoot: mat('medBoot', '#3a2c22', { tex: T.cloth, rough: 1 }),
     lens: mat('lens', '#000000', { unlit: true, emissive: '#8affa0' }), vial: mat('vial', '#000000', { unlit: true, emissive: '#4fb873' }),
-    /* the Rust Dogs: hide and rags over scrap plate (M.raider, M.rust), with orange goggles (M.goggle) */
-    raiderLegs: mat('raiderLegs', '#4f4436', { tex: T.cloth, rough: 1 }), rag: mat('rag', '#8a3416', { tex: T.cloth, twoSided: true }),
-    raiderWrap: mat('raiderWrap', '#9a8a6a', { tex: T.cloth, rough: 1 }), raiderDark: mat('raiderDark', '#3a2f27', { tex: T.cloth, rough: 1 }),
-    raiderBoot: mat('raiderBoot', '#2e2620', { tex: T.cloth, rough: 1 }),
     fire: mat('fire', '#000000', { unlit: true, emissive: '#ff7a1a' }), tarp: mat('tarp', '#6b5a3e', { tex: T.cloth, twoSided: true }),
     tarpB: mat('tarpB', '#4f5a4a', { tex: T.cloth, twoSided: true }),
     sand: mat('sand', '#8c7b5a', { tex: T.cloth, rough: 1 }), crate: mat('crate', '#3a3a44', { tex: T.metal, bump: T.metalN, metal: .15, rough: .6 }),
     wood: mat('wood', '#6a5238', { tex: T.cloth }),
     lamp: mat('lamp', '#000000', { unlit: true, emissive: '#ffcf7a' }),
     tracer: mat('tracer', '#000000', { unlit: true, emissive: '#ffc35a' }),
-    raiderBolt: mat('raiderBolt', '#000000', { unlit: true, emissive: '#ff8a3a' }),
     allyBolt: mat('allyBolt', '#000000', { unlit: true, emissive: '#ffd27a' }),
     mark: mat('mark', '#000000', { unlit: true, emissive: '#ff2a2a', alpha: .35, add: true }),
   };

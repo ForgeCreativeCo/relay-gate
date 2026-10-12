@@ -1,6 +1,6 @@
 /* Survival: no route to walk, just machines arriving, sooner and in bigger groups, until you go down.
-   survival(arena) turns a map into a region like any other (the same shape, played by game.js). Each map's file says how it plays
-   as an arena (SURVIVAL in region1.js and region2.js). Open one with ?mode=survival, adding &region=2 for the station. */
+   survival(arena) turns a map into what game.js plays. Each map's file says how it plays as an arena (SURVIVAL in region1.js and
+   region2.js). The title screen switches between them; ?region=2 in the address opens the station. */
 import { G, V, rand, dist2, inOpen, boost } from './core.js';
 import { Drone, Walker, Husk } from './machines.js';
 import { newInventory, rollLoot } from './loot.js';
@@ -23,9 +23,9 @@ const TUNE = {
   near: [26, 34],                         // how far from you they arrive: past the edge of the view
   gate: [16, 45, .35],                    // with the gate this far from you (nearest, farthest), this share of groups step out of it
   wreck: 15,                              // seconds a wreck lies there before it is cleared away
-  /* Scrap builds machines of your own: `n` at once for `cost`, each with `tough` times the health of the ones it was copied from. One kind at a
-     time, and no building again until every one of them is destroyed. With enough for both, you get the dearer one. */
-  build: { drones: { cost: 40, n: 3, tough: 2, name: 'drones' }, husks: { cost: 90, n: 2, tough: 2, name: 'husks' } },
+  /* Scrap builds a squad of your own: `drones` and `husks` together for `cost`, each with `tough` times the health of the ones it was copied
+     from. No building again until every one of them is destroyed. */
+  build: { cost: 100, drones: 3, husks: 2, tough: 2 },
   horn: 20,                               // the horn sounds when a group arrives, but not more often than this many seconds
   xp: { drone: 2, husk: 3, walker: 12, warden: 40 },   // what each kill is worth (Mara's count too)
   level: [8, 6, 1.2],                     // XP for the next level: the first number, plus the second per level so far, plus the third times that count squared
@@ -53,7 +53,7 @@ const UPGRADES = [
 
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
-/* arena: { num, name, startName, blurb, preparing, build, gate, start, saveKey } and, where it differs from open ground,
+/* arena: { num, name, blurb, preparing, build, gate, start, saveKey } and, where it differs from open ground,
    { look, indoor, noHorn, ambience, tune, arrive(p, kind), begin(R, run), tick(R, run, dt) }.
    arrive says where a 'ground', 'air', 'walker' or 'boss' (the Warden) machine comes in (null for nowhere just now); without it they arrive off-screen.
    tick runs every frame; run.time is the clock, and run.gapK scales the time between groups (an arena can bring them faster for a while). */
@@ -93,28 +93,29 @@ export function survival(arena) {
     return any;
   }
 
-  /* What your scrap can build right now: the dearest set you can afford, or nothing while a squad is still standing. */
+  /* Your squad: drones in the air and husks on foot, built together. You can build when you have the scrap and the last squad is gone. */
   const squadUp = () => RUN.squad.filter(a => a.alive);
-  const affordable = () => { const s = G.inv.scrap, B = T.build; return squadUp().length ? null : s >= B.husks.cost ? 'husks' : s >= B.drones.cost ? 'drones' : null; };
+  const canBuild = () => !squadUp().length && G.inv.scrap >= T.build.cost;
+  const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
+  const makeup = (list) => [plural(list.filter(a => a.kind === 'drone').length, 'drone'), plural(list.filter(a => a.kind === 'husk').length, 'husk')].join(', ');
   function build(R) {
     if (!RUN || RUN.over || G.player.down > 0) return;
-    const what = affordable();
-    if (!what) { R.say(squadUp().length ? 'Your machines are still standing · You can build again when they\'re gone' : `Not enough scrap · ${T.build.drones.cost} builds ${T.build.drones.n} drones`, '#9aa0a6'); return; }
-    const b = T.build[what], p = G.player.pos, k = b.tough * (1 + T.tough * RUN.time / 60); G.inv.scrap -= b.cost;
-    for (let i = 0; i < b.n; i++) {
-      const a = i / b.n * 6.283 + rand(0, 1), c = G.nav.snap(p.x + Math.cos(a) * 2.2, p.z + Math.sin(a) * 2.2, 3) || p;
-      const m = what === 'husks' ? new Husk(c.x, c.z, { ally: true, leash: 16 }) : new Drone(c.x, c.z, { ally: true });
-      m.maxHp = m.hp = Math.round(m.hp * k); RUN.squad.push(R.add(m)); RUN.squadName = b.name; G.FX.puffAt(V(c.x, 1.2, c.z), 10);
-    }
-    G.audio.play('powerOn', { pos: p, gain: .5, rate: 1.2, len: 1.4, fade: .3 }); R.say(`Built ${b.n} ${b.name} · They fight for you until they're destroyed`, '#1fe0ff'); RUN.hudAt = 0; G.save.soon();
+    const B = T.build;
+    if (!canBuild()) { R.say(squadUp().length ? 'Your squad is still standing · You can build again when it\'s gone' : `Not enough scrap · ${B.cost} builds ${B.drones} drones and ${B.husks} husks`, '#9aa0a6'); return; }
+    const p = G.player.pos, k = B.tough * (1 + T.tough * RUN.time / 60), kinds = [...Array(B.drones).fill('drone'), ...Array(B.husks).fill('husk')]; G.inv.scrap -= B.cost;
+    kinds.forEach((kind, i) => {
+      const a = i / kinds.length * 6.283 + rand(0, 1), c = G.nav.snap(p.x + Math.cos(a) * 2.2, p.z + Math.sin(a) * 2.2, 3) || p;
+      const m = kind === 'husk' ? new Husk(c.x, c.z, { ally: true, leash: 16 }) : new Drone(c.x, c.z, { ally: true });
+      m.maxHp = m.hp = Math.round(m.hp * k); RUN.squad.push(R.add(m)); RUN.squadGone = false; G.FX.puffAt(V(c.x, 1.2, c.z), 10);
+    });
+    G.audio.play('powerOn', { pos: p, gain: .5, rate: 1.2, len: 1.4, fade: .3 }); R.say(`Built ${B.drones} drones and ${B.husks} husks · They fight for you until they're destroyed`, '#1fe0ff'); RUN.hudAt = 0; G.save.soon();
   }
-  /* the scrap meter: what you have against what it buys, or how the squad is doing */
+  /* the scrap meter: what you have against what a squad costs, or what's left of the squad */
   function meter() {
-    const B = T.build, s = G.inv.scrap, up = squadUp(), key = G.input.mode === 'touch' ? '' : ' · B', mark = B.drones.cost / B.husks.cost, fill = s / B.husks.cost;
-    if (up.length) return { label: 'Squad', text: `${up.length}/${RUN.squad.length} ${RUN.squadName} · ${s} scrap`, fill, mark };
-    const can = affordable();
-    if (can) return { label: 'Build', text: `${B[can].n} ${B[can].name}${key}` + (can === 'drones' ? ` · ${s} / ${B.husks.cost} for husks` : ''), fill, mark, ready: true };
-    return { label: 'Scrap', text: `${s} / ${B.drones.cost} for drones`, fill, mark };
+    const B = T.build, s = G.inv.scrap, up = squadUp(), key = G.input.mode === 'touch' ? '' : ' · B', fill = s / B.cost;
+    if (up.length) return { label: 'Squad', text: `${makeup(up)} · ${s} scrap`, fill };
+    if (canBuild()) return { label: 'Build', text: `${B.drones} drones + ${B.husks} husks${key}`, fill, ready: true };
+    return { label: 'Scrap', text: `${s} / ${B.cost} for a squad`, fill };
   }
 
   /* a machine joins the run: tougher the longer it has gone on, and tracked so it hunts you and its wreck gets cleared */
@@ -163,27 +164,21 @@ export function survival(arena) {
     num: arena.num, name: arena.name, tag: `Survival · ${arena.name}`,
     blurb: arena.blurb,
     titleNote: s => { const p = (s && s.progress) || {}; return p.best ? `Your best run: ${clock(p.best)}${p.bestLevel ? ', level ' + p.bestLevel : ''}.` : ''; },
-    clearedText: '',
     preparing: arena.preparing,
-    endless: true,   // no checkpoints to continue from: every visit is a new run, and going down ends it
     hornSignals: true,   // the horn means a wave has arrived, so it never sounds at random here (audio.js)
     medic: true,     // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
     indoor: arena.indoor, noHorn: arena.noHorn, ambience: arena.ambience, look: arena.look,
-    /* its own slot in this browser, so a run never touches your campaign save */
-    save: { key: arena.saveKey, localOnly: true },
+    /* each arena keeps its own record: in its own slot in this browser, and in its own document in your account */
+    save: { key: arena.saveKey, doc: arena.saveKey },
     build: arena.build,
     start: START,
-    allyWait: { x: START.x - 1.6, z: START.z - 1.4, face: 0 },
-    fresh: () => ({ mara: true, gate: true, best: (G.progress && G.progress.best) || 0 }),   // Mara is in every run; your best time outlives the run
+    fresh: () => { const p = G.progress || {}; return { gate: true, best: p.best || 0, bestLevel: p.bestLevel || 0 }; },   // your best run outlives the run
     gate: GATE,
-    checkpoints: [{ id: 'start', name: arena.startName, x: START.x, z: START.z }],
-    objectives: [{ id: 'survive', text: 'Survive', at: () => null }],
-    rerunFrom: 'survive',
 
     /* a run starts from nothing: the starter rifle, an empty pack, level 1, the clock at zero */
     spawn(R) {
       G.inv = newInventory(); G.boost = {}; G.player.recalc(); G.ally.recalc(); G.ally.healCD = G.ally.reviveCD = 0; G.ally.revives = 0; G.progress.kills = 0;
-      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, hornAt: 0, squad: [], squadName: '', warden: null, wardens: 0, bosses: { walker: 0, warden: 0 } };
+      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, hornAt: 0, squad: [], warden: null, wardens: 0, bosses: { walker: 0, warden: 0 } };
       if (arena.begin) arena.begin(R, RUN);
     },
     interactables() {},
@@ -218,9 +213,10 @@ export function survival(arena) {
       /* your own machines stay with you (and are brought back if you outrun them); their wrecks are cleared the same way */
       for (const a of RUN.squad) {
         if (a.alive) { a.home.x = p.x; a.home.z = p.z; if (dist2(a.pos, p) > 34) { const c = G.nav.snap(p.x + rand(-2, 2), p.z + rand(-2, 2), 4); if (c) { a.pos.x = c.x; a.pos.z = c.z; } } }
-        else if (!a.deadAt) { a.deadAt = G.t; if (!squadUp().length) R.say(`Your ${RUN.squadName} are gone · Scrap can build again`, '#9aa0a6'); }
+        else if (!a.deadAt) a.deadAt = G.t;
         else if (G.t - a.deadAt > T.wreck && !a.gone) { R.remove(a); a.gone = true; }
       }
+      if (RUN.squad.length && !RUN.squadGone && !squadUp().length) { RUN.squadGone = true; R.say('Your squad is gone · Scrap can build again', '#9aa0a6'); }   // once, however many went down together
       if (RUN.squad.length && RUN.squad.every(a => a.gone)) RUN.squad = [];
       if (RUN.due.length && G.t >= RUN.dueAt && G.player.down <= 0) { milestone(R, p); RUN.dueAt = G.t + 1; }
       if (G.t >= RUN.nextAt && G.player.down <= 0) { const came = group(R, p, m);

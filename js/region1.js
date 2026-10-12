@@ -1,9 +1,6 @@
-/* Region 01, Dead City: the map (walkable streets, ruins, props, set pieces) and the run through it (objectives, encounters, story beats). */
-import { B, G, V, MT, R, rnd, C, rand } from './core.js';
+/* Region 01, Dead City: the map (walkable streets, ruins, props, set pieces, the relay gate) and how it plays as a survival arena. */
+import { B, G, V, MT, R, rnd, C } from './core.js';
 import { Geo, gbox, gprism, gcyl, gmesh, Buckets } from './geo.js';
-import { Raider } from './actors.js';
-import { Drone, Walker, Husk } from './machines.js';
-import { rollLoot } from './loot.js';
 import { buildGate } from './gate.js';
 import { survival } from './survival.js';
 
@@ -18,14 +15,6 @@ export const AREAS = {
   plaza: [30, 117, 70, 158],
 };
 export const GATE = { x: 50, z: 152, y: 4.4 };
-const STASH = { x: 46, z: 74.2 };   // the Rust Dogs' loot crate
-export const CHECKPOINTS = [
-  { id: 'outpost', name: 'Outpost', x: 0, z: -5 },
-  { id: 'square', name: 'Ring Road', x: 0, z: 62 },
-  { id: 'yard', name: 'Rail yard', x: 38, z: 80 },
-  { id: 'gate', name: 'Gate approach', x: 50, z: 114 },
-];
-
 const BARRIER = [[-.32, 0], [.32, 0], [.32, .1], [.1, .82], [-.1, .82], [-.32, .1]];
 function overlapsOpen(x0, z0, x1, z1) { for (const o of G.open) if (x0 < o[2] && x1 > o[0] && z0 < o[3] && z1 > o[1]) return true; return false; }
 function distToOpen(x, z) { let best = 1e9; for (const o of G.open) { const dx = Math.max(o[0] - x, 0, x - o[2]), dz = Math.max(o[1] - z, 0, z - o[3]); best = Math.min(best, Math.hypot(dx, dz)); } return best; }
@@ -187,7 +176,7 @@ export function buildRegion(M) {
   /* ---------- East street ---------- */
   car(22, 78, 1.5); barrier(28, 82.5, 1.57); car(35, 81.5, 1.7, true); pole(24, 74.4, 1, 0); pole(36, 85.6, -1, .3);
 
-  /* ---------- Rail yard: tracks, boxcars, the Rust Dogs camp ---------- */
+  /* ---------- Rail yard: tracks, boxcars, an abandoned raider camp ---------- */
   for (const x of [46, 50, 58, 62]) { const g = at(x, 82, 'rust'); gbox(g, { x: x - .6, y: .08, z: 82, w: .12, h: .16, d: 36, ao: false }); gbox(g, { x: x + .6, y: .08, z: 82, w: .12, h: .16, d: 36, ao: false });
     for (let z = 65; z < 100; z += 1.2) gbox(at(x, z, 'wood'), { x, y: .04, z, w: 1.8, h: .08, d: .25, tint: R(.7, 1) }); }
   const boxcar = (x, z, ry, rz) => { const g = at(x, z, 'rust'), P = MT(0, 0, 0, 0, ry, rz || 0).multiply(MT(x, 0, z));
@@ -226,81 +215,10 @@ export function buildRegion(M) {
   return { gate };
 }
 
-/* ---------- the run: objectives, encounters and story beats ---------- */
-/* Everything the game needs to know to play this region. game.js runs it; a new region is a new file exporting the same shape. */
-let rustDogs = [];
-export const REGION = {
-  num: '01', name: 'Dead City',
-  blurb: 'A machine-held city, a relay gate, and whatever you can salvage on the way.',
-  clearedText: 'The relay gate hums open. Region 02 is next on the build list. Until then, the city is yours: keep exploring, or run it again with the gear you\'ve earned.',
-  preparing: 'Preparing the city…',
-  build: buildRegion,
-  start: { x: 0, z: -5 },
-  allyWait: { x: 5.2, z: 1.8, face: Math.PI * .8 },   // Mara by the campfire, waiting to be talked to
-  gate: GATE,
-  checkpoints: CHECKPOINTS,
-  /* ids let the game and this file move between steps by name; saves store the index */
-  objectives: [
-    { id: 'mara', text: 'Talk to Mara by the campfire', at: () => G.ally.pos },
-    { id: 'road', text: 'Head north up the Ring Road', at: () => V(0, 0, 44) },
-    { id: 'square', text: 'Survive the Market Square', at: () => V(4, 0, 82) },
-    { id: 'yard', text: 'Get through the rail yard', at: () => V(50, 0, 98) },
-    { id: 'north', text: 'Push north to the relay gate', at: () => V(50, 0, 120) },
-    { id: 'boss', text: 'Destroy the Warden', at: () => G.game.boss && G.game.boss.alive ? G.game.boss.pos : V(50, 0, 138) },
-    { id: 'gate', text: 'Step through the relay gate', at: () => V(GATE.x, 0, GATE.z - 2) },
-    { id: 'done', text: 'Region cleared · Explore or run it again', at: () => null },
-  ],
-  rerunFrom: 'road',   // running it again skips meeting Mara
-
-  /* R: encounter(id, opts), boss(id, opts), add(actor, enc), step(id), atStep(id), say(text, colour) */
-  spawn(R) {
-    R.encounter('drones1', { when: p => p.z > 24, spawn: e => [[-2, 40], [2.5, 45], [0, 50], [3, 36]].forEach(([x, z]) => R.add(new Drone(x, z), e)),
-      onClear: () => { if (R.atStep('road')) R.step('square'); } });
-    /* husks slumped against the walls, waiting for someone to walk past */
-    R.encounter('husks1', { when: p => p.z > 16, spawn: e => [[-4.3, 28, Math.PI / 2], [4.3, 47, -Math.PI / 2]].forEach(([x, z, face]) => R.add(new Husk(x, z, { slumped: true, face }), e)) });
-    R.encounter('square', { when: p => p.z > 57,
-      spawn: e => { R.add(new Walker(7, 83, { patrolR: 4, leash: 11 }), e); [[-14, 75.5], [-14.6, 80.5], [-13.8, 86]].forEach(([x, z]) => R.add(new Raider(x, z, { leash: 2.2, face: Math.PI / 2, alert: 26 }), e)); },
-      done: e => e.actors.filter(a => a.kind === 'walker').every(a => !a.alive),   // the raiders can stay
-      onClear: () => { R.say('The square is clear', '#ffb24a'); R.step('yard'); } });
-    R.encounter('drones2', { when: p => p.x > 13 && p.z > 70, spawn: e => [[28, 80], [32, 77.5], [36, 82]].forEach(([x, z]) => R.add(new Drone(x, z), e)) });
-    R.encounter('husks2', { when: p => p.x > 13 && p.z > 70, spawn: e => [[24, 84.3, Math.PI], [26, 84.3, Math.PI], [33, 75.7, 0]].forEach(([x, z, face]) => R.add(new Husk(x, z, { slumped: true, face }), e)) });
-    R.encounter('north', { when: p => p.x > 42 && p.z > 95, spawn: e => { R.add(new Walker(50, 108, { patrolR: 3, leash: 8 }), e); [[47.5, 112], [53, 104]].forEach(([x, z]) => R.add(new Drone(x, z), e)); } });
-    R.boss('warden', { when: p => p.z > 119 && p.x > 28, spawn: e => R.add(new Walker(50, 138, { boss: true, patrolR: 0, leash: 15 }), e) });
-    /* the Rust Dogs live in the rail yard whatever happens */
-    rustDogs = [[45, 76.5], [52.5, 75], [49, 81.5], [44, 80]].map(([x, z], i) => R.add(new Raider(x, z, { leash: 2.5, face: Math.PI * (i % 2 ? .3 : 1.2), heavy: i === 0 })));
-  },
-
-  interactables(R, P, L) {
-    if (!G.ally.joined) L.push({ pos: G.ally.pos, r: 2.8, label: 'Talk to Mara', use: () => {
-      R.say('Mara: "You\'re the one heading for the gate? Then you\'ll want a medic."', '#ffb24a');
-      setTimeout(() => R.say('Mara: "Machines own everything north of here. Stay close."', '#ffb24a'), 1600);
-      G.ally.join(); G.actors.push(G.ally); P.mara = true; R.step('road'); } });
-    const st = STASH;
-    if (!P.stash) L.push({ pos: V(st.x, 0, st.z), r: 2.2, label: 'Open the Rust Dogs\' stash', use: () => {
-      P.stash = true; G.drops.scatter(st.x, st.z - 1.6, rollLoot('stash'));
-      if (rustDogs.some(r => r.alive)) G.game.setRaiderHostile('stash'); else R.say('Nobody left to object', '#9aa0a6'); G.save.soon(); } });
-  },
-
-  onBossPhase(R, b, ph, enc) {
-    if (ph === 2) R.say('The Warden is calling in drones and husks · Watch for missile markers', '#ff6a5a');
-    if (ph === 3) R.say('The Warden is overheating · It\'s faster now', '#ff6a5a');
-    for (let i = 0; i < 2; i++) { const a = rand(0, 6.28), d = R.add(new Drone(b.pos.x + Math.cos(a) * 6, b.pos.z + Math.sin(a) * 6), enc); d.dormant = false; d.home.set(50, 0, 136); }
-    /* and a husk scrambles in from the ruins behind you */
-    const h = R.add(new Husk(rand(36, 64), 120, { leash: 40 }), enc); h.dormant = false; h.home.set(50, 0, 136);
-  },
-
-  /* objectives that move on as you walk */
-  update(R, p) {
-    if (R.atStep('road') && p.z > 60) R.step('square');
-    if (R.atStep('yard') && p.z > 96 && p.x > 43) R.step('north');
-    if (R.atStep('north') && p.z > 118) R.step('boss');
-  },
-};
-
 /* ---------- the same city as a survival arena: you start in the gate plaza, with the gate stuck open behind you ---------- */
 export const SURVIVAL = survival({
-  num: '01', name: 'Dead City', startName: 'Gate plaza',
+  num: '01', name: 'Dead City',
   blurb: 'The gate is stuck open and the machines keep coming. Last as long as you can.',
-  preparing: REGION.preparing, build: buildRegion, gate: GATE, start: { x: 50, z: 130 },
+  preparing: 'Preparing the city…', build: buildRegion, gate: GATE, start: { x: 50, z: 130 },
   saveKey: 'relay-gate-survival-v1',
 });

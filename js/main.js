@@ -3,7 +3,7 @@ import { B, G, V, C, damp, reduced, dist2 } from './core.js';
 import { makeTextures, makeMaterials, LOOK } from './tex.js';
 import { makeFx } from './fx.js';
 import { makeCombat } from './combat.js';
-import { makeDrops, newInventory, genWeapon, upgradeItem } from './loot.js';
+import { makeDrops, newInventory } from './loot.js';
 import { Player, Ally } from './actors.js';
 import { makeInput } from './input.js';
 import { makeNav } from './nav.js';
@@ -25,15 +25,16 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   try { engine = new B.Engine(canvas, true, { stencil: true, antialias: true, powerPreference: 'high-performance' }, true); }
   catch (e) { fail('This browser has WebGL turned off, so the game cannot run here.'); return; }
   const scene = new B.Scene(engine); G.engine = engine; G.scene = scene;
-  /* the region being played: Dead City unless the address asks for another (?region=2), played as survival if it asks for that (?mode=survival). Its look is applied before anything is lit. */
-  /* Inside Claude the address never reaches the page, so with nothing in it the title screen's last choice is used, kept in this browser. */
-  const query = new URLSearchParams(location.search), REGIONS = { '01': './region1.js', '02': './region2.js' }, MODE_KEY = 'relay-gate-mode', ADDRESS = { campaign: '', survival: '?mode=survival', station: '?mode=survival&region=2' };
-  let kept = ''; try { kept = localStorage.getItem(MODE_KEY) || ''; } catch (e) {}
-  const said = query.has('mode') || query.has('region'), asked = (said ? query.get('region') || '' : kept === 'station' ? '2' : '').padStart(2, '0'), survive = said ? query.get('mode') === 'survival' : kept === 'survival' || kept === 'station';
-  const map = await import(REGIONS[asked] || REGIONS['01']), REGION = survive ? map.SURVIVAL : map.REGION;   // every map has a campaign run and a survival one
-  /* switch to another way to play: remember it and load again (through the address when the choice can't be kept, or the address is what chose) */
-  const play = (which) => { let ok = false; try { localStorage.setItem(MODE_KEY, which); ok = localStorage.getItem(MODE_KEY) === which; } catch (e) {}
-    if (ok && !location.search) location.reload(); else location.search = ADDRESS[which]; };
+  /* the arena: Dead City, or the Relay Station if the address asks for it (?region=2). Its look is applied before anything is lit.
+     Inside Claude the address never reaches the page, so with nothing in it the title screen's last choice is used, kept in this browser
+     (under the key it had when it chose between the campaign and survival: 'station' still means the station, anything else the city). */
+  const query = new URLSearchParams(location.search), ARENA_KEY = 'relay-gate-mode';
+  let kept = ''; try { kept = localStorage.getItem(ARENA_KEY) || ''; } catch (e) {}
+  const station = query.has('region') ? query.get('region').padStart(2, '0') === '02' : kept === 'station';
+  const REGION = (await import(station ? './region2.js' : './region1.js')).SURVIVAL;
+  /* switch arena: remember it and load again (through the address when the choice can't be kept, or the address is what chose) */
+  const play = (which) => { let ok = false; try { localStorage.setItem(ARENA_KEY, which); ok = localStorage.getItem(ARENA_KEY) === which; } catch (e) {}
+    if (ok && !location.search) location.reload(); else location.search = which === 'station' ? '?region=2' : ''; };
   Object.assign(LOOK, REGION.look || {}); G.R = REGION;
   /* ask for the account save straight away, in parallel with building the region */
   G.save = makeSave(REGION.save); const savedP = G.save.load();
@@ -96,9 +97,8 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
     G.FX.weather.emitRate = (h ? 480 : 200) * (reduced ? .4 : 1) * LOOK.weatherK; fit(); if (G.save) G.save.soon();
   };
 
-  /* the region's map and run, the world and the cast */
-  const tag = REGION.tag || `Region ${REGION.num} · ${REGION.name}`;
-  for (const [id, t] of [['regionTag', tag], ['titleTag', tag], ['endTag', `Region ${REGION.num}`], ['endName', `${REGION.name} cleared`], ['endText', REGION.clearedText]]) $(id).textContent = t;
+  /* the arena's map and run, the world and the cast */
+  for (const id of ['regionTag', 'titleTag']) $(id).textContent = REGION.tag;
   G.settings = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
   G.audio = makeAudio(); G.audio.apply();
   G.progress = freshProgress(); G.inv = newInventory();
@@ -106,7 +106,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   G.CB = makeCombat(M); G.drops = makeDrops(M);
   G.input = makeInput(canvas); G.UI = makeUI(); G.game = makeGame();
   G.player = new Player(); G.actors.push(G.player); G.player.pos.set(REGION.start.x, 0, REGION.start.z);
-  G.ally = new Ally(REGION.allyWait.x, REGION.allyWait.z);
+  G.ally = new Ally(REGION.start.x - 1.6, REGION.start.z - 1.4); G.ally.joined = true; G.actors.push(G.ally);   // Mara is in every run
   G.setPaused = (p) => { G.paused = p; G.input.release(); if (p) G.audio.silenceHums(); };
   G.input.on(a => {
     const P = G.player;
@@ -166,47 +166,31 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   /* ---------- title screen ---------- */
   fit();
   mark('save-start'); let saved = await savedP; mark('save-done');
-  const info = $('titleInfo'), cont = $('contBtn'), nw = $('newBtn');
+  const info = $('titleInfo'), cont = $('contBtn');
   const SETTINGS = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
-  const describe = () => {
-    if (saved && !REGION.endless) { const cps = REGION.checkpoints, cp = cps.find(c => c.id === (saved.progress || {}).checkpoint) || cps[0], n = (saved.inv && saved.inv.items || []).length;
-      info.textContent = `Continue at the ${cp.name} checkpoint · ${n} item${n === 1 ? '' : 's'} in your pack · Saved to ${G.save.where}.`; cont.textContent = 'Continue'; nw.hidden = false; }
-    else { info.textContent = `${[REGION.blurb, REGION.titleNote && REGION.titleNote(saved)].filter(Boolean).join(' ')} Progress saves to ${G.save.where}.`; cont.textContent = 'Start'; nw.hidden = true; }
-  };
-  const showError = (what, e) => { console.error(e); info.textContent = `${what}: ${(e && e.message) || e}. Try again, or start a new game.`; };
+  const describe = () => { info.textContent = `${[REGION.blurb, REGION.titleNote(saved)].filter(Boolean).join(' ')} Your record saves to ${G.save.where}.`; };
+  const showError = (what, e) => { console.error(e); info.textContent = `${what}: ${(e && e.message) || e}. Reload the page to try again.`; };
 
-  /* Set the world up for a save (or a fresh game): pack, progress, settings, enemies, checkpoint. Safe to run again (a late account save, New game). */
+  /* Set up a fresh run, carrying over what the save keeps (your best run here, and your settings). Safe to run again (a late account save). */
   function prepare(s) {
     G.game.clearAll(); G.drops.clear(); G.CB.clear(); G.FX.clearDebris();
-    G.ally.joined = false; G.actors = G.actors.filter(a => a !== G.ally);
-    G.inv = newInventory(); G.progress = freshProgress(); G.settings = Object.assign({}, SETTINGS);
-    if (s) {
-      const inv = s.inv || {}; G.inv = { items: (inv.items || []).filter(Boolean).map(upgradeItem), equip: Object.assign({ primary: null, secondary: null, helmet: null, vest: null }, inv.equip || {}), active: inv.active || 'primary', scrap: inv.scrap || 0 };
-      for (const k of ['primary', 'secondary']) upgradeItem(G.inv.equip[k]);
-      if (!G.inv.equip.primary) G.inv.equip.primary = newInventory().equip.primary;
-      G.progress = Object.assign(freshProgress(), s.progress || {}); G.progress.cleared = Object.assign({}, (s.progress || {}).cleared);
-      if (!REGION.objectives[G.progress.step]) G.progress.step = 0;
-      G.settings = Object.assign({}, SETTINGS, s.settings || {});
-    }
-    G.raiderHostile = !!G.progress.raiders;
-    G.player.recalc(); G.player.hp = G.player.maxHp;
-    if (G.progress.mara) { G.ally.joined = true; G.actors.push(G.ally); }
-    else { const w = REGION.allyWait; G.ally.teleportNear(V(w.x, 0, w.z)); G.ally.root.rotation.y = w.face; }   // back where she waits to be talked to
+    G.progress = freshProgress(); G.settings = Object.assign({}, SETTINGS);
+    if (s) { const p = s.progress || {}; G.progress.best = p.best || 0; G.progress.bestLevel = p.bestLevel || 0; G.settings = Object.assign({}, SETTINGS, s.settings || {}); }
     G.game.spawnAll(); G.game.applyGate();
-    const cp = G.game.checkpoint(); G.player.respawn(cp.x, cp.z); cam.target.set(cp.x, 0, cp.z); if (G.ally.joined) G.ally.teleportNear(G.player.pos);
+    const st = REGION.start; G.player.respawn(st.x, st.z); cam.target.set(st.x, 0, st.z); G.ally.teleportNear(G.player.pos);
     G.setQuality(G.settings.quality); G.audio.apply(); if (G.settings.controls !== 'auto') G.input.setMode(G.settings.controls, true); $('fps').hidden = !G.settings.fps;
-    G.UI.objective(G.game.objective().text);
+    G.UI.objective('Survive');
   }
-  /* Prepare, then wait (on the title screen) for every shader the scene needs, so pressing Continue doesn't stall on them.
+  /* Prepare, then wait (on the title screen) for every shader the scene needs, so pressing Start doesn't stall on them.
      That compile is slowest right after a restart, when the graphics caches are cold. */
   let prepId = 0;
   async function ready(s) {
-    const id = ++prepId; cont.disabled = nw.disabled = true; info.textContent = REGION.preparing;
+    const id = ++prepId; cont.disabled = true; info.textContent = REGION.preparing;
     try { prepare(s); await Promise.race([scene.whenReadyAsync(), new Promise(r => setTimeout(r, 15000))]); }
-    catch (e) { if (id === prepId) showError('Couldn\'t prepare your save', e); }
+    catch (e) { if (id === prepId) showError('Couldn\'t set up the run', e); }
     if (id !== prepId) return;   // a newer prepare took over
     if (!info.textContent.startsWith('Couldn')) describe();
-    cont.disabled = nw.disabled = false; cont.focus();
+    cont.disabled = false; cont.focus();
   }
   await ready(saved);
   window.__booted = true; mark('title');
@@ -215,19 +199,14 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
 
   /* Clicks respond at once ("Starting…"); the work runs a moment later so that change is drawn first. Failures are shown, never swallowed. */
   const go = (fn) => {
-    if (cont.disabled) return; cont.disabled = nw.disabled = true; const label = cont.textContent; cont.textContent = 'Starting…';
-    setTimeout(() => { try { fn(); } catch (e) { showError('Couldn\'t start', e); cont.textContent = label; cont.disabled = nw.disabled = false; } }, 30);
+    if (cont.disabled) return; cont.disabled = true; const label = cont.textContent; cont.textContent = 'Starting…';
+    setTimeout(() => { try { fn(); } catch (e) { showError('Couldn\'t start', e); cont.textContent = label; cont.disabled = false; } }, 30);
   };
   cont.onclick = () => go(start);
-  /* the other way to play: survival from the campaign, the campaign from survival */
-  const other = $('modeBtn'); other.textContent = REGION.endless ? 'Campaign' : 'Survival'; other.onclick = () => play(REGION.endless ? 'campaign' : 'survival');
-  /* and, in survival, the other arena */
-  const arena = $('arenaBtn'), station = REGION.num === '02'; arena.hidden = !REGION.endless; arena.textContent = station ? 'Switch to Dead City' : 'Switch to the Relay Station';
-  arena.onclick = () => play(station ? 'survival' : 'station');
-  G.otherArena = REGION.endless ? { label: arena.textContent, use: arena.onclick } : null;   // the end of a run offers it too
-  if (REGION.endless) $('toCheckpoint').textContent = 'End run';
-  nw.onclick = () => $('newConfirm').classList.add('show'); $('newNo').onclick = () => $('newConfirm').classList.remove('show');
-  $('newYes').onclick = async () => { $('newConfirm').classList.remove('show'); await G.save.wipe(); saved = null; go(() => { prepare(null); start(); }); };
+  /* the other arena */
+  const arena = $('arenaBtn'); arena.textContent = station ? 'Switch to Dead City' : 'Switch to the Relay Station';
+  arena.onclick = () => play(station ? 'city' : 'station');
+  G.otherArena = { label: arena.textContent, use: arena.onclick };   // the end of a run offers it too
 
   function start() {
     G.audio.unlock(); G.audio.startAmbience();

@@ -29,7 +29,6 @@ export const G = {
   actors: [],         // everything that can be shot
   lightSources: [],   // fires and the gate; the nearest borrow the pooled lights
   interactables: [],  // {pos, radius, label, action, enabled()}
-  raiderHostile: false,
   boost: {},          // what this run's level-up choices add (survival): percentages and flat amounts by name, e.g. { dmg: 30, hp: 25 }
   shake: 0,
 };

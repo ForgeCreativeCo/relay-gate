@@ -1,27 +1,22 @@
 /* Factions, projectiles and damage shared by every actor. */
 import { B, G, V, V3, insideObstacle, dist2 } from './core.js';
 
-/* Machines fight everyone. Raiders fight machines, and you only once you've crossed them. */
+/* Two sides: the machines, and you, Mara and the machines you build. */
 export function hostile(a, b) {
   if (!a || !b || a === b || !a.alive || !b.alive) return false;
-  if (a.faction === b.faction) return false;
-  if (a.faction === 'machine' || b.faction === 'machine') return true;
-  return G.raiderHostile;
+  return a.faction !== b.faction;
 }
-/* Bullets can also hit raiders who are still neutral: opening fire on them is how you turn on them. */
-export function canHit(src, b) { return hostile(src, b) || (src.faction === 'player' && b.faction === 'raider' && b.alive); }
 export function nearestHostile(self, range, from) {
   const p = from || self.pos; let best = null, bd = range;
   for (const a of G.actors) { if (!hostile(self, a) || a.untargetable || a.dormant || a.lurk) continue; const d = dist2(p, a.pos); if (d < bd) { bd = d; best = a; } }
   return best;
 }
 
-const FLASH = { bolt: '#ff5a40', raider: '#ffa04a', ally: '#ffd27a', tracer: '#ffc35a' };
+const FLASH = { bolt: '#ff5a40', ally: '#ffd27a', tracer: '#ffc35a' };
 const KINDS = {
   tracer: { mat: 'tracer', w: .07, len: 1.3, n: 60 },
   proto: { mat: 'tracer', w: .09, len: 1.4, n: 0 },
   bolt: { mat: 'bolt', w: .15, len: 1, n: 50 },
-  raider: { mat: 'raiderBolt', w: .08, len: 1.1, n: 40 },
   ally: { mat: 'allyBolt', w: .07, len: 1.1, n: 20 },
 };
 
@@ -54,7 +49,7 @@ export function makeCombat(M) {
       for (let si = 1; si <= 3 && !hit && !wall; si++) {
         const q = p.m.position.add(step.scale(si / 3));
         for (const [a, H] of targets) {
-          if (a === p.owner || !canHit(p.src, a)) continue; if (Math.abs(q.x - a.pos.x) > 7 || Math.abs(q.z - a.pos.z) > 7) continue;
+          if (a === p.owner || !hostile(p.src, a)) continue; if (Math.abs(q.x - a.pos.x) > 7 || Math.abs(q.z - a.pos.z) > 7) continue;
           for (const h of H) if (V3.DistanceSquared(q, h.c) < h.r * h.r) { hit = [a, h.part, q]; break; } if (hit) break;
         }
         if (!hit && (q.y < .02 || insideObstacle(q.x, q.z, q.y))) wall = q;

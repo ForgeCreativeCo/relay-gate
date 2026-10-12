@@ -35,14 +35,6 @@ let uid = 1;
 const newId = () => 'i' + Date.now().toString(36) + (uid++);
 
 function rollAffixes(list, n) { const pool = [...list], out = []; for (let i = 0; i < n && pool.length; i++) { const a = pool.splice(Math.floor(Math.random() * pool.length), 1)[0]; out.push({ k: a.k, v: ri(a.min, a.max) }); } return out; }
-/* Saves from before reloading was removed: turn reload and magazine perks into damage perks. */
-export function upgradeItem(it) {
-  if (!it || it.type !== 'weapon') return it;
-  delete it._ammo;
-  it.affixes = it.affixes.map(a => a.k === 'reload' || a.k === 'magPct' ? { k: 'dmgPct', v: Math.max(5, Math.min(15, Math.round(a.v / 3))) } : a);
-  const seen = {}; it.affixes = it.affixes.filter(a => { if (seen[a.k]) { seen[a.k].v = Math.min(15, seen[a.k].v + a.v); return false; } seen[a.k] = a; return true; });
-  return it;
-}
 export function affixText(it, a) { const L = it.type === 'weapon' ? W_AFFIX : A_AFFIX; const d = L.find(x => x.k === a.k); return d ? d.text(a.v) : ''; }
 
 export function genWeapon(tier, arch) {
@@ -74,9 +66,7 @@ export function rollLoot(src) {
   const item = (w) => { const t = tierRoll(w); return Math.random() < .68 ? genWeapon(t) : genArmor(t); };
   if (src === 'drone') { if (Math.random() < .22) out.push(item([['scrap', 70], ['military', 28], ['proto', 2]])); out.push({ scrap: ri(1, 3) }); }
   if (src === 'husk') { if (Math.random() < .28) out.push(item([['scrap', 60], ['military', 36], ['proto', 4]])); out.push({ scrap: ri(1, 4) }); }
-  if (src === 'raider') { if (Math.random() < .35) out.push(item([['scrap', 55], ['military', 40], ['proto', 5]])); out.push({ scrap: ri(1, 4) }); }
   if (src === 'walker') { out.push(item([['military', 60], ['proto', 34], ['machine', 6]])); if (Math.random() < .5) out.push(item([['scrap', 40], ['military', 50], ['proto', 10]])); out.push({ scrap: ri(5, 9) }); }
-  if (src === 'stash') { out.push(item([['military', 40], ['proto', 60]])); out.push(genArmor(Math.random() < .5 ? 'military' : 'proto')); out.push({ scrap: ri(8, 14) }); }
   if (src === 'warden') { out.push(genWeapon('machine')); out.push(genArmor(Math.random() < .6 ? 'proto' : 'machine')); out.push(item([['proto', 70], ['machine', 30]])); out.push({ scrap: ri(20, 30) }); }
   return out;
 }

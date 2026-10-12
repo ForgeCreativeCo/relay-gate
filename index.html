@@ -121,7 +121,6 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
 /* world-anchored bits */
 .mini{position:fixed;left:0;top:0;width:44px;height:3px;background:rgba(0,0,0,.5);pointer-events:none;will-change:transform}
 .mini i{display:block;height:100%;transform-origin:left;background:var(--machine)}
-.mini.raider i{background:#e08a4a}
 .mini.ally i{background:var(--gate)}
 .mini.big{width:64px;height:4px}
 .dmg{position:fixed;left:0;top:0;font-weight:600;font-size:14px;text-shadow:0 1px 4px rgba(0,0,0,.95);pointer-events:none;font-variant-numeric:tabular-nums;will-change:transform}
@@ -130,10 +129,6 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
 .tag{position:fixed;left:0;top:0;text-align:center;white-space:nowrap;pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,.95);display:grid;will-change:transform}
 .tag b{font-size:9px;letter-spacing:.2em;text-transform:uppercase}
 .tag span{font-size:11px;font-weight:600}
-.marker{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;will-change:transform}
-.marker i{position:absolute;left:-7px;top:-7px;width:14px;height:14px;border:2px solid var(--amber);transform:rotate(45deg);box-shadow:0 0 10px rgba(255,179,64,.5)}
-.marker span{position:absolute;left:12px;top:-8px;font-size:11px;font-weight:600;color:var(--amber);text-shadow:0 1px 4px rgba(0,0,0,.9);white-space:nowrap;font-variant-numeric:tabular-nums}
-.marker.edge i{border-radius:0 50% 50% 50%}
 .hurt{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(190,20,10,.6) 100%)}
 
 /* screens: title, pack, menu, end */
@@ -231,7 +226,7 @@ body[data-mode="touch"] .choice .key{display:none}
 
 <div class="hud" id="hud" hidden>
   <div class="tl">
-    <div class="eyebrow" id="regionTag">Region 01 · Dead City</div>
+    <div class="eyebrow" id="regionTag">Survival</div>
     <div class="obj" id="obj"></div>
     <div class="bars">
       <div class="barrow" id="hpRow"><b>Health</b><div class="bar"><i id="hpFill"></i></div><small id="armorTxt"></small></div>
@@ -266,22 +261,18 @@ body[data-mode="touch"] .choice .key{display:none}
   <button class="tb use touchonly" id="useBtn" type="button" hidden>Use</button>
   <button class="tb part touchonly" id="partBtn" type="button" hidden>Aim: Core</button>
   <button class="tb cmd touchonly" id="cmdBtn" type="button" hidden>Mara: Follow</button>
-  <div class="marker" id="marker" hidden><i></i><span id="markerTxt"></span></div>
   <div class="hurt" id="hurt"></div>
 </div>
 
 <section class="screen" id="title">
   <div class="titlebox">
-    <div class="sub" id="titleTag">Region 01 · Dead City</div>
+    <div class="sub" id="titleTag">Survival</div>
     <h1>Relay Gate</h1>
     <p class="muted" id="titleInfo">Checking for your save…</p>
     <div class="row">
-      <button class="btn primary" id="contBtn" type="button" disabled>Continue</button>
-      <button class="btn" id="newBtn" type="button" disabled>New game</button>
-      <button class="btn" id="modeBtn" type="button">Survival</button>
-      <button class="btn" id="arenaBtn" type="button" hidden>Switch arena</button>
+      <button class="btn primary" id="contBtn" type="button" disabled>Start</button>
+      <button class="btn" id="arenaBtn" type="button">Switch arena</button>
     </div>
-    <div class="confirm" id="newConfirm"><span class="muted">Start over? Your gear and progress will be wiped.</span><button class="btn danger" id="newYes" type="button">Start over</button><button class="btn" id="newNo" type="button">Keep my save</button></div>
   </div>
 </section>
 
@@ -295,7 +286,8 @@ body[data-mode="touch"] .choice .key{display:none}
         <dl class="stats" id="statList"></dl>
       </div>
       <div style="display:grid;gap:10px;align-content:start;min-width:0">
-        <h3 id="packCount">Items</h3>
+        <div class="row" style="justify-content:space-between"><h3 id="packCount">Items</h3><button class="btn danger" id="scrapAll" type="button" hidden>Scrap all</button></div>
+        <div class="confirm" id="scrapConfirm"><span class="muted" id="scrapAsk"></span><button class="btn danger" id="scrapYes" type="button">Scrap them</button><button class="btn" id="scrapNo" type="button">Keep them</button></div>
         <div class="items" id="itemGrid"></div>
         <div class="detail" id="detail" hidden></div>
       </div>
@@ -312,10 +304,10 @@ body[data-mode="touch"] .choice .key{display:none}
     <div class="row"><button class="btn" id="muteBtn" type="button">Sound on</button><label class="vol"><span>Volume</span><input type="range" id="volRange" min="0" max="100" step="5" aria-label="Volume"></label><label class="vol"><span>Ambience</span><input type="range" id="ambRange" min="0" max="100" step="5" aria-label="Ambience volume"></label></div>
     <h3>Controls</h3>
     <div class="row"><button class="btn" id="cAuto" type="button">Auto</button><button class="btn" id="cTouch" type="button">Touch</button><button class="btn" id="cMouse" type="button">Mouse &amp; keys</button></div>
-    <div class="keys"><kbd>Right-click</kbd><span>Walk there (hold to keep steering)</span><kbd>Left-click</kbd><span>Hold to fire · locks on to the nearest threat by itself · point at an enemy or part to aim there instead</span><kbd>S</kbd><span>Stop</span><kbd>T</kbd><span>Target the next part</span><kbd>Space</kbd><span>Dodge toward the cursor</span><kbd>Q</kbd><span>Swap weapon</span><kbd>E</kbd><span>Talk, open, use (or right-click it)</span><kbd>I</kbd><span>Pack</span><kbd>C</kbd><span>Tell Mara to follow or hold</span><kbd>B</kbd><span>Build machines from scrap (survival)</span><kbd>M</kbd><span>Mute or unmute</span></div>
+    <div class="keys"><kbd>Right-click</kbd><span>Walk there (hold to keep steering)</span><kbd>Left-click</kbd><span>Hold to fire · locks on to the nearest threat by itself · point at an enemy or part to aim there instead</span><kbd>S</kbd><span>Stop</span><kbd>T</kbd><span>Target the next part</span><kbd>Space</kbd><span>Dodge toward the cursor</span><kbd>Q</kbd><span>Swap weapon</span><kbd>I</kbd><span>Pack</span><kbd>C</kbd><span>Tell Mara to follow or hold</span><kbd>B</kbd><span>Build machines from scrap (survival)</span><kbd>M</kbd><span>Mute or unmute</span></div>
     <h3>Run</h3>
-    <div class="row"><button class="btn" id="toCheckpoint" type="button">Back to checkpoint</button><button class="btn danger" id="wipeBtn" type="button">Start over</button></div>
-    <div class="confirm" id="wipeConfirm"><span class="muted">Wipe your gear and progress?</span><button class="btn danger" id="wipeYes" type="button">Wipe it</button><button class="btn" id="wipeNo" type="button">Cancel</button></div>
+    <div class="row"><button class="btn" id="endRun" type="button">End run</button><button class="btn danger" id="wipeBtn" type="button">Clear best run</button></div>
+    <div class="confirm" id="wipeConfirm"><span class="muted">Clear your best run in this arena?</span><button class="btn danger" id="wipeYes" type="button">Clear it</button><button class="btn" id="wipeNo" type="button">Cancel</button></div>
     <p class="muted" id="saveInfo"></p>
   </div>
 </section>
@@ -332,14 +324,14 @@ body[data-mode="touch"] .choice .key{display:none}
 
 <section class="screen" id="end" hidden>
   <div class="sheet" style="width:min(560px,100%)">
-    <h3 id="endTag">Region 01</h3>
-    <h2 id="endName">Dead City cleared</h2>
-    <p class="muted" id="endText">The relay gate hums open. Region 02 is next on the build list. Until then, the city is yours: keep exploring, or run it again with the gear you've earned.</p>
+    <h3 id="endTag"></h3>
+    <h2 id="endName"></h2>
+    <p class="muted" id="endText"></p>
     <p class="record" id="endRecord" hidden></p>
-    <div class="endstats" id="endStats"><div><b id="eKills">0</b><span>Machines down</span></div><div><b id="eRuns">1</b><span>Runs cleared</span></div><div><b id="eGear">0</b><span>Best weapon</span></div></div>
+    <div class="endstats" id="endStats"></div>
     <h3 id="endTakenHead" hidden>Upgrades taken</h3>
     <div class="taken" id="endTaken" hidden></div>
-    <div class="row"><button class="btn primary" id="again" type="button">Run it again with your gear</button><button class="btn" id="explore" type="button">Keep exploring</button></div>
+    <div class="row"><button class="btn primary" id="again" type="button">Run again</button><button class="btn" id="otherArena" type="button" hidden></button></div>
   </div>
 </section>
 

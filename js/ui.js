@@ -1,7 +1,6 @@
 /* HUD, pack, menus and everything drawn over the 3D view. */
 import { B, G, V, V3 } from './core.js';
 import { TIERS, ARCH, wstats, dps, power, affixText, PACK_SIZE } from './loot.js';
-import { hostile } from './combat.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -64,12 +63,12 @@ export function makeUI() {
     /* weapon */
     const w = P.weapon;
     if (w) { const s = wstats(w); $('wName').textContent = w.name; $('wName').style.color = TIERS[w.tier].color; $('wAmmo').textContent = ''; $('wAmmo').append(String(Math.round(dps(w))), el('small', null, ' dps'));
-      const T = P.target, L = P.lock; $('wLock').textContent = T ? (L ? 'Locked · ' : 'Auto · ') + (T.name || (T.kind === 'drone' ? 'Drone' : T.faction === 'raider' ? 'Raider' : 'Target')) + (L && L.part && T.parts ? ' · ' + T.parts[L.part].label : '') : 'No target';
+      const T = P.target, L = P.lock; $('wLock').textContent = T ? (L ? 'Locked · ' : 'Auto · ') + (T.name || (T.kind === 'drone' ? 'Drone' : 'Target')) + (L && L.part && T.parts ? ' · ' + T.parts[L.part].label : '') : 'No target';
       $('wLock').classList.toggle('on', !!T);
       const alt = G.inv.equip[G.inv.active === 'primary' ? 'secondary' : 'primary']; $('wAlt').textContent = alt ? (G.input.mode === 'touch' ? 'Swap: ' : 'Q · ') + alt.name : ''; }
     /* touch extras */
     $('cmdBtn').hidden = !A.joined; if (A.joined) $('cmdBtn').textContent = 'Mara: ' + (A.mode === 'hold' ? 'Hold' : 'Follow');
-    const multi = (G.assist && G.assist.parts) || (boss && boss.alive && G.game.bossSeen); $('partBtn').hidden = !multi; if (multi) { const L = G.player.lock; $('partBtn').textContent = 'Aim: ' + (L && L.part && L.actor.parts ? L.actor.parts[L.part].label : 'Core'); }
+    const multi = (G.assist && G.assist.parts) || (boss && boss.alive); $('partBtn').hidden = !multi; if (multi) { const L = G.player.lock; $('partBtn').textContent = 'Aim: ' + (L && L.part && L.actor.parts ? L.actor.parts[L.part].label : 'Core'); }
     /* interaction prompt */
     const it = G.near; $('prompt').hidden = !it; $('useBtn').hidden = !it;
     if (it) { $('prompt').textContent = ''; $('prompt').append(el('kbd', null, 'E'), it.label); $('useBtn').textContent = it.label; }
@@ -84,7 +83,7 @@ export function makeUI() {
       /* walkers always show theirs; everything else once it's been hurt */
       if (!a.parts && a.hp >= a.maxHp) continue;
       const m = minis[mi++], s = UI.project(a.pos.add(V(0, a.parts ? 4.9 * a.s : a.kind === 'drone' ? .8 : a.kind === 'husk' ? 1.75 : 2.15, 0))); if (!s.ok) { m.m.hidden = true; continue; }
-      m.m.hidden = false; m.m.classList.toggle('big', !!a.parts); m.m.classList.toggle('raider', a.faction === 'raider' && !hostile(P, a)); m.m.classList.toggle('ally', a.faction === 'player');
+      m.m.hidden = false; m.m.classList.toggle('big', !!a.parts); m.m.classList.toggle('ally', a.faction === 'player');
       m.i.style.transform = `scaleX(${Math.max(0, a.hp / a.maxHp).toFixed(3)})`; place(m.m, s.x, Math.max(s.y, 8));   // kept on screen when the enemy is near the top edge
     }
     for (; mi < minis.length; mi++) minis[mi].m.hidden = true;
@@ -94,12 +93,6 @@ export function makeUI() {
       for (const k in pipEls) { const pt = boss.parts[k]; pipEls[k].i.style.transform = `scaleX(${(pt.hp / pt.max).toFixed(3)})`; pipEls[k].d.classList.toggle('dead', pt.hp <= 0); pipEls[k].d.classList.toggle('on', cur === k && pt.hp > 0); } }
     /* loot labels */
     for (const d of G.drops.list) { const t = tagFor(d), s = UI.project(V(d.x, 1.4, d.z)), near = Math.hypot(d.x - pp.x, d.z - pp.z) < 24; t.hidden = !s.ok || !near; if (s.ok && near) place(t, s.x, s.y); }
-    /* objective marker */
-    const tgt = G.game.objectiveTarget(), mk = $('marker');
-    if (tgt) { const dist = Math.hypot(tgt.x - pp.x, tgt.z - pp.z), s = UI.project(V(tgt.x, 2.9, tgt.z)); mk.hidden = dist < 4; $('markerTxt').textContent = Math.round(dist) + ' m';
-      const m = 40, top = 150; let x = s.x, y = s.y, edge = false;
-      if (!s.ok || x < m || x > innerWidth - m || y < top || y > innerHeight - 120) { edge = true; const cx = innerWidth / 2, cy = innerHeight / 2; let dx = s.ok ? x - cx : -(x - cx), dy = s.ok ? y - cy : -(y - cy); const k = Math.min((innerWidth / 2 - m) / Math.abs(dx || 1), (innerHeight / 2 - 120) / Math.abs(dy || 1)); x = cx + dx * k; y = cy + dy * k; }
-      mk.classList.toggle('edge', edge); mk.style.transform = `translate(${x | 0}px,${y | 0}px)`; } else mk.hidden = true;
     if (tipsT > 0) { tipsT -= dt; if (tipsT <= 0) $('tips').style.opacity = 0; }
     fpsT -= dt; if (fpsT <= 0) { fpsT = .5; const v = G.engine.getFps(); $('fps').textContent = (isFinite(v) ? Math.min(240, Math.round(v)) : '--') + ' fps' + (G.res ? ' · ' + Math.round(G.res.scale * 100) + '% res' : ''); }
   };
@@ -125,6 +118,7 @@ export function makeUI() {
     const P = G.player, st = $('statList'); st.textContent = '';
     [['Health', P.maxHp], ['Armour', P.armor + ' (' + Math.round(P.reduce * 100) + '% less damage)'], ['Weapon dps', Math.round(dps(P.weapon))], ['Scrap', G.inv.scrap]].forEach(([k, v]) => st.append(el('dt', null, k), el('dd', null, String(v))));
     $('scrapTxt').textContent = 'Scrap ' + G.inv.scrap; $('packCount').textContent = `Items ${G.inv.items.length} / ${PACK_SIZE}`;
+    const worth = G.inv.items.reduce((n, it) => n + it.value, 0); $('scrapAll').hidden = !G.inv.items.length; $('scrapAll').textContent = `Scrap all · +${worth}`; $('scrapConfirm').classList.remove('show');
     const grid = $('itemGrid'); grid.textContent = '';
     for (let i = 0; i < PACK_SIZE; i++) {
       const it = G.inv.items[i], t = el('button', 'tile' + (it ? '' : ' empty')); t.type = 'button';
@@ -166,6 +160,17 @@ export function makeUI() {
     sel = { from: 'equip', key: slot }; afterEquip(); UI.feed('Equipped ' + it.name, TIERS[it.tier].color);
   }
   function afterEquip() { G.player.recalc(); G.save.soon(); renderPack(); }
+  /* Scrap all: everything in the pack (what you have equipped stays), after a check that says what it's worth and if any of it was an upgrade */
+  $('scrapAll').onclick = () => {
+    const items = G.inv.items, worth = items.reduce((n, it) => n + it.value, 0), ups = items.filter(better).length;
+    $('scrapAsk').textContent = `Scrap all ${items.length} item${items.length === 1 ? '' : 's'} for ${worth} scrap?` + (ups ? ` ${ups === 1 ? 'One is' : ups + ' are'} better than what you have on (▲).` : '');
+    $('scrapConfirm').classList.add('show');
+  };
+  $('scrapNo').onclick = () => $('scrapConfirm').classList.remove('show');
+  $('scrapYes').onclick = () => {
+    const n = G.inv.items.length, worth = G.inv.items.reduce((k, it) => k + it.value, 0); G.inv.items = []; G.inv.scrap += worth; sel = null;
+    UI.feed(`Scrapped ${n} item${n === 1 ? '' : 's'} · + Scrap ×${worth}`, '#9aa0a6'); G.save.soon(); renderPack();
+  };
   UI.openPack = () => { if (!G.started) return; sel = null; UI.packDot(false); renderPack(); $('pack').hidden = false; G.setPaused(true); };
   UI.closePack = () => { $('pack').hidden = true; G.setPaused(false); };
   $('packBtn').onclick = () => UI.openPack(); $('packClose').onclick = () => UI.closePack();
@@ -173,7 +178,7 @@ export function makeUI() {
   /* ---------- menu ---------- */
   const pressed = () => { const S = G.settings; $('qHigh').setAttribute('aria-pressed', S.quality === 'high'); $('qLow').setAttribute('aria-pressed', S.quality === 'low');
     $('fpsTog').setAttribute('aria-pressed', !!S.fps); for (const [id, v] of [['cAuto', 'auto'], ['cTouch', 'touch'], ['cMouse', 'mouse']]) $(id).setAttribute('aria-pressed', G.input.setting === v);
-    $('saveInfo').textContent = 'Progress and gear save automatically to ' + G.save.where + '.';
+    $('saveInfo').textContent = 'Your best run here saves automatically to ' + G.save.where + '.';
     $('muteBtn').textContent = S.mute ? 'Sound off' : 'Sound on'; $('muteBtn').setAttribute('aria-pressed', !S.mute); $('volRange').value = Math.round((S.volume == null ? .8 : S.volume) * 100); $('ambRange').value = Math.round((S.ambience == null ? .6 : S.ambience) * 100); };
   UI.openMenu = () => { if (!G.started) return; pressed(); $('wipeConfirm').classList.remove('show'); $('menu').hidden = false; G.setPaused(true); };
   UI.closeMenu = () => { $('menu').hidden = true; G.setPaused(false); };
@@ -188,14 +193,14 @@ export function makeUI() {
   $('cAuto').onclick = () => { G.input.setMode('auto', true); G.settings.controls = 'auto'; G.save.soon(); pressed(); };
   $('cTouch').onclick = () => { G.input.setMode('touch', true); G.settings.controls = 'touch'; G.save.soon(); pressed(); };
   $('cMouse').onclick = () => { G.input.setMode('mouse', true); G.settings.controls = 'mouse'; G.save.soon(); pressed(); };
-  $('toCheckpoint').onclick = () => { UI.closeMenu(); G.game.respawnPlayer(); };
+  $('endRun').onclick = () => { UI.closeMenu(); G.game.respawnPlayer(); };   // going down for good: the end card
   $('wipeBtn').onclick = () => $('wipeConfirm').classList.add('show'); $('wipeNo').onclick = () => $('wipeConfirm').classList.remove('show');
   $('wipeYes').onclick = async () => { await G.save.wipe(); location.reload(); };
 
   /* ---------- scrap and the squad it builds (survival): a meter that is also the Build button ---------- */
-  /* s: { label, text, fill (0 to 1), mark (0 to 1: where the cheaper build sits on the bar), ready } */
+  /* s: { label, text, fill (0 to 1), mark (0 to 1: a tick on the bar, if there's anything to mark), ready } */
   UI.build = (s) => { const b = $('buildBtn'); b.hidden = false; b.classList.toggle('ready', !!s.ready); b.disabled = !s.ready;
-    $('buildLab').textContent = s.label; $('buildTxt').textContent = s.text; $('buildFill').style.transform = `scaleX(${Math.max(0, Math.min(1, s.fill)).toFixed(3)})`; $('buildMark').style.left = (s.mark * 100).toFixed(1) + '%'; };
+    $('buildLab').textContent = s.label; $('buildTxt').textContent = s.text; $('buildFill').style.transform = `scaleX(${Math.max(0, Math.min(1, s.fill)).toFixed(3)})`; $('buildMark').hidden = s.mark == null; if (s.mark != null) $('buildMark').style.left = (s.mark * 100).toFixed(1) + '%'; };
   $('buildBtn').onclick = () => G.game.build();
 
   /* ---------- levelling (survival) ---------- */
@@ -224,21 +229,17 @@ export function makeUI() {
   };
 
   /* ---------- end card ---------- */
-  /* a region can bring its own card (survival does): { tag, name, record, isRecord, text, stats: [number, label] pairs, taken: [{ kind, text }],
-     again: the button's label, other: { label, use } for a second button } */
+  /* card: { tag, name, record, isRecord, text, stats: [number, label] pairs, taken: [{ kind, text }], again: the button's label,
+     other: { label, use } for a second button (the other arena) } */
   UI.endCard = (card) => {
-    if (card) { $('endTag').textContent = card.tag; $('endName').textContent = card.name; $('endText').textContent = card.text;
-      const rec = $('endRecord'); rec.hidden = !card.record; rec.textContent = card.record || ''; rec.classList.toggle('new', !!card.isRecord);
-      const st = $('endStats'); st.textContent = ''; for (const [v, label] of card.stats) { const d = el('div'); d.append(el('b', null, String(v)), el('span', null, label)); st.append(d); }
-      const tk = $('endTaken'), any = !!(card.taken && card.taken.length); $('endTakenHead').hidden = tk.hidden = !any; tk.textContent = '';
-      for (const t of card.taken || []) { const s = el('span', t.kind); s.append(el('i'), t.text); tk.append(s); }
-      $('again').textContent = card.again; const o = $('explore'); o.hidden = !card.other; if (card.other) { o.textContent = card.other.label; o.onclick = card.other.use; }
-      $('end').hidden = false; G.setPaused(true); return; }
-    $('eKills').textContent = G.progress.kills; $('eRuns').textContent = G.progress.runs;
-    const ws = [G.inv.equip.primary, G.inv.equip.secondary, ...G.inv.items.filter(i => i.type === 'weapon')].filter(Boolean); $('eGear').textContent = ws.length ? Math.max(...ws.map(w => Math.round(dps(w)))) + ' dps' : '—';
+    $('endTag').textContent = card.tag; $('endName').textContent = card.name; $('endText').textContent = card.text;
+    const rec = $('endRecord'); rec.hidden = !card.record; rec.textContent = card.record || ''; rec.classList.toggle('new', !!card.isRecord);
+    const st = $('endStats'); st.textContent = ''; for (const [v, label] of card.stats) { const d = el('div'); d.append(el('b', null, String(v)), el('span', null, label)); st.append(d); }
+    const tk = $('endTaken'), any = !!(card.taken && card.taken.length); $('endTakenHead').hidden = tk.hidden = !any; tk.textContent = '';
+    for (const t of card.taken || []) { const s = el('span', t.kind); s.append(el('i'), t.text); tk.append(s); }
+    $('again').textContent = card.again; const o = $('otherArena'); o.hidden = !card.other; if (card.other) { o.textContent = card.other.label; o.onclick = card.other.use; }
     $('end').hidden = false; G.setPaused(true); };
   $('again').onclick = () => { $('end').hidden = true; G.setPaused(false); G.game.runAgain(); };
-  $('explore').onclick = () => { $('end').hidden = true; G.setPaused(false); };
 
   /* keyboard shortcuts for screens */
   UI.onAction = (a) => {
