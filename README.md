@@ -54,7 +54,7 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `js/game.js` | The run engine: plays whatever region it is given (encounters, objectives, checkpoints, the boss, finishing a region) |
 | `js/ui.js` | HUD, pack screen, menu, end card |
 | `js/input.js` | Mouse clicks, the touch joystick and fire button, and keyboard shortcuts |
-| `js/nav.js` | Pathfinding for click-to-move |
+| `js/nav.js` | Pathfinding: for click-to-move, and for Mara, husks and walkers finding their way round walls and cover to you |
 | `js/save.js` | Saving and loading |
 | `js/audio.js` | Sound effects: loading, volume, positional sound, and cutting gun recordings into single shots |
 | `sfx/player-gun.mp3` | Player gunfire for rifles and arc carbines ("Dry assault rifle automatic", freesound_community on Pixabay) |
@@ -115,8 +115,8 @@ Each step should be playable before the next one starts:
 
 - **How many enemies at once.** Every machine is a fully modelled, individually animated actor with its own materials and shadows. Dozens on screen is fine; hundreds (a Vampire Survivors-style swarm) would mean rebuilding how enemies are drawn and updated. Plan for fewer, tougher enemies.
 - **Balance is the main job now.** Spawn rates, the difficulty ramp and boss timing are the game, and they get tuned by playing, not up front.
-- **Walkers ignore cover.** They only check that they're on walkable ground, so they walk through crates and cabinets. Fix this before arenas with a lot of cover.
-- **Mara snags in tight spaces.** She follows in straight lines and slides along walls. That's fine in open ground but could snag in the indoor arenas.
+- **Walkers need room.** They now walk round cover instead of through it, on a map of the ground that leaves space for something their size. Where no gap is wide enough (a 3 m corridor) there is no way through for them, and they head straight for you as they used to.
+- **Drones don't find paths.** Outdoors they fly over everything. Indoors they bump along walls, which will matter in station arenas.
 
 ### Still open
 

@@ -1,9 +1,25 @@
-/* Pathfinding for click-to-move: a walkable grid baked from the open areas and obstacles, A* over it, then the path pulled tight. */
+/* Pathfinding for click-to-move and for everything on foot that chases: a walkable grid baked from the open areas and obstacles,
+   A* over it, then the path pulled tight. */
 import { G } from './core.js';
 
-const CELL = .25, R = .45;   // grid size, and how far the player's body keeps from walls
+/* The player's grid, which Mara and the husks share (they are about as wide), plus two coarser ones with more room
+   around every wall and crate: `wide` for Hunter Walkers, `huge` for the Warden. */
+export function makeNav() { const nav = bake(.25, .45); nav.wide = bake(.5, 1.3, true); nav.huge = bake(.5, 2, true); return nav; }
 
-export function makeNav() {
+/* Where to walk right now to get to (tx, tz): straight there while the way is clear, otherwise the next corner of a path, looked up
+   again a couple of times a second (each walker on its own beat, so a crowd doesn't all search in the same frame).
+   With no way there at all it heads straight for it, as machines did before they could find paths. */
+export function chase(self, nav, tx, tz, dt, reach = .5) {
+  const p = self.pos;
+  self.routeT = (self.routeT == null ? Math.random() * .5 : self.routeT) - dt;
+  if (self.routeT <= 0) { const r = nav.path(p.x, p.z, tx, tz); self.route = r && r.length > 1 ? r : null; self.routeT = r ? .5 : 1.5; }
+  const r = self.route;
+  while (r && r.length > 1 && Math.hypot(r[0].x - p.x, r[0].z - p.z) < reach) r.shift();
+  return r && r.length > 1 ? r[0] : { x: tx, z: tz };   // the last point is the goal itself
+}
+
+/* CELL: grid size; R: how far a body keeps from walls; erode: see below */
+function bake(CELL, R, erode) {
   let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
   for (const o of G.open) { x0 = Math.min(x0, o[0]); z0 = Math.min(z0, o[1]); x1 = Math.max(x1, o[2]); z1 = Math.max(z1, o[3]); }
   const W = Math.ceil((x1 - x0) / CELL) + 1, H = Math.ceil((z1 - z0) / CELL) + 1, N = W * H;
@@ -15,7 +31,17 @@ export function makeNav() {
     const j0 = Math.max(0, Math.ceil((az - z0) / CELL - .5)), j1 = Math.min(H - 1, Math.floor((bz - z0) / CELL - .5));
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) walk[j * W + i] = v;
   };
-  for (const o of G.open) fill(o[0] + R, o[1] + R, o[2] - R, o[3] - R, 1);
+  if (!erode) for (const o of G.open) fill(o[0] + R, o[1] + R, o[2] - R, o[3] - R, 1);
+  else {
+    /* A wide body: shrinking each area on its own would close the joins between them (they overlap by about a metre), so mark all the
+       open ground first, then keep only the cells with no edge of it within reach. */
+    for (const o of G.open) fill(o[0], o[1], o[2], o[3], 1);
+    const all = walk.slice(), k = Math.ceil(R / CELL), near = [];
+    for (let dj = -k; dj <= k; dj++) for (let di = -k; di <= k; di++) if ((di * di + dj * dj) * CELL * CELL <= R * R) near.push(di, dj);
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) { if (!all[j * W + i]) continue;
+      for (let n = 0; n < near.length; n += 2) { const ni = i + near[n], nj = j + near[n + 1]; if (ni < 0 || nj < 0 || ni >= W || nj >= H || !all[nj * W + ni]) { walk[j * W + i] = 0; break; } } }
+  }
+  const ground = walk.slice();   // open ground with room to stand, before anything is put on it
   for (const o of G.obstacles) fill(o.x - o.hw - R, o.z - o.hd - R, o.x + o.hw + R, o.z + o.hd + R, 0);
 
   const idx = (x, z) => { const i = cx(x), j = cz(z); return i < 0 || j < 0 || i >= W || j >= H ? -1 : j * W + i; };
@@ -84,5 +110,7 @@ export function makeNav() {
     if (!out.length) out.push(t);
     return out;
   }
-  return { path, snap, ok, line };
+  /* on open ground with room to stand, whatever cover is in the way */
+  const open = (x, z) => { const k = idx(x, z); return k >= 0 && ground[k] === 1; };
+  return { path, snap, ok, line, open };
 }

@@ -1,8 +1,9 @@
 /* Machines: scout drones, husks, Hunter Walkers and the Warden, the gate boss. */
-import { B, G, V, V3, MT, clamp, damp, lerpAngle, angleTo, dist2, rand, clearShot, inOpen, collide } from './core.js';
+import { B, G, V, V3, MT, clamp, damp, lerpAngle, angleTo, dist2, rand, clearShot, collide } from './core.js';
 import { Geo, gbox, gprism, gcyl, gmesh } from './geo.js';
 import { Actor } from './actors.js';
 import { nearestHostile } from './combat.js';
+import { chase } from './nav.js';
 import { rollLoot } from './loot.js';
 
 /* Per-machine material copies (so each can flash when hit). They must share the original's textures: cloned DynamicTextures come out blank and never report ready, which leaves the material uncompiled and the machine invisible. */
@@ -222,9 +223,12 @@ export class Walker extends Actor {
     if (this.blind > 0) face = this.root.rotation.y + dt * 1.4;
     else if (!T || this.alert < .5) { if (this.patrolR > 0) { this.ang += dt * .9 / Math.max(3, this.patrolR) * legMul; tx = this.home.x + Math.cos(this.ang) * this.patrolR; tz = this.home.z + Math.sin(this.ang) * this.patrolR; } else { tx = this.home.x; tz = this.home.z; } }
     else { face = angleTo(p, T.pos); const want = gunsUp ? (clearShot(p, T.pos, 2) ? 15 : 4) : 2.6 * s; if (dm > want && this.stomp <= 0) { tx = T.pos.x; tz = T.pos.z; } }
-    if (tx !== null) { const ddx = tx - p.x, ddz = tz - p.z, dd = Math.hypot(ddx, ddz);
-      if (dd > .1) { const sp = Math.min(dd, (this.alert < .5 ? 1.4 : 2.6) * legMul * dt * (this.boss ? 1.15 : 1)); const ox = p.x, oz = p.z; p.x += ddx / dd * sp; p.z += ddz / dd * sp;
-        if (!inOpen(p.x, p.z, 1.2 * s)) { p.x = ox; p.z = oz; } if (face === null) face = Math.atan2(ddx, ddz); moved = true; } }
+    if (tx !== null) { const dd = Math.hypot(tx - p.x, tz - p.z);
+      /* round the cover, not through it: on a grid that leaves room for something this size */
+      if (dd > .1) { const nav = this.boss ? G.nav.huge : G.nav.wide, to = chase(this, nav, tx, tz, dt, 1), ddx = to.x - p.x, ddz = to.z - p.z, dl = Math.hypot(ddx, ddz) || 1;
+        const sp = Math.min(dd, (this.alert < .5 ? 1.4 : 2.6) * legMul * dt * (this.boss ? 1.15 : 1)); const ox = p.x, oz = p.z; p.x += ddx / dl * sp; p.z += ddz / dl * sp;
+        if (!nav.open(p.x, p.z) && nav.open(ox, oz)) { p.x = ox; p.z = oz; }   // it stays on open ground (and can walk back onto it)
+        if (face === null) face = Math.atan2(ddx, ddz); moved = true; } }
     { const ox = p.x - this.home.x, oz = p.z - this.home.z, od = Math.hypot(ox, oz); if (od > this.leash) { p.x = this.home.x + ox / od * this.leash; p.z = this.home.z + oz / od * this.leash; } }
     if (face !== null) this.root.rotation.y = lerpAngle(this.root.rotation.y, face, damp(2.5, dt));
     const ph0 = this.walkPh; this.walkPh += dt * (moved ? 3.4 * legMul / Math.sqrt(s) : .6);
@@ -408,7 +412,8 @@ export class Husk extends Actor {
       }
     } else if (dist2(p, this.home) > 1) mv = 2.2;
     if (this.recover > 0) mv *= .3;
-    const dx = gx - p.x, dz = gz - p.z, dd = Math.hypot(dx, dz) || 1, ox = p.x, oz = p.z;
+    const to = mv > 0 ? chase(this, G.nav, gx, gz, dt) : { x: gx, z: gz };   // round walls and cover when it's running; squarely at you when it strikes
+    const dx = to.x - p.x, dz = to.z - p.z, dd = Math.hypot(dx, dz) || 1, ox = p.x, oz = p.z;
     if (mv > 0) { p.x += dx / dd * mv * dt; p.z += dz / dd * mv * dt; }
     if (this.lunge > 0 && T && dist2(p, T.pos) < .9) this.lunge = 0;   // lunge in, but not through you
     if (this.lunge > 0) { this.lunge -= dt; const ry = this.root.rotation.y; p.x += Math.sin(ry) * 7 * dt; p.z += Math.cos(ry) * 7 * dt; }

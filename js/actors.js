@@ -2,6 +2,7 @@
 import { B, G, V, V3, clamp, damp, lerpAngle, angleTo, dist2, collide, clearShot, rand, inOpen } from './core.js';
 import { nearestHostile, hostile } from './combat.js';
 import { wstats, TIERS, rollLoot } from './loot.js';
+import { chase } from './nav.js';
 
 /* ---------- shared base ---------- */
 export class Actor {
@@ -535,10 +536,12 @@ export class Ally extends Actor {
     let goal;
     if (this.mode === 'hold' && this.hold) goal = this.hold;
     else { const bx = -P.lastMove.x, bz = -P.lastMove.z; goal = V(P.pos.x + bx * 2.2 + bz * 1.4, 0, P.pos.z + bz * 2.2 - bx * 1.4); if (!inOpen(goal.x, goal.z, .6)) goal = V(P.pos.x + bx * 1.6, 0, P.pos.z + bz * 1.6); }
-    const dx = goal.x - p.x, dz = goal.z - p.z, d = Math.hypot(dx, dz), far = dist2(P.pos, p);
+    const d = Math.hypot(goal.x - p.x, goal.z - p.z), far = dist2(P.pos, p);
     if (far > 30 && this.mode === 'follow') this.teleportNear(P.pos);
-    let speed = 0;
-    if (d > .8) { speed = Math.min(d * 3, far > 8 ? 8.5 : 6.5); const ox = p.x, oz = p.z; p.x += dx / d * speed * dt; p.z += dz / d * speed * dt; collide(p, .45, ox, oz); }
+    let speed = 0, dx = 0, dz = 0;
+    /* she finds her way round walls and cover instead of sliding along them */
+    if (d > .8) { speed = Math.min(d * 3, far > 8 ? 8.5 : 6.5); const to = chase(this, G.nav, goal.x, goal.z, dt); dx = to.x - p.x; dz = to.z - p.z; const dl = Math.hypot(dx, dz) || 1;
+      const ox = p.x, oz = p.z; p.x += dx / dl * speed * dt; p.z += dz / dl * speed * dt; collide(p, .45, ox, oz); }
     /* who to shoot */
     this.retarget -= dt;
     if (this.retarget <= 0) { this.retarget = .5;
