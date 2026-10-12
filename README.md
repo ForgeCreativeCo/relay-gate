@@ -42,7 +42,10 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `js/nav.js` | Pathfinding for click-to-move |
 | `js/save.js` | Saving and loading |
 | `js/audio.js` | Sound effects: loading, volume, positional sound, and cutting gun recordings into single shots |
-| `sfx/player-gun.mp3` | Player gunfire ("Dry assault rifle automatic", freesound_community on Pixabay) |
+| `sfx/player-gun.mp3` | Player gunfire for rifles and arc carbines ("Dry assault rifle automatic", freesound_community on Pixabay) |
+| `sfx/smg-gun.mp3` | SMG gunfire ("Gunshot SMG loop", moniker_subriquet on Pixabay) |
+| `sfx/shotgun-shot.mp3` | Shotgun blast, then the pump racked a moment later ("Cinematic shotgun with reload", Dragon Studio on Pixabay) |
+| `sfx/marksman-shot.mp3` | Marksman rifle shot ("Sniper rifle firing shot 1", freesound_community on Pixabay) |
 | `sfx/machine-gun.mp3` | Drone and walker gunfire ("Auto gun shots", SoundReality on Pixabay) |
 | `sfx/mech-engage.mp3` | A walker or the Warden locking on to you ("Mech attack", SoundReality on Pixabay) |
 | `sfx/power-on.mp3` | Layered with the lock-on sound: the mech powering up ("Power on", freesound_community on Pixabay) |

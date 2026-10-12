@@ -9,13 +9,20 @@ const BANKS = {
   player: { url: 'sfx/player-gun.mp3', shots: [0.276, 0.366, 0.451, 0.541, 0.621, 0.712, 0.797, 0.882, 0.972, 1.057, 1.143, 1.233, 1.323, 3.052, 3.398, 4.094, 4.786] },
   /* "Auto gun shots": three long bursts at about 9 rounds a second, plus a few separate shots */
   machine: { url: 'sfx/machine-gun.mp3', shots: [0.014, 0.106, 0.218, 0.328, 0.438, 0.546, 0.654, 0.766, 0.876, 0.986, 1.094, 1.204, 1.318, 1.482, 1.578, 1.69, 1.8, 1.91, 2.046, 2.148, 2.254, 2.364, 2.548, 2.626, 2.694, 3.016, 3.116, 3.224, 3.332, 3.446, 3.552, 3.664, 3.772, 3.88, 3.996, 4.144, 4.242, 4.352, 4.462, 4.572] },
+  /* "Gunshot SMG loop": about 16 rounds a second; the clean shots only (where two overlap, both are left out) */
+  smg: { url: 'sfx/smg-gun.mp3', shots: [0.025, 0.08, 0.146, 0.207, 0.272, 0.332, 0.397, 0.457, 0.522, 0.582, 0.773, 0.833, 0.898] },
+  /* "Cinematic shotgun with reload": the pump racked (0.02 s), then the blast (0.62 s) ringing out to about 2.1 s */
+  shotgun: { url: 'sfx/shotgun-shot.mp3', shots: [0.618] },
+  /* "Sniper rifle firing shot 1": one shot with a long echo, gone by about 1.8 s */
+  marksman: { url: 'sfx/marksman-shot.mp3', shots: [0.046] },
 };
-/* How each shooter uses its bank: playback rate (pitch), volume, and the longest a shot may ring. */
+/* How each shooter uses its bank: playback rate (pitch), volume, the longest a shot may ring, and (optionally) how long it fades out.
+   after: a second slice of the same recording played a moment later (the shotgun's pump). */
 const VOICES = {
   rifle: { bank: 'player', rate: 1, gain: .55, len: .16 },
-  smg: { bank: 'player', rate: 1.12, gain: .45, len: .12 },
-  shotgun: { bank: 'player', rate: .72, gain: .8, len: .3 },
-  marksman: { bank: 'player', rate: .82, gain: .75, len: .28 },
+  smg: { bank: 'smg', rate: 1, gain: .7, len: .058 },   // the recording's shots are 60 ms apart, so each is cut short of the next
+  shotgun: { bank: 'shotgun', rate: 1, gain: .3, len: 1.4, fade: .5, after: { start: .023, len: .32, gain: .25, delay: .42 } },
+  marksman: { bank: 'marksman', rate: 1, gain: .4, len: 1.6, fade: .6 },
   arc: { bank: 'player', rate: 1.2, gain: .5, len: .16 },
   drone: { bank: 'machine', rate: 1.25, gain: .4, len: .14 },
   walker: { bank: 'machine', rate: .9, gain: .6, len: .2 },
@@ -109,7 +116,8 @@ export function makeAudio() {
     const at = place(pos); if (!at) return;
     const S = bank.shots; let k = Math.floor(Math.random() * S.length); if (k === lastShot[v.bank]) k = (k + 1) % S.length; lastShot[v.bank] = k;
     const gap = S[k + 1] ? S[k + 1] - S[k] : 1, len = Math.min(v.len, gap < .2 ? gap - .004 : v.len);
-    slice(buf, S[k] - .004, len, v.rate * (.97 + Math.random() * .06), v.gain * at.gain * (.9 + Math.random() * .1), at.pan);
+    slice(buf, S[k] - .004, len, v.rate * (.97 + Math.random() * .06), v.gain * at.gain * (.9 + Math.random() * .1), at.pan, v.fade);
+    const af = v.after; if (af) setTimeout(() => slice(buf, af.start, af.len, 1, af.gain * at.gain, at.pan), af.delay * 1000);
   };
 
   /* A one-off clip. opts: pos (for distance and pan), hear (how far away it can be heard, default 42 m), rate (pitch), gain, vary (small random pitch),
