@@ -18,6 +18,12 @@ Pick one:
 
 You need an internet connection the first time, because Babylon.js and the fonts load from a CDN.
 
+## Survival (first version)
+
+Press **Survival** on the title screen, or add `?mode=survival` to the address, e.g. http://localhost:8000/?mode=survival. You start in the gate plaza with Mara and the starter rifle. Machines arrive from past the edge of the view (and some step out of the gate), sooner and in bigger groups as the clock runs: drones and husks first, Hunter Walkers from two and a half minutes. Going down ends the run and shows how long you lasted, your kills and your best time. Every run starts again from nothing; only your best time is kept, in this browser, in its own slot that never touches your Dead City save.
+
+The numbers that set the pressure (time between groups, group size, how many machines at once, when walkers start) are in one block at the top of `js/survival.js`.
+
 ## Region 02 test section (paused)
 
 The Relay Station, an indoor region on the other side of the gate, was started before the switch to survival. Its test section (the gate room, a service corridor and the cooling hall) still plays: add `?region=2` to the address, e.g. http://localhost:8000/?region=2. It saves to its own slot in this browser only, so it never touches your Dead City save. It isn't being extended as a level; its pieces are planned for reuse as survival arenas (see step 8 below).
@@ -39,6 +45,7 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `js/fx.js` | Particles (ash, fire, sparks, explosions, smoke) and combat visuals: muzzle flashes, surface-matched impacts, shockwaves, scorch marks, wreck debris |
 | `js/region1.js` | Region 01, Dead City: the map (streets, ruins, props, the relay gate) and the run through it (objectives, encounters, checkpoints, story beats). A new region is a new file exporting the same `REGION` shape, listed in `main.js` |
 | `js/region2.js` | Region 02, The Relay Station (in progress): rooms and corridors with generated walls (the ones between you and the camera sink out of the way), doors, power zones that go dark or light up, and the run through the test section |
+| `js/survival.js` | Survival on the Dead City map: the spawner that brings machines in from off-screen, the pressure curve, and the end of a run. It is a region like the others, borrowing Dead City's map |
 | `js/gate.js` | The relay gate model, shared by every region that has one |
 | `js/actors.js` | Player, Mara and raiders |
 | `js/machines.js` | Drones, husks (melee hunters that lie in wait), Hunter Walkers and the Warden boss |
@@ -95,7 +102,7 @@ Relay Gate is changing from a level-by-level campaign to an endless survival gam
 
 Each step should be playable before the next one starts:
 
-1. **Survival mode on the Dead City map.** Add a spawner that brings waves in from off-screen and ramps up over time. This is the step that shows whether the idea is fun.
+1. **Survival mode on the Dead City map.** *(First version in, untuned.)* Add a spawner that brings waves in from off-screen and ramps up over time. This is the step that shows whether the idea is fun.
 2. **XP and level-up choices.** Add an XP bar, a level-up screen with three upgrades, and the upgrades themselves.
 3. **Bosses on level milestones.** Walkers every few levels, and the Warden at the big ones.
 4. **WASD movement on desktop.** Right-click to walk is awkward for dodging round a crowd. Phones already use a joystick.

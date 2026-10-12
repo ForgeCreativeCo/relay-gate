@@ -192,7 +192,12 @@ export function makeUI() {
   $('wipeYes').onclick = async () => { await G.save.wipe(); location.reload(); };
 
   /* ---------- end card ---------- */
-  UI.endCard = () => { $('eKills').textContent = G.progress.kills; $('eRuns').textContent = G.progress.runs;
+  /* a region can bring its own card (survival does): { tag, name, text, stats: three [number, label] pairs, again: the button's label } */
+  UI.endCard = (card) => {
+    if (card) { $('endTag').textContent = card.tag; $('endName').textContent = card.name; $('endText').textContent = card.text;
+      ['eKills', 'eRuns', 'eGear'].forEach((id, i) => { $(id).textContent = card.stats[i][0]; $(id).nextElementSibling.textContent = card.stats[i][1]; });
+      $('again').textContent = card.again; $('explore').hidden = true; $('end').hidden = false; G.setPaused(true); return; }
+    $('eKills').textContent = G.progress.kills; $('eRuns').textContent = G.progress.runs;
     const ws = [G.inv.equip.primary, G.inv.equip.secondary, ...G.inv.items.filter(i => i.type === 'weapon')].filter(Boolean); $('eGear').textContent = ws.length ? Math.max(...ws.map(w => Math.round(dps(w)))) + ' dps' : '—';
     $('end').hidden = false; G.setPaused(true); };
   $('again').onclick = () => { $('end').hidden = true; G.setPaused(false); G.game.runAgain(); };

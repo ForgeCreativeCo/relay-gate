@@ -25,9 +25,9 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   try { engine = new B.Engine(canvas, true, { stencil: true, antialias: true, powerPreference: 'high-performance' }, true); }
   catch (e) { fail('This browser has WebGL turned off, so the game cannot run here.'); return; }
   const scene = new B.Scene(engine); G.engine = engine; G.scene = scene;
-  /* the region being played: Dead City unless the address asks for another (?region=2). Its look is applied before anything is lit. */
-  const REGIONS = { '01': './region1.js', '02': './region2.js' }, asked = (new URLSearchParams(location.search).get('region') || '').padStart(2, '0');
-  const { REGION } = await import(REGIONS[asked] || REGIONS['01']);
+  /* the region being played: Dead City unless the address asks for another (?region=2) or for survival (?mode=survival). Its look is applied before anything is lit. */
+  const query = new URLSearchParams(location.search), REGIONS = { '01': './region1.js', '02': './region2.js' }, asked = (query.get('region') || '').padStart(2, '0');
+  const { REGION } = await import(query.get('mode') === 'survival' ? './survival.js' : REGIONS[asked] || REGIONS['01']);
   Object.assign(LOOK, REGION.look || {}); G.R = REGION;
   /* ask for the account save straight away, in parallel with building the region */
   G.save = makeSave(REGION.save); const savedP = G.save.load();
@@ -91,7 +91,8 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   };
 
   /* the region's map and run, the world and the cast */
-  for (const [id, t] of [['regionTag', `Region ${REGION.num} · ${REGION.name}`], ['titleTag', `Region ${REGION.num} · ${REGION.name}`], ['endTag', `Region ${REGION.num}`], ['endName', `${REGION.name} cleared`], ['endText', REGION.clearedText]]) $(id).textContent = t;
+  const tag = REGION.tag || `Region ${REGION.num} · ${REGION.name}`;
+  for (const [id, t] of [['regionTag', tag], ['titleTag', tag], ['endTag', `Region ${REGION.num}`], ['endName', `${REGION.name} cleared`], ['endText', REGION.clearedText]]) $(id).textContent = t;
   G.settings = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
   G.audio = makeAudio(); G.audio.apply();
   G.progress = freshProgress(); G.inv = newInventory();
@@ -161,9 +162,9 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   const info = $('titleInfo'), cont = $('contBtn'), nw = $('newBtn');
   const SETTINGS = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
   const describe = () => {
-    if (saved) { const cps = REGION.checkpoints, cp = cps.find(c => c.id === (saved.progress || {}).checkpoint) || cps[0], n = (saved.inv && saved.inv.items || []).length;
+    if (saved && !REGION.endless) { const cps = REGION.checkpoints, cp = cps.find(c => c.id === (saved.progress || {}).checkpoint) || cps[0], n = (saved.inv && saved.inv.items || []).length;
       info.textContent = `Continue at the ${cp.name} checkpoint · ${n} item${n === 1 ? '' : 's'} in your pack · Saved to ${G.save.where}.`; cont.textContent = 'Continue'; nw.hidden = false; }
-    else { info.textContent = `${REGION.blurb} Progress saves to ${G.save.where}.`; cont.textContent = 'Start'; nw.hidden = true; }
+    else { info.textContent = `${[REGION.blurb, REGION.titleNote && REGION.titleNote(saved)].filter(Boolean).join(' ')} Progress saves to ${G.save.where}.`; cont.textContent = 'Start'; nw.hidden = true; }
   };
   const showError = (what, e) => { console.error(e); info.textContent = `${what}: ${(e && e.message) || e}. Try again, or start a new game.`; };
 
@@ -211,6 +212,9 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
     setTimeout(() => { try { fn(); } catch (e) { showError('Couldn\'t start', e); cont.textContent = label; cont.disabled = nw.disabled = false; } }, 30);
   };
   cont.onclick = () => go(start);
+  /* the other way to play: survival from the campaign, the campaign from survival */
+  const other = $('modeBtn'); other.textContent = REGION.endless ? 'Campaign' : 'Survival'; other.onclick = () => { location.search = REGION.endless ? '' : '?mode=survival'; };
+  if (REGION.endless) $('toCheckpoint').textContent = 'End run';
   nw.onclick = () => $('newConfirm').classList.add('show'); $('newNo').onclick = () => $('newConfirm').classList.remove('show');
   $('newYes').onclick = async () => { $('newConfirm').classList.remove('show'); await G.save.wipe(); saved = null; go(() => { prepare(null); start(); }); };
 

@@ -1,6 +1,6 @@
 /* The run engine: encounters, objectives, checkpoints, interactions, the boss and finishing a region.
    What happens where comes from the current region (G.R, e.g. REGION in region1.js); this file knows no map. */
-import { G, V, dist2 } from './core.js';
+import { B, G, V, dist2 } from './core.js';
 import { rollLoot } from './loot.js';
 
 /* a region can start some of these differently (Region 02 opens with Mara already in the squad) */
@@ -20,16 +20,26 @@ export function makeGame() {
     const enc = { id, when: opts.when, done: opts.done, onClear: opts.onClear, boss: !!opts.boss, actors: [], live: false, cleared: false };
     GM.encounters.push(enc); const a = opts.spawn(enc); if (enc.boss) GM.boss = a; return enc;
   }
+  /* Take an actor's model out of the scene, with the materials and smoke that were its own (their textures are shared, so those stay).
+     A light riding on it (the searchlight on a walker's head) is let go first, or it would be disposed along with the model. */
+  function discard(a) {
+    for (const n of a.root.getDescendants()) if (n instanceof B.Light) n.parent = null;
+    a.root.getChildMeshes().forEach(m => m.dispose()); a.root.dispose();
+    for (const k of ['smokeWreck', 'smokeHead', 'smokeGuns']) if (a[k]) { a[k].stop(); a[k].dispose(false); }
+    if (a.ring) { a.ring.material.dispose(); a.ring.dispose(); } if (a.clearMarks) a.clearMarks();
+    for (const k of ['mat', 'matD', 'matL', 'eyeMat', 'beamMat']) if (a[k]) a[k].dispose();
+  }
   /* what a region's script gets to work with */
   const R = {
     encounter, add, say,
+    remove: (a) => { discard(a); G.actors = G.actors.filter(x => x !== a); },   // an endless run clears its wrecks as it goes
     boss: (id, opts) => encounter(id, Object.assign({}, opts, { boss: true })),
     step: (id) => GM.setStep(stepOf(id)),
     atStep: (id) => P().step === stepOf(id),
   };
   GM.spawnAll = () => REG.spawn(R);
   GM.clearAll = () => {
-    for (const a of G.actors) { if (a === G.player || a === G.ally) continue; a.root.getChildMeshes().forEach(m => m.dispose()); a.root.dispose(); if (a.smokeWreck) { a.smokeWreck.stop(); a.smokeHead.stop(); a.smokeGuns.stop(); } if (a.ring) a.ring.dispose(); if (a.clearMarks) a.clearMarks(); }
+    for (const a of G.actors) if (a !== G.player && a !== G.ally) discard(a);
     G.actors = G.actors.filter(a => a === G.player || (a === G.ally && G.ally.joined));
     GM.encounters = []; GM.boss = null; GM.bossSeen = false; G.UI.boss(null);
   };
@@ -70,6 +80,7 @@ export function makeGame() {
   /* ---------- death and respawn ---------- */
   GM.onPlayerDown = () => {};
   GM.respawnPlayer = () => {
+    if (REG.onDeath) { REG.onDeath(R); return; }   // an endless run has no checkpoint to go back to
     const c = GM.checkpoint(); G.player.respawn(c.x, c.z); G.camera.target.set(c.x, 0, c.z);
     if (G.ally.joined) G.ally.teleportNear(G.player.pos);
     G.player.focus = null; for (const a of G.actors) if (a.target === G.player || a.target === G.ally) a.target = null;
