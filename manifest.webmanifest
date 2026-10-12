@@ -1,0 +1,18 @@
+{
+  "id": "./",
+  "name": "Relay Gate",
+  "short_name": "Relay Gate",
+  "description": "An endless survival shooter: hold out against the machines with Mara, your medic, for as long as you can.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0d0f0e",
+  "theme_color": "#0d0f0e",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

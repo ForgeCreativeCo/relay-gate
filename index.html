@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d0f0e">
 </head>
 <body style="margin:0">
 <title>Relay Gate</title>
@@ -349,6 +350,20 @@ body[data-mode="touch"] .choice .key{display:none}
 })();
 </script>
 <script type="module" src="js/main.js"></script>
+<script>
+/* Installable from the browser (a PWA): the manifest, the home-screen icon on iPhones, and a service worker that lets it start offline once
+   played. Left out inside Claude, where the game runs in a frame and saves to your account instead. */
+(function () {
+  if (window.top !== window || window.claude || !('serviceWorker' in navigator) || !(location.protocol === 'https:' || location.hostname === 'localhost')) return;
+  var add = function (tag, attrs) { var el = document.createElement(tag); for (var k in attrs) el.setAttribute(k, attrs[k]); document.head.appendChild(el); };
+  add('link', { rel: 'manifest', href: 'manifest.webmanifest' });
+  add('link', { rel: 'apple-touch-icon', href: 'icons/apple-touch-icon.png' });
+  add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' });
+  add('meta', { name: 'apple-mobile-web-app-status-bar-style', content: 'black' });
+  add('meta', { name: 'apple-mobile-web-app-title', content: 'Relay Gate' });
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+})();
+</script>
 
 </body>
 </html>
