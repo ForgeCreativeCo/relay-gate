@@ -75,6 +75,7 @@ export function makeGame() {
       say(`${m.name} is down · The gate is powering up`, '#1fe0ff'); G.save.now();
     }
   };
+  GM.build = () => { if (REG.assemble && G.started && !G.paused) REG.assemble(R); };   // spend scrap on machines of your own (survival)
   GM.onBossPhase = (b, ph) => REG.onBossPhase(R, b, ph, GM.encounters.find(e => e.boss));
 
   /* ---------- death and respawn ---------- */

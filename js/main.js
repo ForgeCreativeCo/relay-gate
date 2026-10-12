@@ -112,6 +112,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
     const P = G.player;
     if (a === 'dash') P.tryDash(); else if (a === 'stop') P.stop(); else if (a === 'swap') P.swap();
     else if (a === 'interact') { if (G.near) G.near.use(); } else if (a === 'command') G.ally.toggleMode();
+    else if (a === 'build') G.game.build();
     else G.UI.onAction(a);
   });
   G.setQuality('high');

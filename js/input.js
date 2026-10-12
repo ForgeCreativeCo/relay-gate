@@ -13,7 +13,7 @@ export function makeInput(canvas) {
 
   window.addEventListener('pointerdown', e => auto(e.pointerType === 'touch' ? 'touch' : 'mouse'), true);
   window.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' && (Math.abs(e.movementX) + Math.abs(e.movementY)) > 2) auto('mouse'); }, true);
-  const KEYMAP = { Space: 'dash', ShiftLeft: 'dash', KeyQ: 'swap', KeyE: 'interact', KeyF: 'interact', KeyI: 'pack', Tab: 'pack', KeyC: 'command', Escape: 'menu', KeyT: 'part', KeyS: 'stop', KeyM: 'mute' };
+  const KEYMAP = { Space: 'dash', ShiftLeft: 'dash', KeyQ: 'swap', KeyE: 'interact', KeyF: 'interact', KeyI: 'pack', Tab: 'pack', KeyC: 'command', Escape: 'menu', KeyT: 'part', KeyS: 'stop', KeyM: 'mute', KeyB: 'build' };
   window.addEventListener('keydown', e => {
     if (e.target && /input|textarea/i.test(e.target.tagName)) return;
     if (['Space', 'Tab'].includes(e.code)) e.preventDefault();

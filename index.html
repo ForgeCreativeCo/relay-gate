@@ -51,6 +51,11 @@ button{font-family:var(--f-ui);color:var(--ink)}
 .barrow.low b{color:var(--machine)} .barrow.low .bar i{background:var(--machine)}
 .barrow.ally .bar{flex-basis:90px;height:4px} .barrow.ally .bar i{background:var(--mara)}
 .barrow.xp .bar{height:4px} .barrow.xp .bar i{background:var(--gate)} .barrow.xp b{color:var(--gate)}
+.barrow.build{pointer-events:auto;background:none;border:0;padding:3px 0;margin:-3px 0;font-family:inherit;text-shadow:inherit;cursor:default;text-align:left}
+.barrow.build b{color:var(--dim)} .barrow.build .bar{height:4px;position:relative;overflow:visible} .barrow.build .bar i{background:#9aa0a6}
+.barrow.build .bar u{position:absolute;top:-2px;bottom:-2px;width:1px;background:var(--ink);opacity:.7}
+.barrow.build.ready{cursor:pointer} .barrow.build.ready b,.barrow.build.ready small{color:var(--gate)} .barrow.build.ready .bar i{background:var(--gate)} .barrow.build.ready small{font-weight:600}
+.barrow.build.ready:hover small,.barrow.build:focus-visible small{text-decoration:underline} .barrow.build:focus-visible{outline:1px solid var(--gate);outline-offset:3px}
 .barrow small{font-size:10px;letter-spacing:.06em;text-transform:none;color:var(--dim);font-variant-numeric:tabular-nums}
 .feed{display:grid;gap:3px;margin-top:6px}
 .feed div{font-size:12px;font-weight:500;line-height:1.35;letter-spacing:.02em;padding-left:8px;border-left:2px solid var(--amber);transition:opacity .6s,transform .6s}
@@ -117,6 +122,7 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
 .mini{position:fixed;left:0;top:0;width:44px;height:3px;background:rgba(0,0,0,.5);pointer-events:none;will-change:transform}
 .mini i{display:block;height:100%;transform-origin:left;background:var(--machine)}
 .mini.raider i{background:#e08a4a}
+.mini.ally i{background:var(--gate)}
 .mini.big{width:64px;height:4px}
 .dmg{position:fixed;left:0;top:0;font-weight:600;font-size:14px;text-shadow:0 1px 4px rgba(0,0,0,.95);pointer-events:none;font-variant-numeric:tabular-nums;will-change:transform}
 .dmg.crit{color:var(--amber);font-size:17px}
@@ -231,6 +237,7 @@ body[data-mode="touch"] .choice .key{display:none}
       <div class="barrow" id="hpRow"><b>Health</b><div class="bar"><i id="hpFill"></i></div><small id="armorTxt"></small></div>
       <div class="barrow ally" id="allyRow" hidden><b>Mara</b><div class="bar"><i id="allyFill"></i></div><small id="allyTxt"></small></div>
       <div class="barrow xp" id="xpRow" hidden><b>Level</b><div class="bar"><i id="xpFill"></i></div><small id="xpTxt"></small></div>
+      <button class="barrow build" id="buildBtn" type="button" hidden disabled><b id="buildLab">Scrap</b><div class="bar"><i id="buildFill"></i><u id="buildMark"></u></div><small id="buildTxt"></small></button>
     </div>
     <div class="feed" id="feed" aria-live="polite"></div>
   </div>
@@ -305,7 +312,7 @@ body[data-mode="touch"] .choice .key{display:none}
     <div class="row"><button class="btn" id="muteBtn" type="button">Sound on</button><label class="vol"><span>Volume</span><input type="range" id="volRange" min="0" max="100" step="5" aria-label="Volume"></label><label class="vol"><span>Ambience</span><input type="range" id="ambRange" min="0" max="100" step="5" aria-label="Ambience volume"></label></div>
     <h3>Controls</h3>
     <div class="row"><button class="btn" id="cAuto" type="button">Auto</button><button class="btn" id="cTouch" type="button">Touch</button><button class="btn" id="cMouse" type="button">Mouse &amp; keys</button></div>
-    <div class="keys"><kbd>Right-click</kbd><span>Walk there (hold to keep steering)</span><kbd>Left-click</kbd><span>Hold to fire · locks on to the nearest threat by itself · point at an enemy or part to aim there instead</span><kbd>S</kbd><span>Stop</span><kbd>T</kbd><span>Target the next part</span><kbd>Space</kbd><span>Dodge toward the cursor</span><kbd>Q</kbd><span>Swap weapon</span><kbd>E</kbd><span>Talk, open, use (or right-click it)</span><kbd>I</kbd><span>Pack</span><kbd>C</kbd><span>Tell Mara to follow or hold</span><kbd>M</kbd><span>Mute or unmute</span></div>
+    <div class="keys"><kbd>Right-click</kbd><span>Walk there (hold to keep steering)</span><kbd>Left-click</kbd><span>Hold to fire · locks on to the nearest threat by itself · point at an enemy or part to aim there instead</span><kbd>S</kbd><span>Stop</span><kbd>T</kbd><span>Target the next part</span><kbd>Space</kbd><span>Dodge toward the cursor</span><kbd>Q</kbd><span>Swap weapon</span><kbd>E</kbd><span>Talk, open, use (or right-click it)</span><kbd>I</kbd><span>Pack</span><kbd>C</kbd><span>Tell Mara to follow or hold</span><kbd>B</kbd><span>Build machines from scrap (survival)</span><kbd>M</kbd><span>Mute or unmute</span></div>
     <h3>Run</h3>
     <div class="row"><button class="btn" id="toCheckpoint" type="button">Back to checkpoint</button><button class="btn danger" id="wipeBtn" type="button">Start over</button></div>
     <div class="confirm" id="wipeConfirm"><span class="muted">Wipe your gear and progress?</span><button class="btn danger" id="wipeYes" type="button">Wipe it</button><button class="btn" id="wipeNo" type="button">Cancel</button></div>

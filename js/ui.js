@@ -48,7 +48,7 @@ export function makeUI() {
   UI.modeChanged = () => { G.input.restStick && G.input.restStick(); tips(); };
   let tipsT = 0;
   function tips() { const t = $('tips'); t.style.opacity = 1; tipsT = 14;
-    t.textContent = G.input.mode === 'touch' ? 'Left thumb to move · Hold Fire to shoot, it locks on by itself · Tap an enemy to lock on · Dodge to dash' : 'Right-click to move · Hold left-click to fire, it locks on by itself · Space dodge · Q swap · T target part · I pack'; }
+    t.textContent = G.input.mode === 'touch' ? 'Left thumb to move · Hold Fire to shoot, it locks on by itself · Tap an enemy to lock on · Dodge to dash' : 'Right-click to move · Hold left-click to fire, it locks on by itself · Space dodge · Q swap · T target part · I pack' + (G.R.assemble ? ' · B build' : ''); }
   UI.showTips = tips;
 
   /* ---------- per-frame HUD ---------- */
@@ -84,7 +84,7 @@ export function makeUI() {
       /* walkers always show theirs; everything else once it's been hurt */
       if (!a.parts && a.hp >= a.maxHp) continue;
       const m = minis[mi++], s = UI.project(a.pos.add(V(0, a.parts ? 4.9 * a.s : a.kind === 'drone' ? .8 : a.kind === 'husk' ? 1.75 : 2.15, 0))); if (!s.ok) { m.m.hidden = true; continue; }
-      m.m.hidden = false; m.m.classList.toggle('big', !!a.parts); m.m.classList.toggle('raider', a.faction === 'raider' && !hostile(P, a));
+      m.m.hidden = false; m.m.classList.toggle('big', !!a.parts); m.m.classList.toggle('raider', a.faction === 'raider' && !hostile(P, a)); m.m.classList.toggle('ally', a.faction === 'player');
       m.i.style.transform = `scaleX(${Math.max(0, a.hp / a.maxHp).toFixed(3)})`; place(m.m, s.x, Math.max(s.y, 8));   // kept on screen when the enemy is near the top edge
     }
     for (; mi < minis.length; mi++) minis[mi].m.hidden = true;
@@ -191,6 +191,12 @@ export function makeUI() {
   $('toCheckpoint').onclick = () => { UI.closeMenu(); G.game.respawnPlayer(); };
   $('wipeBtn').onclick = () => $('wipeConfirm').classList.add('show'); $('wipeNo').onclick = () => $('wipeConfirm').classList.remove('show');
   $('wipeYes').onclick = async () => { await G.save.wipe(); location.reload(); };
+
+  /* ---------- scrap and the squad it builds (survival): a meter that is also the Build button ---------- */
+  /* s: { label, text, fill (0 to 1), mark (0 to 1: where the cheaper build sits on the bar), ready } */
+  UI.build = (s) => { const b = $('buildBtn'); b.hidden = false; b.classList.toggle('ready', !!s.ready); b.disabled = !s.ready;
+    $('buildLab').textContent = s.label; $('buildTxt').textContent = s.text; $('buildFill').style.transform = `scaleX(${Math.max(0, Math.min(1, s.fill)).toFixed(3)})`; $('buildMark').style.left = (s.mark * 100).toFixed(1) + '%'; };
+  $('buildBtn').onclick = () => G.game.build();
 
   /* ---------- levelling (survival) ---------- */
   UI.xp = (level, k) => { $('xpRow').hidden = false; $('xpTxt').textContent = level; $('xpFill').style.transform = `scaleX(${Math.max(0, Math.min(1, k)).toFixed(3)})`; };

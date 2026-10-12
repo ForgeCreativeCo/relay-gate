@@ -23,6 +23,9 @@ const TUNE = {
   near: [26, 34],                         // how far from you they arrive: past the edge of the view
   gate: [16, 45, .35],                    // with the gate this far from you (nearest, farthest), this share of groups step out of it
   wreck: 15,                              // seconds a wreck lies there before it is cleared away
+  /* Scrap builds machines of your own: `n` at once for `cost`, each with `tough` times the health of the ones it was copied from. One kind at a
+     time, and no building again until every one of them is destroyed. With enough for both, you get the dearer one. */
+  build: { drones: { cost: 40, n: 3, tough: 2, name: 'drones' }, husks: { cost: 90, n: 2, tough: 2, name: 'husks' } },
   horn: 20,                               // the horn sounds when a group arrives, but not more often than this many seconds
   xp: { drone: 2, husk: 3, walker: 12, warden: 40 },   // what each kill is worth (Mara's count too)
   level: [8, 6, 1.2],                     // XP for the next level: the first number, plus the second per level so far, plus the third times that count squared
@@ -88,6 +91,30 @@ export function survival(arena) {
       any = any || { x, z };
     }
     return any;
+  }
+
+  /* What your scrap can build right now: the dearest set you can afford, or nothing while a squad is still standing. */
+  const squadUp = () => RUN.squad.filter(a => a.alive);
+  const affordable = () => { const s = G.inv.scrap, B = T.build; return squadUp().length ? null : s >= B.husks.cost ? 'husks' : s >= B.drones.cost ? 'drones' : null; };
+  function build(R) {
+    if (!RUN || RUN.over || G.player.down > 0) return;
+    const what = affordable();
+    if (!what) { R.say(squadUp().length ? 'Your machines are still standing · You can build again when they\'re gone' : `Not enough scrap · ${T.build.drones.cost} builds ${T.build.drones.n} drones`, '#9aa0a6'); return; }
+    const b = T.build[what], p = G.player.pos, k = b.tough * (1 + T.tough * RUN.time / 60); G.inv.scrap -= b.cost;
+    for (let i = 0; i < b.n; i++) {
+      const a = i / b.n * 6.283 + rand(0, 1), c = G.nav.snap(p.x + Math.cos(a) * 2.2, p.z + Math.sin(a) * 2.2, 3) || p;
+      const m = what === 'husks' ? new Husk(c.x, c.z, { ally: true, leash: 16 }) : new Drone(c.x, c.z, { ally: true });
+      m.maxHp = m.hp = Math.round(m.hp * k); RUN.squad.push(R.add(m)); RUN.squadName = b.name; G.FX.puffAt(V(c.x, 1.2, c.z), 10);
+    }
+    G.audio.play('powerOn', { pos: p, gain: .5, rate: 1.2, len: 1.4, fade: .3 }); R.say(`Built ${b.n} ${b.name} · They fight for you until they're destroyed`, '#1fe0ff'); RUN.hudAt = 0; G.save.soon();
+  }
+  /* the scrap meter: what you have against what it buys, or how the squad is doing */
+  function meter() {
+    const B = T.build, s = G.inv.scrap, up = squadUp(), key = G.input.mode === 'touch' ? '' : ' · B', mark = B.drones.cost / B.husks.cost, fill = s / B.husks.cost;
+    if (up.length) return { label: 'Squad', text: `${up.length}/${RUN.squad.length} ${RUN.squadName} · ${s} scrap`, fill, mark };
+    const can = affordable();
+    if (can) return { label: 'Build', text: `${B[can].n} ${B[can].name}${key}` + (can === 'drones' ? ` · ${s} / ${B.husks.cost} for husks` : ''), fill, mark, ready: true };
+    return { label: 'Scrap', text: `${s} / ${B.drones.cost} for drones`, fill, mark };
   }
 
   /* a machine joins the run: tougher the longer it has gone on, and tracked so it hunts you and its wreck gets cleared */
@@ -156,10 +183,11 @@ export function survival(arena) {
     /* a run starts from nothing: the starter rifle, an empty pack, level 1, the clock at zero */
     spawn(R) {
       G.inv = newInventory(); G.boost = {}; G.player.recalc(); G.ally.recalc(); G.ally.healCD = G.ally.reviveCD = 0; G.ally.revives = 0; G.progress.kills = 0;
-      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, hornAt: 0, warden: null, wardens: 0, bosses: { walker: 0, warden: 0 } };
+      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, hornAt: 0, squad: [], squadName: '', warden: null, wardens: 0, bosses: { walker: 0, warden: 0 } };
       if (arena.begin) arena.begin(R, RUN);
     },
     interactables() {},
+    assemble: build,   // B, or the scrap meter: build machines of your own (`build` above is the map's)
     onKill(R, m) {
       if (!RUN || RUN.over) return; RUN.xp += T.xp[m.kind] || 1; if (m.kind in RUN.bosses) RUN.bosses[m.kind]++;
       if (m === RUN.warden) { G.UI.boss(null); G.drops.scatter(m.pos.x, m.pos.z - 1, rollLoot('warden')); R.say('The Warden is down', '#1fe0ff'); }
@@ -187,11 +215,18 @@ export function survival(arena) {
         else if (G.t - a.deadAt > T.wreck) { R.remove(a); a.gone = true; }
       }
       RUN.mine = RUN.mine.filter(a => !a.gone);
+      /* your own machines stay with you (and are brought back if you outrun them); their wrecks are cleared the same way */
+      for (const a of RUN.squad) {
+        if (a.alive) { a.home.x = p.x; a.home.z = p.z; if (dist2(a.pos, p) > 34) { const c = G.nav.snap(p.x + rand(-2, 2), p.z + rand(-2, 2), 4); if (c) { a.pos.x = c.x; a.pos.z = c.z; } } }
+        else if (!a.deadAt) { a.deadAt = G.t; if (!squadUp().length) R.say(`Your ${RUN.squadName} are gone · Scrap can build again`, '#9aa0a6'); }
+        else if (G.t - a.deadAt > T.wreck && !a.gone) { R.remove(a); a.gone = true; }
+      }
+      if (RUN.squad.length && RUN.squad.every(a => a.gone)) RUN.squad = [];
       if (RUN.due.length && G.t >= RUN.dueAt && G.player.down <= 0) { milestone(R, p); RUN.dueAt = G.t + 1; }
       if (G.t >= RUN.nextAt && G.player.down <= 0) { const came = group(R, p, m);
         if (came && G.t >= RUN.hornAt) { G.audio.horn(true); RUN.hornAt = G.t + T.horn; }
         RUN.nextAt = G.t + (came ? ramp(T.gap, m) * rand(.8, 1.2) * RUN.gapK * (RUN.warden && RUN.warden.alive ? T.boss.ease : 1) : 1); }
-      if (G.t >= RUN.hudAt) { RUN.hudAt = G.t + .25; G.UI.objective(`Survive · ${clock(RUN.time)} · ${G.progress.kills} down`); G.UI.xp(RUN.level, RUN.xp / need(RUN.level)); }
+      if (G.t >= RUN.hudAt) { RUN.hudAt = G.t + .25; G.UI.objective(`Survive · ${clock(RUN.time)} · ${G.progress.kills} down`); G.UI.xp(RUN.level, RUN.xp / need(RUN.level)); G.UI.build(meter()); }
       if (RUN.xp >= need(RUN.level) && G.player.down <= 0) levelUp(R);
     },
 

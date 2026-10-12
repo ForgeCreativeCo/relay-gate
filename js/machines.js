@@ -2,7 +2,7 @@
 import { B, G, V, V3, MT, clamp, damp, lerpAngle, angleTo, dist2, rand, clearShot, collide } from './core.js';
 import { Geo, gbox, gprism, gcyl, gmesh } from './geo.js';
 import { Actor } from './actors.js';
-import { nearestHostile } from './combat.js';
+import { nearestHostile, hostile } from './combat.js';
 import { chase } from './nav.js';
 import { rollLoot } from './loot.js';
 
@@ -15,9 +15,14 @@ function announce(self, dt, sounds) {
   if (onUs && !self.engaged) { self.engaged = true; for (const [sound, opts] of sounds) G.audio.play(sound, Object.assign({ pos: self.pos }, opts)); }
   if (onUs) self.lostT = 0; else if (self.engaged && (self.lostT = (self.lostT || 0) + dt) > 6) self.engaged = false;
 }
+/* A drone or husk you built (opts.ally): it is in your faction, so it hunts the machines and they hunt it. It glows cyan where theirs glow red,
+   fires the same rounds Mara does, hits harder than the ones it was copied from, and is worth nothing when it goes down. */
+const ALLY = { color: B.Color3.FromHexString('#1fe0ff'), droneDmg: 10, huskDmg: 2.5 };
+const allyEye = () => { if (!G.M.allyEye) { G.M.allyEye = cloneMat(G.M.eye, 'allyEye'); G.M.allyEye.emissiveColor = ALLY.color.clone(); } return G.M.allyEye; };
+function enlistAlly(self) { self.ally = true; self.faction = 'player'; if (self.mat.albedoColor) self.mat.albedoColor = B.Color3.Lerp(self.mat.albedoColor, ALLY.color, .3); }
 function pickTarget(self, range) {
   const a = self.lastAttacker;
-  if (a && a.alive && !a.untargetable && a.faction !== 'machine' && dist2(a.pos, self.pos) < range * 1.4 && G.t - self.lastHurt < 6) return a;
+  if (a && !a.untargetable && hostile(self, a) && dist2(a.pos, self.pos) < range * 1.4 && G.t - self.lastHurt < 6) return a;
   return nearestHostile(self, range);
 }
 
@@ -32,7 +37,8 @@ export class Drone extends Actor {
     const shroud = B.MeshBuilder.CreateTorus('dRing', { diameter: 1.3, thickness: .12, tessellation: 12 }, S); shroud.parent = this.root; shroud.material = G.M.mechDark;
     this.rotors = [-1, 1].map(s => { const r = B.MeshBuilder.CreateBox('rotor', { width: .9, height: .02, depth: .08 }, S); r.parent = this.root; r.position.set(s * .65, .12, 0); r.material = G.M.gun; return r; });
     [-1, 1].forEach(s => { const arm = B.MeshBuilder.CreateBox('arm', { width: .5, height: .06, depth: .1 }, S); arm.parent = this.root; arm.position.set(s * .4, .05, 0); arm.material = G.M.mechDark; });
-    const eye = B.MeshBuilder.CreateBox('dEye', { width: .26, height: .07, depth: .05 }, S); eye.parent = this.root; eye.position.set(0, 0, .4); eye.material = G.M.eye;
+    const eye = B.MeshBuilder.CreateBox('dEye', { width: .26, height: .07, depth: .05 }, S); eye.parent = this.root; eye.position.set(0, 0, .4); eye.material = opts.ally ? allyEye() : G.M.eye;
+    if (opts.ally) enlistAlly(this);
     const gun = B.MeshBuilder.CreateCylinder('dGun', { diameter: .08, height: .5, tessellation: 6 }, S); gun.parent = this.root; gun.rotation.x = Math.PI / 2; gun.position.set(0, -.18, .3); gun.material = G.M.gun;
     this.meshes = this.root.getChildMeshes();
     this.meshes.forEach(m => { m.metadata = { actor: this, part: 'core' }; m.isPickable = true; m.receiveShadows = true; G.sg.addShadowCaster(m); });
@@ -43,14 +49,14 @@ export class Drone extends Actor {
   takeDamage(d, part, src, point) { this.flash = 1;
     if (point) { const dx = this.pos.x - point.x, dz = this.pos.z - point.z, l = Math.hypot(dx, dz) || 1, k = Math.min(3, .6 + d * .12); this.knock = this.knock || V(0, 0, 0); this.knock.x += dx / l * k; this.knock.z += dz / l * k; this.wob = Math.min(1, (this.wob || 0) + .5); }
     return d; }
-  die(src) { this.meshes.forEach(m => { m.isPickable = false; }); this.dying = true; G.game.onMachineDown(this, src); }
+  die(src) { this.meshes.forEach(m => { m.isPickable = false; }); this.dying = true; if (!this.ally) G.game.onMachineDown(this, src); }
   update(dt) {
     const p = this.pos;
     this.rotors.forEach((r, i) => { r.rotation.y += dt * (this.dying ? 8 : 40) * (i ? 1 : -1); });
     this.flash = Math.max(0, this.flash - dt * 6); this.mat.emissiveColor.set(this.flash * .4, this.flash * .4, this.flash * .4);
     if (!this.alive) {
       if (this.dying) { this.fallV += 14 * dt; p.y -= this.fallV * dt; this.root.rotation.z += dt * 6; this.root.rotation.x += dt * 3;
-        if (p.y <= .3) { this.dying = false; G.FX.explode(V(p.x, .6, p.z), .45); G.FX.blast(V(p.x, .4, p.z), .45); G.FX.debris(V(p.x, .6, p.z), 5, .45, .7); G.audio.play('boomSmall', { pos: p, gain: .7, vary: true }); G.audio.play('droneDeath', { pos: p, gain: .5, vary: true, fade: .4 }); this.root.setEnabled(false); if (this.lastKiller === undefined) G.drops.scatter(p.x, p.z, rollLoot('drone')); } }
+        if (p.y <= .3) { this.dying = false; G.FX.explode(V(p.x, .6, p.z), .45); G.FX.blast(V(p.x, .4, p.z), .45); G.FX.debris(V(p.x, .6, p.z), 5, .45, .7); G.audio.play('boomSmall', { pos: p, gain: .7, vary: true }); G.audio.play('droneDeath', { pos: p, gain: .5, vary: true, fade: .4 }); this.root.setEnabled(false); if (!this.ally) G.drops.scatter(p.x, p.z, rollLoot('drone')); } }
       return;
     }
     this.retarget -= dt; if (this.retarget <= 0) { this.retarget = .7; this.target = pickTarget(this, 20); announce(this, .7, [['whir', { gain: .6, rate: 1.1, gap: 1.5, key: 'droneAlert' }]]); }
@@ -75,8 +81,10 @@ export class Drone extends Actor {
     this.cool -= dt;
     if (T && this.cool <= 0 && dist2(T.pos, p) < 16) {
       this.cool = rand(1.2, 1.9);
-      const from = p.add(V(Math.sin(this.root.rotation.y) * .6, -.2, Math.cos(this.root.rotation.y) * .6)), tgt = T.pos.add(V((T.vel ? T.vel.x : 0) * .3 + rand(-.6, .6), 1.15, (T.vel ? T.vel.z : 0) * .3 + rand(-.6, .6)));
-      G.CB.fire({ from, dir: tgt.subtract(from).normalize(), speed: 30, dmg: 5, owner: this, kind: 'bolt', life: 1.4 }); G.audio.shot('drone', p);
+      const from = p.add(V(Math.sin(this.root.rotation.y) * .6, -.2, Math.cos(this.root.rotation.y) * .6)), ground = T.pos.add(V((T.vel ? T.vel.x : 0) * .3 + rand(-.6, .6), 1.15, (T.vel ? T.vel.z : 0) * .3 + rand(-.6, .6)));
+      /* theirs aim at where a person on the ground will be; yours aims at the machine itself, wherever its body is (a drone's is in the air) */
+      const body = this.ally && T.hitTargets()[0], tgt = body ? body.c.add(V(rand(-.25, .25), rand(-.15, .15), rand(-.25, .25))) : ground;
+      G.CB.fire({ from, dir: tgt.subtract(from).normalize(), speed: 30, dmg: this.ally ? ALLY.droneDmg : 5, owner: this, kind: this.ally ? 'ally' : 'bolt', life: 1.4 }); G.audio.shot('drone', p);
     }
   }
 }
@@ -298,6 +306,7 @@ export class Husk extends Actor {
     this.state = opts.slumped ? 'slumped' : 'hunt'; this.lurk = !!opts.slumped;   // a slumped husk isn't picked by auto-aim, so it can still surprise you
     this.wakeT = 0; this.runT = rand(1, 1.6); this.pauseT = 0; this.windup = 0; this.recover = 0; this.lunge = 0; this.retarget = 0; this.stride = 0; this.flash = 0; this.flinch = 0;
     this.build(x, z, opts.face || 0);
+    if (opts.ally) enlistAlly(this);
     this.pose(HUSK_POSES[opts.slumped ? 'slump' : 'stand'], 1, 0);
   }
   build(x, z, face) {
@@ -374,6 +383,7 @@ export class Husk extends Actor {
     this.meshes.forEach(m => { m.isPickable = false; }); this.windup = 0;
     const c = this.spine.getAbsolutePosition().add(V(0, .3, 0)); G.FX.explode(c, .22); G.FX.debris(c, 3, .35, .6);
     G.audio.play('powerOff', { pos: this.pos, gain: .5, rate: 1.55, len: 1.1, fade: .35 });
+    if (this.ally) return;
     G.drops.scatter(this.pos.x, this.pos.z, rollLoot('husk'));
     G.game.onMachineDown(this, src);
   }
@@ -383,14 +393,14 @@ export class Husk extends Actor {
     const p = this.pos, d = dist2(p, T.pos), off = Math.abs(lerpAngle(0, angleTo(p, T.pos) - this.root.rotation.y, 1));
     if (d > 2.2 || off > 1.1) return;   // it slashes where you were: dodging out of the wind-up makes it miss
     const at = T.pos.add(V(0, 1.1, 0)), dir = T.pos.subtract(p).normalize();
-    T.damage(this.limbs.arms > 0 ? 13 : 5, 'body', this, at, { knock: { from: p, force: .6 } });
+    T.damage((this.limbs.arms > 0 ? 13 : 5) * (this.ally ? ALLY.huskDmg : 1), 'body', this, at, { knock: { from: p, force: .6 } });
     G.FX.impact(at, T.faction === 'machine' ? 'metal' : 'body', dir.scale(-1));
     G.audio.play('step', { pos: p, gain: .5, rate: 1.9, len: .35, vary: true });
   }
   update(dt) {
     const p = this.pos;
     this.flash = Math.max(0, this.flash - dt * 6); this.mat.emissiveColor.set(this.flash * .12, this.flash * .09, this.flash * .06);
-    const glow = !this.alive ? 0 : this.state === 'slumped' ? .12 : this.windup > 0 ? 2.2 : 1 + this.flash, mg = G.machineColor;
+    const glow = !this.alive ? 0 : this.state === 'slumped' ? .12 : this.windup > 0 ? 2.2 : 1 + this.flash, mg = this.ally ? ALLY.color : G.machineColor;
     this.eyeMat.emissiveColor.set(Math.min(1, mg.r * glow), Math.min(1, mg.g * glow), Math.min(1, mg.b * glow));
     if (!this.alive) { this.pose(HUSK_POSES.dead, damp(9, dt), 0); return; }
     if (this.state === 'slumped') {
@@ -414,7 +424,9 @@ export class Husk extends Actor {
         if (this.pauseT > 0) this.pauseT -= dt;
         else { mv = top; this.runT -= dt; if (this.runT <= 0 && !crawl && d > 4) { this.pauseT = rand(.35, .6); this.runT = rand(1.1, 1.8); } }
       }
-    } else if (dist2(p, this.home) > 1) mv = 2.2;
+    } else { const dh = dist2(p, this.home);
+      if (this.ally) mv = dh > 9 ? top : dh > 3.5 ? 4.5 : 0;   // yours keeps up with you (its home is wherever you are) instead of ambling back
+      else if (dh > 1) mv = 2.2; }
     if (this.recover > 0) mv *= .3;
     const to = mv > 0 ? chase(this, G.nav, gx, gz, dt) : { x: gx, z: gz };   // round walls and cover when it's running; squarely at you when it strikes
     const dx = to.x - p.x, dz = to.z - p.z, dd = Math.hypot(dx, dz) || 1, ox = p.x, oz = p.z;
