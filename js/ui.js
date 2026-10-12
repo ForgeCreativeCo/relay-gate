@@ -26,7 +26,7 @@ export function makeUI() {
 
   /* ---------- damage numbers ---------- */
   const nums = []; for (let k = 0; k < 20; k++) { const e = el('div', 'dmg'); e.hidden = true; document.body.appendChild(e); nums.push({ e, p: V(0, 0, 0), life: 0 }); }
-  UI.number = (p, v, crit) => { const n = nums.find(q => q.life <= 0) || nums[0]; n.p.copyFrom(p); n.p.x += (Math.random() - .5) * .7; n.p.y += .3; n.life = .8; n.e.textContent = v; n.e.className = 'dmg' + (crit ? ' crit' : ''); };
+  UI.number = (p, v, crit) => { const n = nums.find(q => q.life <= 0) || nums[0]; n.p.copyFrom(p); n.p.x += (Math.random() - .5) * .7; n.p.y += .3; n.life = .8; n.e.textContent = v; n.e.className = 'dmg' + (crit === 'heal' ? ' heal' : crit ? ' crit' : ''); };   // crit can also be 'heal', for health you get back
 
   /* ---------- enemy health: a slim bar just above each enemy (a wider one for walkers) ---------- */
   const minis = []; for (let k = 0; k < 12; k++) { const m = el('div', 'mini'); const i = el('i'); m.append(i); m.hidden = true; document.body.append(m); minis.push({ m, i }); }
@@ -58,7 +58,8 @@ export function makeUI() {
     $('hpFill').style.transform = `scaleX(${(P.hp / P.maxHp).toFixed(3)})`; $('hpRow').classList.toggle('low', P.hp / P.maxHp < .35);
     $('armorTxt').textContent = `${Math.ceil(P.hp)} / ${P.maxHp}` + (P.armor ? ` · Armour ${P.armor}` : '');
     const A = G.ally; $('allyRow').hidden = !A.joined;
-    if (A.joined) { $('allyFill').style.transform = `scaleX(${(A.down > 0 ? 0 : A.hp / A.maxHp).toFixed(3)})`; $('allyTxt').textContent = A.down > 0 ? 'Down · help her up' : (A.mode === 'hold' ? 'Holding' : 'Following'); }
+    if (A.joined) { $('allyFill').style.transform = `scaleX(${(A.down > 0 ? 0 : A.hp / A.maxHp).toFixed(3)})`; $('allyTxt').textContent = A.down > 0 ? 'Down · help her up' : P.down > 0 && A.reviveCD <= 0 && G.R.medic ? (A.reviving > 0 ? 'Getting you up' : 'Coming for you')
+        : (A.mode === 'hold' ? 'Holding' : 'Following') + (G.R.medic ? (A.reviveCD > 0 ? ` · Revive in ${Math.ceil(A.reviveCD)}s` : ' · Revive ready') : ''); }
     hurtFx = Math.max(0, hurtFx - dt * 2.2); $('hurt').style.opacity = hurtFx.toFixed(3);
     /* weapon */
     const w = P.weapon;

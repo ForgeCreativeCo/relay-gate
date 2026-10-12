@@ -40,6 +40,8 @@ const UPGRADES = [
   { id: 'armor', name: 'Scrap plating', text: '+8 armour', add: { armor: 8 } },
   { id: 'speed', name: 'Light boots', text: '+8% move speed', add: { speed: 8 }, max: 5 },
   { id: 'dodge', name: 'Quick recovery', text: '20% faster dodge recovery', add: { dodge: 20 }, max: 4 },
+  { id: 'maraHeal', name: 'Mara: field kit', text: 'Mara\'s heals give you 10 more health', add: { maraHeal: 10 } },
+  { id: 'maraCD', name: 'Mara: quick hands', text: 'Mara can heal and revive 25% more often', add: { maraCD: 25 }, max: 4 },
   { id: 'mara', name: 'Mara: steady aim', text: 'Mara deals 30% more damage', add: { mara: 30 } },
   { id: 'maraHp', name: 'Mara: medic\'s vest', text: 'Mara has 40 more health and gets back up 25% sooner', add: { maraHp: 40, maraUp: 25 }, max: 4 },
 ];
@@ -135,6 +137,7 @@ export function survival(arena) {
     clearedText: '',
     preparing: arena.preparing,
     endless: true,   // no checkpoints to continue from: every visit is a new run, and going down ends it
+    medic: true,     // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
     indoor: arena.indoor, noHorn: arena.noHorn, look: arena.look,
     /* its own slot in this browser, so a run never touches your campaign save */
     save: { key: arena.saveKey, localOnly: true },
@@ -149,7 +152,7 @@ export function survival(arena) {
 
     /* a run starts from nothing: the starter rifle, an empty pack, level 1, the clock at zero */
     spawn(R) {
-      G.inv = newInventory(); G.boost = {}; G.player.recalc(); G.ally.recalc(); G.progress.kills = 0;
+      G.inv = newInventory(); G.boost = {}; G.player.recalc(); G.ally.recalc(); G.ally.healCD = G.ally.reviveCD = 0; G.progress.kills = 0;
       RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, warden: null, wardens: 0 };
       if (arena.begin) arena.begin(R, RUN);
     },

@@ -308,7 +308,7 @@ export class Player extends Actor {
     this.root = this.H.root; this.facing = 0; this.dash = 0; this.dashCD = 0; this.down = 0; this.cool = 0; this.lastMove = { x: 0, z: 1 }; this.vel = { x: 0, z: 0 };
     this.lamp = new B.PointLight('lamp', V(0, 2.3, .3), G.scene); this.lamp.parent = this.root; this.lamp.diffuse = B.Color3.FromHexString('#ffe0c2'); this.lamp.intensity = .6;   // a soft, nearly white pool: a coloured lamp is the only light inside shadows, and tinted them blood-red this.lamp.range = 8;
     this.muzzle = new B.PointLight('muzzle', V(.1, 1.55, 1.2), G.scene); this.muzzle.parent = this.root; this.muzzle.intensity = 0; this.muzzle.range = 9; this.muzzleT = 0;
-    this.focus = null; this.hover = null;
+    this.focus = null; this.hover = null; this.safe = 0; this.fallen = 0;
     this.path = null; this.goal = null; this.lock = null; this.auto = null; this.target = null; this.pendingUse = null; this.steering = false;
     this.repathT = 0; this.scanT = 0; this.steerT = 0; this.stuckT = 0;
     this.destMark = ringMesh('destMark', '#ffb340', .9); this.destT = 0;
@@ -324,17 +324,21 @@ export class Player extends Actor {
     this.reduce = this.armor / (this.armor + 50); this.regen = 12 * (1 + aff('regen') / 100) * (1 + boost('regen') / 100); this.dodgeCD = 1 / (1 + aff('dodge') / 100) / (1 + boost('dodge') / 100);
     this.speed = SPEED * (1 + boost('speed') / 100);
   }
-  takeDamage(d) { if (this.dash > 0 || this.down > 0 || G.paused) return 0; G.UI.hurt(); G.shake = Math.max(G.shake, .22); return d * (1 - this.reduce); }
+  takeDamage(d) { if (this.dash > 0 || this.down > 0 || this.safe > 0 || G.paused) return 0; G.UI.hurt(); G.shake = Math.max(G.shake, .22); return d * (1 - this.reduce); }
   damage(d, part, src, point, opt) {
     if (!this.alive || this.down > 0) return 0;
     const dealt = this.takeDamage(d); if (!dealt) return 0; this.hp -= dealt; this.lastHurt = G.t;
     if (opt && opt.knock) { const k = opt.knock, dx = this.pos.x - k.from.x, dz = this.pos.z - k.from.z, dd = Math.hypot(dx, dz) || 1, px = this.pos.x, pz = this.pos.z; this.pos.x += dx / dd * k.force; this.pos.z += dz / dd * k.force; collide(this.pos, .5, px, pz); }
-    if (this.hp <= 0) { this.hp = 0; this.down = 3; this.untargetable = true; this.stop(); G.UI.feed('You went down', '#ff6a5a'); G.game.onPlayerDown(); }
+    /* down for three seconds and then it's over, unless Mara can get to you: she is given longer than that to reach you */
+    if (this.hp <= 0) { const help = G.ally.canRevive(); this.hp = 0; this.down = help ? MEDIC.window : 3; this.fallen = 0; this.untargetable = true; this.stop();
+      G.UI.feed(help ? 'You went down · Mara is coming' : 'You went down', '#ff6a5a'); G.game.onPlayerDown(); }
     return dealt;
   }
   onHit(target) { if (target.faction !== 'raider' || hostile(this, target)) this.focus = target; }
   onKill(target) { const w = this.weapon, s = w && wstats(w); if (s && s.leech) this.hp = Math.min(this.maxHp, this.hp + s.leech); }
-  respawn(x, z) { this.pos.set(x, 0, z); this.hp = this.maxHp; this.down = 0; this.untargetable = false; this.alive = true; this.H.pel.rotation.x = 0; this.H.pel.position.y = .94; this.stop(); }
+  /* Mara got to you: back on your feet with part of your health, and a moment before anything can hurt you */
+  revive(k) { this.hp = Math.round(this.maxHp * k); this.down = 0; this.untargetable = false; this.safe = 2; this.lastHurt = G.t; this.H.pel.rotation.x = 0; this.H.pel.position.y = .94; }
+  respawn(x, z) { this.pos.set(x, 0, z); this.hp = this.maxHp; this.down = 0; this.safe = 0; this.untargetable = false; this.alive = true; this.H.pel.rotation.x = 0; this.H.pel.position.y = .94; this.stop(); }
   tryDash() {
     if (this.dashCD > 0 || this.down > 0) return;
     /* dodge toward the cursor with a mouse, otherwise the way you're walking (or facing) */
@@ -413,7 +417,8 @@ export class Player extends Actor {
 
   update(dt, I) {
     const p = this.pos;
-    if (this.down > 0) { this.down -= dt; fall(this.H, Math.min(1, (3 - this.down) * 3)); this.lockMark.setEnabled(false); if (this.down <= 0) G.game.respawnPlayer(); return; }
+    if (this.down > 0) { this.down -= dt; this.fallen = (this.fallen || 0) + dt; fall(this.H, Math.min(1, this.fallen * 3)); this.lockMark.setEnabled(false); if (this.down <= 0) G.game.respawnPlayer(); return; }
+    this.safe = Math.max(0, (this.safe || 0) - dt);
 
     /* orders */
     for (const c of I.frameClicks || []) this.command(c);
@@ -505,20 +510,28 @@ export class Player extends Actor {
 }
 
 /* ---------- Mara, the recruit ---------- */
+/* In a region that makes her the medic (survival does), keeping you alive is her main job. She patches you up when you're hurt and near her:
+   `heal` health when you're under `below` of your maximum and within `range` metres, once every `every` seconds. And when you go down she comes
+   for you: she has `window` seconds to reach you, then `revive` seconds beside you gets you up with `back` of your health, once every
+   `reviveEvery` seconds. If she is down herself, or has used her revive too recently, going down ends the run as before. */
+const MEDIC = { heal: 25, below: .7, range: 5, every: 10, window: 12, revive: 2.5, back: .5, reviveEvery: 60 };
 export class Ally extends Actor {
   constructor(x, z) {
     super('player', 140); this.name = 'Mara';
     this.H = medicModel();
     this.root = this.H.root; this.root.position.set(x, 0, z); this.root.rotation.y = Math.PI * .8;
+    this.healCD = 0; this.reviveCD = 0; this.reviving = 0;
     this.joined = false; this.mode = 'follow'; this.down = 0; this.revive = 0; this.cool = 0; this.burst = 0; this.target = null; this.hold = null; this.retarget = 0;
     this.H.meshes.forEach(m => { m.metadata = { npc: this }; });
   }
   hitTargets() { return this.down > 0 ? [] : super.hitTargets(); }
   damage(d, part, src, point) {
     if (!this.joined || this.down > 0) return 0; const dealt = d * .8; this.hp -= dealt; this.lastHurt = G.t;
-    if (this.hp <= 0) { this.hp = 0; this.down = 18 / (1 + boost('maraUp') / 100); this.untargetable = true; this.revive = 0; G.UI.feed('Mara is down · Stand next to her to help her up', '#ff6a5a'); }
+    if (this.hp <= 0) { this.hp = 0; this.down = 18 / (1 + boost('maraUp') / 100); this.untargetable = true; this.revive = 0; G.UI.feed('Mara is down · Stand next to her to help her up', '#ff6a5a');
+      if (G.player.down > 0) G.player.down = Math.min(G.player.down, 1.5); }   // nobody left to get you up
     return dealt;
   }
+  canRevive() { return !!G.R.medic && this.joined && this.down <= 0 && this.reviveCD <= 0; }
   /* her health, with this run's upgrades; she gains whatever her maximum went up by */
   recalc() { const prev = this.maxHp; this.maxHp = 140 + boost('maraHp'); this.hp = Math.min(this.maxHp, this.hp + Math.max(0, this.maxHp - prev)); }
   join() { this.joined = true; this.hp = this.maxHp; G.UI.feed('Mara joined your squad', '#ffb24a'); }
@@ -536,15 +549,27 @@ export class Ally extends Actor {
     }
     if (G.t - this.lastHurt > 5 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + 8 * dt);
     /* where to stand */
+    const medic = !!G.R.medic, rescue = medic && P.down > 0 && this.reviveCD <= 0; this.healCD -= dt; this.reviveCD -= dt;
     let goal;
-    if (this.mode === 'hold' && this.hold) goal = this.hold;
+    if (rescue) goal = P.pos;   // you're down: everything else waits
+    else if (this.mode === 'hold' && this.hold) goal = this.hold;
     else { const bx = -P.lastMove.x, bz = -P.lastMove.z; goal = V(P.pos.x + bx * 2.2 + bz * 1.4, 0, P.pos.z + bz * 2.2 - bx * 1.4); if (!inOpen(goal.x, goal.z, .6)) goal = V(P.pos.x + bx * 1.6, 0, P.pos.z + bz * 1.6); }
     const d = Math.hypot(goal.x - p.x, goal.z - p.z), far = dist2(P.pos, p);
-    if (far > 30 && this.mode === 'follow') this.teleportNear(P.pos);
+    if (far > 30 && (this.mode === 'follow' || rescue)) this.teleportNear(P.pos);
     let speed = 0, dx = 0, dz = 0;
     /* she finds her way round walls and cover instead of sliding along them */
     if (d > .8) { speed = Math.min(d * 3, far > 8 ? 8.5 : 6.5); const to = chase(this, G.nav, goal.x, goal.z, dt); dx = to.x - p.x; dz = to.z - p.z; const dl = Math.hypot(dx, dz) || 1;
       const ox = p.x, oz = p.z; p.x += dx / dl * speed * dt; p.z += dz / dl * speed * dt; collide(p, .45, ox, oz); }
+    /* the medic's work: getting you up, or patching you up */
+    const quick = 1 + boost('maraCD') / 100;
+    if (rescue) {
+      if (far < 1.8) { this.reviving += dt; this.cool = .3;
+        if (this.reviving >= MEDIC.revive) { this.reviving = 0; this.reviveCD = MEDIC.reviveEvery / quick; P.revive(MEDIC.back); G.UI.feed('Mara got you back up', '#ffb24a'); G.audio.play('powerOn', { pos: p, gain: .4, rate: 1.5, len: 1, fade: .3 }); } }
+      else this.reviving = Math.max(0, this.reviving - dt);
+    } else { this.reviving = 0;
+      if (medic && P.down <= 0 && this.healCD <= 0 && P.hp < P.maxHp * MEDIC.below && far < MEDIC.range) {
+        const n = Math.min(P.maxHp - P.hp, MEDIC.heal + boost('maraHeal')); P.hp += n; this.healCD = MEDIC.every / quick; this.cool = Math.max(this.cool, .6);
+        G.UI.number(P.pos.add(V(0, 2, 0)), '+' + Math.round(n), 'heal'); G.audio.play('powerOn', { pos: p, gain: .22, rate: 1.9, len: .5, fade: .2 }); } }
     /* who to shoot */
     this.retarget -= dt;
     if (this.retarget <= 0) { this.retarget = .5;

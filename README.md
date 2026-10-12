@@ -26,6 +26,8 @@ Kills give XP (Mara's count too): 2 for a drone, 3 for a husk, 12 for a walker. 
 
 Bosses come with your level. Every third level a Hunter Walker arrives a few seconds after you pick your upgrade, and every tenth level it is the Warden instead, with its health bar, its phases and the drones and husks it calls in. They step out of the gate when it is in reach. While a Warden is alive the ordinary groups come more slowly; when it goes down it drops its machine-forged loot. Each Warden after the first is tougher. Walkers also start turning up with the ordinary groups from six minutes in.
 
+Mara is the medic. When you are under 70% health and within five metres of her she patches you up for 25 health, once every ten seconds. When you go down she comes for you: she has twelve seconds to reach you, and two and a half seconds beside you gets you back up on half health, with a moment before anything can hurt you. She can do that once a minute (her line on the HUD counts it down). If she is down herself, or has used her revive too recently, going down ends the run. She still shoots, and you can still get her up by standing next to her. Two of the level-up upgrades are for her medic work: bigger heals, and healing and reviving more often. Her numbers are in `MEDIC` in `js/actors.js`.
+
 There are two arenas. **Switch to the Relay Station** on the survival title screen (or `?mode=survival&region=2`) plays it indoors, with every door open. The station is four rooms in a loop: the gate room, the service corridor, the cooling hall, and a freight bay that runs south of all three and joins the gate room to the hall through two blast doors wide enough for a walker. Machines come in through the gate, out of the vents in the corridor's alcoves and from the edges of the hall and the bay. Every minute or so the power fails for about twenty seconds: emergency lights only, the blast doors seal either the cooling hall or the gate room off from the rest, and the machines come faster until it is back. Each arena keeps its own best time.
 
 The numbers that set the pressure (time between groups, group size, how many machines at once, when walkers start) are in one block at the top of `js/survival.js`. An arena can replace any of them: the station's, and the timing of its power failures, are at the bottom of `js/region2.js`.
@@ -112,7 +114,7 @@ Each step should be playable before the next one starts:
 2. **XP and level-up choices.** *(In, untuned.)* Add an XP bar, a level-up screen with three upgrades, and the upgrades themselves.
 3. **Bosses on level milestones.** *(In, untuned.)* Walkers every few levels, and the Warden at the big ones.
 4. **WASD movement on desktop.** Right-click to walk is awkward for dodging round a crowd. Phones already use a joystick.
-5. **Mara as the medic.** Make healing and revives her main job, and give her upgrade options of her own.
+5. **Mara as the medic.** *(In, untuned.)* Make healing and revives her main job, and give her upgrade options of her own.
 6. **End card and best run.** Show the run's numbers, save your record, and add Run again.
 7. **Something that carries over between runs** (gear, unlocks or a starting choice), once the core run is fun on its own.
 8. **More arenas.** *(The station is in as a second arena, untuned.)* Reuse the Region 02 work: the wall generator and power zones can make indoor arenas where, for example, the lights die every few waves.
@@ -127,7 +129,7 @@ Each step should be playable before the next one starts:
 ### Still open
 
 - **Where a run starts.** Dead City starts in the gate plaza and the station in the gate room, both with the gate stuck open. Neither has been compared with anywhere else.
-- **Does Mara still shoot,** or only heal and revive?
+- **Does Mara still shoot,** or only heal and revive? For now she does all three.
 - **What carries over between runs,** if anything, and how much.
 - **What happens to the Dead City campaign** once survival works: keep it as a separate mode, or retire it.
 - **Indoor ambience** for station arenas: machine hum, fans, electrical buzz (the current recordings are all outdoor).
