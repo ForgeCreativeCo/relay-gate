@@ -12,7 +12,7 @@ export function hostile(a, b) {
 export function canHit(src, b) { return hostile(src, b) || (src.faction === 'player' && b.faction === 'raider' && b.alive); }
 export function nearestHostile(self, range, from) {
   const p = from || self.pos; let best = null, bd = range;
-  for (const a of G.actors) { if (!hostile(self, a) || a.untargetable || a.dormant) continue; const d = dist2(p, a.pos); if (d < bd) { bd = d; best = a; } }
+  for (const a of G.actors) { if (!hostile(self, a) || a.untargetable || a.dormant || a.lurk) continue; const d = dist2(p, a.pos); if (d < bd) { bd = d; best = a; } }
   return best;
 }
 

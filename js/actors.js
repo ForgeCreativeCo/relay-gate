@@ -170,7 +170,7 @@ export class Player extends Actor {
   }
   pickTarget(dt) {
     if (this.lockedActor()) { this.auto = null; return this.lock.actor; }
-    const p = this.pos, R = this.range, ok = a => a && a.alive && !a.untargetable && !a.dormant && hostile(this, a) && dist2(p, a.pos) <= R && clearShot(p, a.pos);
+    const p = this.pos, R = this.range, ok = a => a && a.alive && !a.untargetable && !a.dormant && !a.lurk && hostile(this, a) && dist2(p, a.pos) <= R && clearShot(p, a.pos);
     this.scanT -= dt;
     if (this.scanT <= 0 || !ok(this.auto)) {
       this.scanT = .2; let best = ok(this.auto) ? this.auto : null, bd = best ? dist2(p, best.pos) - 2 : 1e9;   // stick with the current target unless something is clearly closer

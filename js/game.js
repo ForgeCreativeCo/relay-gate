@@ -2,7 +2,7 @@
 import { G, V, dist2, rand } from './core.js';
 import { CHECKPOINTS, GATE } from './region1.js';
 import { Ally, Raider } from './actors.js';
-import { Drone, Walker } from './machines.js';
+import { Drone, Walker, Husk } from './machines.js';
 import { rollLoot, genArmor } from './loot.js';
 
 export const OBJECTIVES = [
@@ -33,11 +33,14 @@ export function makeGame() {
   GM.spawnAll = () => {
     encounter('drones1', p => p.z > 24, e => { [[-2, 40], [2.5, 45], [0, 50], [3, 36]].forEach(([x, z]) => add(new Drone(x, z), e)); },
       () => { if (P().step === 1) GM.setStep(2); });
+    /* husks slumped against the walls, waiting for someone to walk past */
+    encounter('husks1', p => p.z > 16, e => { [[-4.3, 28, Math.PI / 2], [4.3, 47, -Math.PI / 2]].forEach(([x, z, face]) => add(new Husk(x, z, { slumped: true, face }), e)); });
     encounter('square', p => p.z > 57, e => {
       add(new Walker(7, 83, { patrolR: 4, leash: 11 }), e);
       [[-14, 75.5, 0], [-14.6, 80.5, 0], [-13.8, 86, 0]].forEach(([x, z]) => add(new Raider(x, z, { leash: 2.2, face: Math.PI / 2, alert: 26 }), e));
     }, () => { say('The square is clear', '#ffb24a'); if (P().step <= 2) GM.setStep(3); });
     encounter('drones2', p => p.x > 13 && p.z > 70, e => { [[28, 80], [32, 77.5], [36, 82]].forEach(([x, z]) => add(new Drone(x, z), e)); });
+    encounter('husks2', p => p.x > 13 && p.z > 70, e => { [[24, 84.3, Math.PI], [26, 84.3, Math.PI], [33, 75.7, 0]].forEach(([x, z, face]) => add(new Husk(x, z, { slumped: true, face }), e)); });
     encounter('north', p => p.x > 42 && p.z > 95, e => { add(new Walker(50, 108, { patrolR: 3, leash: 8 }), e); [[47.5, 112], [53, 104]].forEach(([x, z]) => add(new Drone(x, z), e)); });
     encounter('warden', p => p.z > 119 && p.x > 28, e => { GM.boss = add(new Walker(50, 138, { boss: true, patrolR: 0, leash: 15 }), e); },
       () => {});
@@ -84,10 +87,12 @@ export function makeGame() {
     }
   };
   GM.onBossPhase = (b, ph) => {
-    if (ph === 2) say('The Warden is calling in drones · Watch for missile markers', '#ff6a5a');
+    if (ph === 2) say('The Warden is calling in drones and husks · Watch for missile markers', '#ff6a5a');
     if (ph === 3) say('The Warden is overheating · It\'s faster now', '#ff6a5a');
     const enc = GM.encounters.find(e => e.id === 'warden');
     for (let i = 0; i < 2; i++) { const a = rand(0, 6.28), d = add(new Drone(b.pos.x + Math.cos(a) * 6, b.pos.z + Math.sin(a) * 6), enc); d.dormant = false; d.home.set(50, 0, 136); }
+    /* and a husk scrambles in from the ruins behind you */
+    const h = add(new Husk(rand(36, 64), 120, { leash: 40 }), enc); h.dormant = false; h.home.set(50, 0, 136);
   };
 
   /* ---------- death and respawn ---------- */

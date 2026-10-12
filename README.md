@@ -33,7 +33,7 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `js/fx.js` | Particles (ash, fire, sparks, explosions, smoke) and combat visuals: muzzle flashes, surface-matched impacts, shockwaves, scorch marks, wreck debris |
 | `js/region1.js` | The Dead City map: streets, ruins, props, the relay gate |
 | `js/actors.js` | Player, Mara and raiders |
-| `js/machines.js` | Drones, Hunter Walkers and the Warden boss |
+| `js/machines.js` | Drones, husks (melee hunters that lie in wait), Hunter Walkers and the Warden boss |
 | `js/combat.js` | Factions, projectiles, damage |
 | `js/loot.js` | Weapon and armour generation, tiers, perks, drops |
 | `js/game.js` | Encounters, objectives, checkpoints, interactions |

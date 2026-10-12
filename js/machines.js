@@ -1,5 +1,5 @@
-/* Machines: scout drones, Hunter Walkers and the Warden, the gate boss. */
-import { B, G, V, V3, MT, clamp, damp, lerpAngle, angleTo, dist2, rand, clearShot, inOpen } from './core.js';
+/* Machines: scout drones, husks, Hunter Walkers and the Warden, the gate boss. */
+import { B, G, V, V3, MT, clamp, damp, lerpAngle, angleTo, dist2, rand, clearShot, inOpen, collide } from './core.js';
 import { Geo, gbox, gprism, gcyl, gmesh } from './geo.js';
 import { Actor } from './actors.js';
 import { nearestHostile } from './combat.js';
@@ -264,5 +264,160 @@ export class Walker extends Actor {
     const k = 1 + this.alert * .7 + this.flash * 1.5, mg = G.machineColor;
     this.eyeMat.emissiveColor.set(Math.min(1, mg.r * k + this.flash * .5), Math.min(1, mg.g * k + this.flash * .5), Math.min(1, mg.b * k + this.flash * .5));
     this.beamMat.alpha = .06 + this.alert * .04;
+  }
+}
+
+/* ---------- husk ---------- */
+/* A thin, hunched humanoid frame that hunts in the ruins. It has no gun: it rushes in short sprints, rears up (its eye flares), then slashes.
+   Some lie slumped against walls until you walk past. Shooting its arms off weakens the slash; shooting its legs out leaves it crawling. */
+const HUSK_POSES = {
+  stand: { pelY: .98, pelX: 0, spine: .55, neck: -.45, hip: 0, knee: .25, sh: -.2, el: -.5 },
+  slump: { pelY: .34, pelX: -.3, spine: .95, neck: .7, hip: -1.45, knee: .35, sh: .15, el: -.1 },
+  rear: { pelY: 1.02, pelX: -.15, spine: .25, neck: -.2, hip: -.2, knee: .4, sh: -2.5, el: -.4 },
+  slash: { pelY: .9, pelX: .1, spine: .85, neck: -.6, hip: -.4, knee: .5, sh: -1.1, el: -.15 },
+  crawl: { pelY: .4, pelX: 1.05, spine: .4, neck: -1.1, hip: .25, knee: .2, sh: -1.5, el: -.5 },
+  crawlRear: { pelY: .5, pelX: .7, spine: .2, neck: -.8, hip: .55, knee: .2, sh: -2.6, el: -.3 },
+  dead: { pelY: .16, pelX: 1.45, spine: .2, neck: -.3, hip: .1, knee: .2, sh: -.4, el: -.3 },
+};
+function huskLimb(parent, r, len) { const m = B.MeshBuilder.CreateCapsule('hLimb', { radius: r, height: len, tessellation: 6, subdivisions: 1 }, G.scene); m.parent = parent; m.position.y = -len / 2 + r; return m; }
+export class Husk extends Actor {
+  constructor(x, z, opts = {}) {
+    super('machine', 60); this.kind = 'husk'; this.name = 'Husk'; this.radius = .45; this.height = 1.1;
+    this.limbs = { arms: 26, legs: 30 };
+    this.home = V(x, 0, z); this.leash = opts.leash || 26; this.wakeR = opts.wakeR || 6.5;
+    this.state = opts.slumped ? 'slumped' : 'hunt'; this.lurk = !!opts.slumped;   // a slumped husk isn't picked by auto-aim, so it can still surprise you
+    this.wakeT = 0; this.runT = rand(1, 1.6); this.pauseT = 0; this.windup = 0; this.recover = 0; this.lunge = 0; this.retarget = 0; this.stride = 0; this.flash = 0; this.flinch = 0;
+    this.build(x, z, opts.face || 0);
+    this.pose(HUSK_POSES[opts.slumped ? 'slump' : 'stand'], 1, 0);
+  }
+  build(x, z, face) {
+    const S = G.scene, me = this;
+    this.mat = cloneMat(G.M.mechDark, 'hMat'); this.matL = cloneMat(G.M.mech, 'hMatL'); this.eyeMat = cloneMat(G.M.eye, 'hEye');
+    const root = this.root = new B.TransformNode('husk', S); root.position.set(x, 0, z); root.rotation.y = face;
+    const pel = this.pel = new B.TransformNode('hPel', S); pel.parent = root;
+    const add = (m, mat, p, part) => { m.parent = p; m.material = mat; m.metadata = { actor: me, part: part || 'body' }; return m; };
+    add(B.MeshBuilder.CreateBox('hHip', { width: .3, height: .13, depth: .17 }, S), this.mat, pel);
+    const spine = this.spine = new B.TransformNode('hSpine', S); spine.parent = pel;
+    const ribs = add(B.MeshBuilder.CreateCapsule('hRibs', { radius: .16, height: .6, tessellation: 8 }, S), this.mat, spine); ribs.position.y = .36; ribs.scaling.set(1.2, 1, .72);
+    add(B.MeshBuilder.CreateBox('hPlate', { width: .3, height: .3, depth: .06 }, S), this.matL, spine).position.set(0, .46, .12);
+    add(B.MeshBuilder.CreateCylinder('hRod', { diameter: .06, height: .72, tessellation: 6 }, S), G.M.gun, spine).position.set(0, .32, -.13);
+    const neck = this.neck = new B.TransformNode('hNeck', S); neck.parent = spine; neck.position.set(0, .7, .04);
+    add(B.MeshBuilder.CreateBox('hHead', { width: .18, height: .17, depth: .27 }, S), this.matL, neck).position.set(0, .08, .05);
+    this.eye = add(B.MeshBuilder.CreateBox('hEye', { width: .15, height: .035, depth: .03 }, S), this.eyeMat, neck); this.eye.position.set(0, .1, .19);
+    this.arms = []; this.legs = [];
+    for (const s of [-1, 1]) {
+      const sh = new B.TransformNode('hSh', S); sh.parent = spine; sh.position.set(s * .25, .6, 0); sh.rotation.z = s * .12;
+      add(B.MeshBuilder.CreateSphere('hPad', { diameter: .14, segments: 6 }, S), this.matL, sh, 'arms');
+      add(huskLimb(sh, .045, .55), this.mat, sh, 'arms');
+      const el = new B.TransformNode('hEl', S); el.parent = sh; el.position.y = -.5;
+      const fore = new B.TransformNode('hFore', S); fore.parent = el;
+      add(huskLimb(fore, .04, .62), this.matL, fore, 'arms');
+      for (const k of [-1, 0, 1]) { const c = add(B.MeshBuilder.CreateBox('hClaw', { width: .025, height: .26, depth: .04 }, S), G.M.gun, fore, 'arms'); c.position.set(k * .045, -.7, .03); c.rotation.x = -.35; }
+      this.arms.push({ sh, el, fore, s });
+      const hip = new B.TransformNode('hHipJ', S); hip.parent = pel; hip.position.set(s * .13, 0, 0);
+      add(huskLimb(hip, .055, .54), this.mat, hip, 'legs');
+      const knee = new B.TransformNode('hKnee', S); knee.parent = hip; knee.position.y = -.48;
+      const shin = new B.TransformNode('hShin', S); shin.parent = knee;
+      add(huskLimb(shin, .045, .52), this.matL, shin, 'legs');
+      add(B.MeshBuilder.CreateBox('hFoot', { width: .1, height: .06, depth: .24 }, S), G.M.gun, shin, 'legs').position.set(0, -.5, .06);
+      this.legs.push({ hip, knee, shin, s });
+    }
+    this.meshes = root.getChildMeshes();
+    this.meshes.forEach(m => { m.isPickable = true; m.receiveShadows = true; if (m !== this.eye) G.sg.addShadowCaster(m); });
+  }
+  /* blend every joint toward a pose; swing adds a running (or crawling) gait on top */
+  pose(P, k, swing) {
+    const L = (a, b) => a + (b - a) * k, ph = this.stride, sn = Math.sin(ph);
+    this.pel.position.y = L(this.pel.position.y, P.pelY - Math.abs(Math.cos(ph)) * .05 * swing); this.pel.rotation.x = L(this.pel.rotation.x, P.pelX);
+    this.spine.rotation.x = L(this.spine.rotation.x, P.spine + swing * .2); this.neck.rotation.x = L(this.neck.rotation.x, P.neck - swing * .15);
+    this.legs.forEach(l => { const w = l.s > 0 ? sn : -sn; l.hip.rotation.x = L(l.hip.rotation.x, P.hip - w * .85 * swing); l.knee.rotation.x = L(l.knee.rotation.x, P.knee + Math.max(0, w) * 1.1 * swing); });
+    this.arms.forEach(a => { const w = a.s > 0 ? -sn : sn; a.sh.rotation.x = L(a.sh.rotation.x, P.sh - w * .6 * swing); a.el.rotation.x = L(a.el.rotation.x, P.el - .3 * swing); });
+  }
+  partAlive(k) { return k === 'arms' || k === 'legs' ? this.limbs[k] > 0 : this.alive; }
+  hitTargets() {
+    if (!this.alive) return [];
+    const L = [{ part: 'body', c: this.spine.getAbsolutePosition().add(V(0, .3, 0)), r: .5 }];
+    if (this.limbs.arms > 0) this.arms.forEach(a => L.push({ part: 'arms', c: a.el.getAbsolutePosition(), r: .22 }));
+    if (this.limbs.legs > 0) this.legs.forEach(l => L.push({ part: 'legs', c: l.knee.getAbsolutePosition(), r: .24 }));
+    return L;
+  }
+  wake() {
+    if (this.state !== 'slumped') return;
+    this.state = 'waking'; this.lurk = false; this.wakeT = 0;
+    G.audio.play('powerOn', { pos: this.pos, gain: .45, rate: 1.5, len: 1.3, fade: .3 });
+  }
+  takeDamage(d, part, src, point) {
+    this.flash = 1; this.wake();
+    let dealt = d;
+    if ((part === 'arms' || part === 'legs') && this.limbs[part] > 0) { this.limbs[part] -= d; if (this.limbs[part] <= 0) this.breakLimb(part, point || this.pos); dealt = d * .6; }
+    this.flinch = Math.min(1, this.flinch + .3 + d / 40);
+    /* a heavy hit while it's rearing up knocks it out of the slash */
+    if (this.windup > 0 && d >= 12) { this.windup = 0; this.recover = .6; }
+    return dealt;
+  }
+  breakLimb(part, pos) {
+    G.FX.explode(pos, .2); G.FX.debris(pos, 2, .3, .5); G.audio.play('whir', { pos, gain: .45, rate: 1.35, len: 1.2, fade: .4 });
+    if (part === 'arms') this.arms.forEach(a => a.fore.setEnabled(false));
+    if (part === 'legs') { this.legs.forEach(l => l.shin.setEnabled(false)); this.windup = 0; }
+  }
+  die(src) {
+    this.meshes.forEach(m => { m.isPickable = false; }); this.windup = 0;
+    const c = this.spine.getAbsolutePosition().add(V(0, .3, 0)); G.FX.explode(c, .22); G.FX.debris(c, 3, .35, .6);
+    G.audio.play('powerOff', { pos: this.pos, gain: .5, rate: 1.55, len: 1.1, fade: .35 });
+    G.drops.scatter(this.pos.x, this.pos.z, rollLoot('husk'));
+    G.game.onMachineDown(this, src);
+  }
+  strike(T) {
+    this.recover = .75; this.lunge = .16;
+    if (!T || !T.alive || T.untargetable) return;
+    const p = this.pos, d = dist2(p, T.pos), off = Math.abs(lerpAngle(0, angleTo(p, T.pos) - this.root.rotation.y, 1));
+    if (d > 2.2 || off > 1.1) return;   // it slashes where you were: dodging out of the wind-up makes it miss
+    const at = T.pos.add(V(0, 1.1, 0)), dir = T.pos.subtract(p).normalize();
+    T.damage(this.limbs.arms > 0 ? 13 : 5, 'body', this, at, { knock: { from: p, force: .6 } });
+    G.FX.impact(at, T.faction === 'machine' ? 'metal' : 'body', dir.scale(-1));
+    G.audio.play('step', { pos: p, gain: .5, rate: 1.9, len: .35, vary: true });
+  }
+  update(dt) {
+    const p = this.pos;
+    this.flash = Math.max(0, this.flash - dt * 6); this.mat.emissiveColor.set(this.flash * .12, this.flash * .09, this.flash * .06);
+    const glow = !this.alive ? 0 : this.state === 'slumped' ? .12 : this.windup > 0 ? 2.2 : 1 + this.flash, mg = G.machineColor;
+    this.eyeMat.emissiveColor.set(Math.min(1, mg.r * glow), Math.min(1, mg.g * glow), Math.min(1, mg.b * glow));
+    if (!this.alive) { this.pose(HUSK_POSES.dead, damp(9, dt), 0); return; }
+    if (this.state === 'slumped') {
+      this.retarget -= dt; if (this.retarget <= 0) { this.retarget = .25; const t = nearestHostile(this, this.wakeR); if (t) { this.target = t; this.wake(); } }
+      this.pose(HUSK_POSES.slump, damp(8, dt), 0); return;
+    }
+    if (this.state === 'waking') { this.wakeT += dt; this.pose(HUSK_POSES.stand, damp(4, dt), 0); this.neck.rotation.y = Math.sin(this.wakeT * 14) * .25 * (1 - this.wakeT); if (this.wakeT >= .8) { this.state = 'hunt'; this.neck.rotation.y = 0; } return; }
+
+    this.retarget -= dt; if (this.retarget <= 0) { this.retarget = .5; this.target = pickTarget(this, 24); }
+    let T = this.target && this.target.alive && !this.target.untargetable ? this.target : null;
+    if (T && dist2(T.pos, this.home) > this.leash) T = this.target = null;   // won't follow you out of its patch of the city
+    const crawl = this.limbs.legs <= 0, top = crawl ? 1.9 : 6.4;
+    let mv = 0, gx = T ? T.pos.x : this.home.x, gz = T ? T.pos.z : this.home.z;
+    this.recover = Math.max(0, this.recover - dt);
+    if (this.windup > 0) { this.windup -= dt; if (this.windup <= 0) this.strike(T); }
+    else if (T) {
+      const d = dist2(p, T.pos);
+      if (d < 1.7 && this.recover <= 0) { this.windup = crawl ? .55 : .42; G.audio.play('whir', { pos: p, gain: .3, rate: 1.8, len: .45, fade: .2 }); }
+      else if (d > 1.2) {
+        /* sprints with a twitchy pause between them: the pause is your window */
+        if (this.pauseT > 0) this.pauseT -= dt;
+        else { mv = top; this.runT -= dt; if (this.runT <= 0 && !crawl && d > 4) { this.pauseT = rand(.35, .6); this.runT = rand(1.1, 1.8); } }
+      }
+    } else if (dist2(p, this.home) > 1) mv = 2.2;
+    if (this.recover > 0) mv *= .3;
+    const dx = gx - p.x, dz = gz - p.z, dd = Math.hypot(dx, dz) || 1, ox = p.x, oz = p.z;
+    if (mv > 0) { p.x += dx / dd * mv * dt; p.z += dz / dd * mv * dt; }
+    if (this.lunge > 0 && T && dist2(p, T.pos) < .9) this.lunge = 0;   // lunge in, but not through you
+    if (this.lunge > 0) { this.lunge -= dt; const ry = this.root.rotation.y; p.x += Math.sin(ry) * 7 * dt; p.z += Math.cos(ry) * 7 * dt; }
+    for (const o of G.actors) { if (o === this || o.kind !== 'husk' || !o.alive) continue; const sx = p.x - o.pos.x, sz = p.z - o.pos.z, sd = Math.hypot(sx, sz); if (sd < .9 && sd > .001) { p.x += sx / sd * (.9 - sd) * .5; p.z += sz / sd * (.9 - sd) * .5; } }
+    collide(p, .4, ox, oz);
+    if (T || mv > 0) this.root.rotation.y = lerpAngle(this.root.rotation.y, Math.atan2(dx, dz), damp(this.windup > 0 ? 4 : 10, dt));
+    /* pose */
+    const amp = clamp(mv / 6, 0, 1), s0 = this.stride; this.stride += dt * mv * (crawl ? 2.6 : 1.9);
+    if (mv > 2 && Math.floor(this.stride / Math.PI) > Math.floor(s0 / Math.PI)) G.audio.play('step', { pos: p, gain: .16, rate: 2.2, len: .25, vary: true, gap: .1, key: 'huskStep' });
+    const P = crawl ? HUSK_POSES[this.windup > 0 ? 'crawlRear' : 'crawl'] : this.windup > 0 ? HUSK_POSES.rear : this.recover > .45 ? HUSK_POSES.slash : HUSK_POSES.stand;
+    this.pose(P, damp(this.recover > .45 ? 22 : 12, dt), crawl ? .5 : amp);
+    if (this.flinch > 0) { this.spine.rotation.x -= this.flinch * .35; this.neck.rotation.y = Math.sin(G.t * 40) * this.flinch * .3; this.flinch = Math.max(0, this.flinch - dt * 4); } else this.neck.rotation.y = 0;
   }
 }

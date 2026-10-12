@@ -73,6 +73,7 @@ export function rollLoot(src) {
   const out = [], tierRoll = (w) => { let r = Math.random() * w.reduce((a, b) => a + b[1], 0); for (const [t, p] of w) { if ((r -= p) <= 0) return t; } return w[0][0]; };
   const item = (w) => { const t = tierRoll(w); return Math.random() < .68 ? genWeapon(t) : genArmor(t); };
   if (src === 'drone') { if (Math.random() < .22) out.push(item([['scrap', 70], ['military', 28], ['proto', 2]])); out.push({ scrap: ri(1, 3) }); }
+  if (src === 'husk') { if (Math.random() < .28) out.push(item([['scrap', 60], ['military', 36], ['proto', 4]])); out.push({ scrap: ri(1, 4) }); }
   if (src === 'raider') { if (Math.random() < .35) out.push(item([['scrap', 55], ['military', 40], ['proto', 5]])); out.push({ scrap: ri(1, 4) }); }
   if (src === 'walker') { out.push(item([['military', 60], ['proto', 34], ['machine', 6]])); if (Math.random() < .5) out.push(item([['scrap', 40], ['military', 50], ['proto', 10]])); out.push({ scrap: ri(5, 9) }); }
   if (src === 'stash') { out.push(item([['military', 40], ['proto', 60]])); out.push(genArmor(Math.random() < .5 ? 'military' : 'proto')); out.push({ scrap: ri(8, 14) }); }
