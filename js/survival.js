@@ -25,7 +25,7 @@ const TUNE = {
   wreck: 15,                              // seconds a wreck lies there before it is cleared away
   /* Scrap builds a squad of your own: `drones` and `husks` together for `cost`, each with `tough` times the health of the ones it was copied
      from. No building again until every one of them is destroyed. */
-  build: { cost: 100, drones: 3, husks: 2, tough: 2 },
+  build: { cost: 100, drones: 3, husks: 2, tough: 1 },   // tough 1: the same health as the machines they copy (2 made them hard to kill)
   horn: 20,                               // the horn sounds when a group arrives, but not more often than this many seconds
   xp: { drone: 2, husk: 3, walker: 12, warden: 40 },   // what each kill is worth (Mara's count too)
   level: [8, 6, 1.2],                     // XP for the next level: the first number, plus the second per level so far, plus the third times that count squared
