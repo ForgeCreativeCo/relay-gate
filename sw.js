@@ -18,8 +18,13 @@ const keep = (req, res) => { if (res && (res.status === 200 || res.type === 'opa
 self.addEventListener('fetch', e => {
   const req = e.request; if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  /* the game's files: the network first, the kept copy offline (any ?region=2 on the page is ignored when looking it up) */
-  if (url.origin === location.origin) e.respondWith(fetch(req).then(res => keep(req, res)).catch(() => caches.match(req, { ignoreSearch: true })));
+  /* The game's files: the network first, the kept copy offline (any ?region=2 on the page is ignored when looking it up). Always checked
+     with the server (GitHub Pages tells browsers to reuse files for ten minutes, which held back updates); unchanged files cost a tiny reply.
+     A page load can't be re-sent with different settings, so it is asked for afresh by its address. */
+  if (url.origin === location.origin) {
+    const fresh = req.mode === 'navigate' ? new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' }) : new Request(req, { cache: 'no-cache' });
+    e.respondWith(fetch(fresh).then(res => keep(req, res)).catch(() => caches.match(req, { ignoreSearch: true })));
+  }
   /* the engine and the fonts: the kept copy first */
   else if (PINNED.test(req.url)) e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => keep(req, res))));
 });
