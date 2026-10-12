@@ -24,13 +24,13 @@ Press **Survival** on the title screen, or add `?mode=survival` to the address, 
 
 Kills give XP (Mara's count too): 2 for a drone, 3 for a husk, 12 for a walker. Each level stops the game and offers three upgrades, picked at random from twelve; choose one with a click, a tap or the 1, 2 and 3 keys. They cover your gun (damage, fire rate, critical hits, range, healing on kills), you (health, regeneration, armour, speed, dodge) and Mara (her damage, her health and how soon she gets back up), and they last for the run. The XP values, the cost of each level and the upgrades themselves are at the top of `js/survival.js`.
 
-There are two arenas. **Switch to the Relay Station** on the survival title screen (or `?mode=survival&region=2`) plays it indoors, in the station from the Region 02 test section with every door open. Machines come in through the gate, out of the vents in the corridor's alcoves and from the corners of the cooling hall. Every minute or so the power fails for about twenty seconds: emergency lights only, and the machines come faster until it is back. Walkers only fit in the cooling hall, so one only arrives when you are near it. Each arena keeps its own best time.
+There are two arenas. **Switch to the Relay Station** on the survival title screen (or `?mode=survival&region=2`) plays it indoors, with every door open. The station is four rooms in a loop: the gate room, the service corridor, the cooling hall, and a freight bay that runs south of all three and joins the gate room to the hall through two blast doors wide enough for a walker. Machines come in through the gate, out of the vents in the corridor's alcoves and from the edges of the hall and the bay. Every minute or so the power fails for about twenty seconds: emergency lights only, the blast doors seal either the cooling hall or the gate room off from the rest, and the machines come faster until it is back. Each arena keeps its own best time.
 
 The numbers that set the pressure (time between groups, group size, how many machines at once, when walkers start) are in one block at the top of `js/survival.js`. An arena can replace any of them: the station's, and the timing of its power failures, are at the bottom of `js/region2.js`.
 
 ## Region 02 test section (paused)
 
-The Relay Station, an indoor region on the other side of the gate, was started before the switch to survival. Its test section (the gate room, a service corridor and the cooling hall) still plays: add `?region=2` to the address, e.g. http://localhost:8000/?region=2. It saves to its own slot in this browser only, so it never touches your Dead City save. It isn't being extended as a level; its pieces are planned for reuse as survival arenas (see step 8 below).
+The Relay Station, an indoor region on the other side of the gate, was started before the switch to survival. Its test section (the gate room, a service corridor and the cooling hall) still plays: add `?region=2` to the address, e.g. http://localhost:8000/?region=2. It saves to its own slot in this browser only, so it never touches your Dead City save. The freight bay added for survival is behind blast doors that stay shut here. It isn't being extended as a level; its pieces are planned for reuse as survival arenas (see step 8 below).
 
 ## Saving
 
@@ -119,7 +119,7 @@ Each step should be playable before the next one starts:
 
 - **How many enemies at once.** Every machine is a fully modelled, individually animated actor with its own materials and shadows. Dozens on screen is fine; hundreds (a Vampire Survivors-style swarm) would mean rebuilding how enemies are drawn and updated. Plan for fewer, tougher enemies.
 - **Balance is the main job now.** Spawn rates, the difficulty ramp and boss timing are the game, and they get tuned by playing, not up front.
-- **Walkers need room.** They now walk round cover instead of through it, on a map of the ground that leaves space for something their size. Where no gap is wide enough (a 3 m corridor) there is no way through for them, and they head straight for you as they used to.
+- **Walkers need room.** They walk round cover instead of through it, on a map of the ground that leaves space for something their size. Where no gap is wide enough (the station's 3 m corridor) there is no way through for them; in the station they go round by the freight bay.
 - **Drones indoors.** Outdoors they fly over everything. Indoors they now go through the doorways like anything on foot, and are held to a person's width so they can cross from room to room, which lets their rotors clip a wall now and then.
 
 ### Still open

@@ -1,7 +1,8 @@
 /* Region 02, The Relay Station: indoors. The map (rooms, corridors, doors, power) and the run through it.
    Walls are generated around the walkable rectangles. The ones on the camera's side sink into the floor while you're behind them,
    so a room never hides who's in it. Each room belongs to a power zone that can be dark, flickering or lit.
-   This is the test section: the gate room, a service corridor and the cooling hall. */
+   This is the test section: the gate room, a service corridor and the cooling hall, plus the freight bay that runs south of all three.
+   The bay's two blast doors stay shut in the campaign (the run through the corridor depends on it); survival opens everything. */
 import { B, G, V, C, R, damp, dist2 } from './core.js';
 import { Geo, gbox, gcyl, gmesh } from './geo.js';
 import { makeMat } from './tex.js';
@@ -19,6 +20,10 @@ const ROOMS = {
   corridor: { r: [8, -1.5, 31, 1.5], zone: 'corridor' },
   alcoveN: { r: [14, .5, 17.5, 5], zone: 'corridor' },
   alcoveS: { r: [21, -5, 24.5, -.5], zone: 'corridor' },
+  /* the freight bay: a second way from the gate room to the hall, wide enough for a walker */
+  bay: { r: [-6, -32, 44, -13], zone: 'bay' },
+  linkS: { r: [-3, -14, 3, -7], zone: 'bay' },         // gate room to the bay
+  linkE: { r: [37.5, -14, 43.5, -11], zone: 'bay' },   // the bay to the cooling hall
 };
 const GATE = { x: 0, z: 8.4, y: 4.4 };
 const CONSOLE = { x: 27.2, z: .5 };      // the hall door's lock, where Mara works
@@ -172,7 +177,11 @@ function setDoor(id, open, instant) {
   if (!instant) G.audio.play('powerOn', { pos: d.root.position, gain: .35, rate: open ? 1.3 : .9, len: 1, fade: .3 });
 }
 function updateDoors(dt) {
-  for (const d of Object.values(doors)) { d.t += ((d.open ? 1 : 0) - d.t) * damp(4, dt); d.panels.forEach((p, k) => { p.position.x = (k ? 1 : -1) * (d.w / 4 + d.t * (d.w / 2 - .1)); }); }
+  for (const d of Object.values(doors)) { d.t += ((d.open ? 1 : 0) - d.t) * damp(4, dt);
+    /* a narrow door's panels slide into the wall beside it; a blast door is wider than the wall is thick, so its panels fold up against the jambs instead */
+    d.panels.forEach((p, k) => { const s = k ? 1 : -1;
+      if (d.w > 4) { const f = 1 - d.t * .9; p.scaling.x = f; p.position.x = s * (d.w / 2 - d.w / 4 * f); }
+      else p.position.x = s * (d.w / 4 + d.t * (d.w / 2 - .1)); }); }
 }
 
 export function buildRegion(M) {
@@ -183,8 +192,10 @@ export function buildRegion(M) {
     [-6, 5.9, 6, 5.9, .12, '220,180,70', .3],                                               // the gate pad's safety line
     [9.5, -1.15, 29, -1.15, .08, '220,180,70', .25], [9.5, 1.15, 29, 1.15, .08, '220,180,70', .25],   // corridor walkway
     [40, -5, 48, -5, .1, '200,192,170', .2], [40, 7, 48, 7, .1, '200,192,170', .2], [40, -5, 40, 7, .1, '200,192,170', .2], [48, -5, 48, 7, .1, '200,192,170', .2],   // the hall's service bay
+    [-4, -16, 42, -16, .12, '220,180,70', .28], [-4, -23, 42, -23, .1, '200,192,170', .2], [-4, -29.5, 42, -29.5, .12, '220,180,70', .28],   // the freight bay's lanes
+    [-3, -8.2, 3, -8.2, .12, '220,180,70', .3], [37.5, -11.2, 43.5, -11.2, .12, '220,180,70', .3],                                              // the blast doors' thresholds
   ] };
-  ['gate', 'corridor', 'hall'].forEach(n => makeZone(M, n, { flicker: n === 'corridor' }));
+  ['gate', 'corridor', 'hall', 'bay'].forEach(n => makeZone(M, n, { flicker: n === 'corridor' }));
 
   /* ---------- a black floor under everything so sunk walls vanish (the rooms' floors are laid with the walls) ---------- */
   const under = B.MeshBuilder.CreateGround('underfloor', { width: 400, height: 400 }, scene);
@@ -205,6 +216,9 @@ export function buildRegion(M) {
   for (const x of [35, 43, 51]) lamp('hall', x, 14, 0, -1);
   lamp('hall', 54, -6, -1, 0); lamp('hall', 54, 5, -1, 0);
   alarm('hall', 32, 14, 0, -1); alarm('hall', 54, -11, -1, 0); alarm('hall', 47, 14, 0, -1);
+  for (const x of [-4.6, 8, 20, 31]) lamp('bay', x, -13, 0, -1);
+  lamp('bay', 44, -20, -1, 0); lamp('bay', 44, -28, -1, 0);
+  alarm('bay', 14, -13, 0, -1); alarm('bay', 26, -13, 0, -1); alarm('bay', 44, -24, -1, 0);
   alarm('gate', 9, 3, -1, 0); alarm('gate', -8.2, 10, 0, -1); alarm('corridor', 18.8, 1.5, 0, -1); alarm('corridor', 25, 1.5, 0, -1);   // only the hall goes dark in the campaign; in survival everything does
 
   /* ---------- the gate room: the gate you came through, cable runs, kit left by whoever was here before ---------- */
@@ -212,7 +226,7 @@ export function buildRegion(M) {
   for (const s of [-1, 1]) { const a = V(GATE.x + s * 4.9, 1.2, GATE.z), b = V(GATE.x + s * 8.6, 3.6, 9.7), path = [];
     for (let k = 0; k <= 10; k++) { const t = k / 10; path.push(V(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t - Math.sin(t * Math.PI) * .7, a.z + (b.z - a.z) * t)); }
     const tube = B.MeshBuilder.CreateTube('cable', { path, radius: .12, tessellation: 6 }, scene); tube.material = M.mechDark; tube.isPickable = false; G.sg.addShadowCaster(tube); }
-  const crate = (x, z, ry, s = 1) => { gbox(zones.gate.g.trim, { x, y: .35 * s, z, w: 1.1 * s, h: .7 * s, d: .8 * s, ry, uv: .6 }); ob(x, z, .6 * s, .6 * s, .7 * s); };
+  const crate = (x, z, ry, s = 1, zone = 'gate') => { gbox(zones[zone].g.trim, { x, y: .35 * s, z, w: 1.1 * s, h: .7 * s, d: .8 * s, ry, uv: .6 }); ob(x, z, .6 * s, .6 * s, .7 * s); };
   crate(-7.2, -6, .1); crate(-6, -6.3, -.2); crate(-7, -4.9, .3, .7); crate(7, -6.4, .15);
 
   /* ---------- the corridor: pipes along the far wall, the door controls ---------- */
@@ -229,19 +243,34 @@ export function buildRegion(M) {
     for (const s of [-1, 1]) { gbox(H.g.strip, { x: (x0 + x1) / 2, y: 2.18, z: z + s * .61, w: x1 - x0 - .2, h: .05, d: .02, ao: false });
       for (let x = x0 + .4; x < x1; x += .8) for (let y = .5; y < 1.95; y += .22) if (R(0, 1) < .55) gbox(H.g.led, { x: x + R(-.2, .2), y, z: z + s * .61, w: .14, h: .06, d: .02, ao: false }); }
     ob((x0 + x1) / 2, z, (x1 - x0) / 2, .6, 2.4); };
-  cabinets(33, 41, 10.5); cabinets(44, 51, 10.5); cabinets(33, 41, -9.5); cabinets(44, 51, -9.5); cabinets(33, 37, 4); cabinets(33, 37, -2);
+  cabinets(33, 41, 10.5); cabinets(44, 51, 10.5); cabinets(33, 36.2, -9.5); cabinets(44, 51, -9.5);   // the south row leaves room for the blast door from the freight bay cabinets(33, 37, 4); cabinets(33, 37, -2);
   const tank = (x, z) => { gcyl(H.g.trim, { r0: 1.1, h: 3.2, seg: 14, x, y: 1.6, z, uv: .5 }); for (const y of [.5, 1.6, 2.7]) gcyl(H.g.wall, { r0: 1.16, h: .12, seg: 14, x, y, z, ao: false }); ob(x, z, 1.05, 1.05, 3.2); };
   tank(51, 1); tank(51, -4.5);
   gbox(H.g.trim, { x: BREAKER.x, y: 1.3, z: 13.6, w: 1.4, h: 2.2, d: .5, ao: false }); gbox(H.g.alarm, { x: BREAKER.x, y: 1.9, z: 13.33, w: .9, h: .14, d: .04, ao: false }); ob(BREAKER.x, 13.6, .7, .25, 2.2);
 
+  /* ---------- the freight bay: containers in two rows with lanes between them, pillars, crates along the walls ---------- */
+  { const Y = zones.bay;
+    const container = (x, z) => { const t = R(.6, 1);
+      gbox(Y.g.trim, { x, y: 1.3, z, w: 6, h: 2.6, d: 2.4, uv: .5, tint: t, noBottom: true });
+      for (let k = -2.6; k <= 2.61; k += .65) for (const s of [-1, 1]) gbox(Y.g.trim, { x: x + k, y: 1.3, z: z + s * 1.22, w: .16, h: 2.4, d: .06, tint: t * .8, ao: false });   // corrugation
+      for (const s of [-1, 1]) gbox(Y.g.wall, { x: x + s * 3, y: 1.3, z, w: .1, h: 2.64, d: 2.44, tint: .6, ao: false });                                               // end frames
+      ob(x, z, 3.05, 1.25, 2.6); };
+    container(10, -19.5); container(24, -19.5); container(5, -26.5); container(17, -26.5); container(31, -26.5);
+    for (const [x, z] of [[14, -23], [27.5, -23]]) { gbox(Y.g.wall, { x, y: WALL_H / 2, z, w: 1.2, h: WALL_H, d: 1.2, tint: .85, noBottom: true }); gbox(Y.g.trim, { x, y: .2, z, w: 1.4, h: .4, d: 1.4, ao: false }); ob(x, z, .6, .6, WALL_H); }
+    crate(-4.8, -30.6, .1, 1, 'bay'); crate(-4.9, -29.2, -.15, 1, 'bay'); crate(-3.5, -30.8, .3, .7, 'bay'); crate(42.6, -30.7, .2, 1, 'bay'); crate(41.2, -30.9, -.1, 1, 'bay'); crate(42.8, -29.3, .1, .7, 'bay');
+    crate(34.5, -14.1, .05, 1, 'bay'); crate(-5, -14.2, .2, 1, 'bay'); }
+
   /* ---------- the hall door (Mara opens it), and the corridor door the station seals behind you ---------- */
   door(M, 'west', 9.5, 0, 'x', 3, 'corridor');
   door(M, 'hall', 29.5, 0, 'x', 3, 'corridor');
+  /* the freight bay's blast doors: shut for good in the campaign */
+  door(M, 'south', 0, -10.5, 'z', 6, 'bay');
+  door(M, 'east', 40.5, -12.5, 'z', 6, 'bay');
 
   /* ---------- finish: one mesh per zone per material ---------- */
   for (const Z of Object.values(zones)) for (const [part, g] of Object.entries(Z.g))
     gmesh(part + '_' + Z.name, g, Z[part], { freeze: true, shadow: part === 'wall' || part === 'trim' });
-  applyPower(zones.gate); applyPower(zones.corridor);
+  applyPower(zones.gate); applyPower(zones.corridor); applyPower(zones.bay);
   return { gate };
 }
 
@@ -349,9 +378,13 @@ function updateHack(R, dt) {
 }
 
 /* ---------- the station as a survival arena ---------- */
-/* Every door stands open. Machines come in through the gate, out of the vents in the corridor's alcoves, and from the corners of the
-   cooling hall. Every so often the power fails: emergency lights only, and they come faster until it is back. */
-const ENTRIES = [{ x: GATE.x, z: GATE.z - 3 }, { x: 15.75, z: 4 }, { x: 22.75, z: -4 }, { x: 52.5, z: 9 }, { x: 52.5, z: -10.8 }, { x: 31.5, z: 12.6 }, { x: 31.6, z: -11 }];
+/* Every door stands open, so the rooms make a loop: gate room, corridor, cooling hall, freight bay. Machines come in through the gate,
+   out of the vents in the corridor's alcoves, and from the edges of the hall and the bay. Every so often the power fails: emergency
+   lights only, the blast doors seal one end of the station off from the rest, and machines come faster until it is back. */
+const ENTRIES = [{ x: GATE.x, z: GATE.z - 3 }, { x: 15.75, z: 4 }, { x: 22.75, z: -4 }, { x: 52.5, z: 9 }, { x: 52.5, z: -10.8 }, { x: 31.5, z: 12.6 }, { x: 31.6, z: -11 },
+  { x: -4.5, z: -24 }, { x: 20, z: -31 }, { x: 42.5, z: -28 }, { x: 28, z: -14.4 }];
+/* what a power failure seals: the two doors into the cooling hall, or the two out of the gate room */
+const SEALS = [{ doors: ['hall', 'east'], say: 'the cooling hall' }, { doors: ['west', 'south'], say: 'the gate room' }];
 const DARK = { first: 50, every: 65, lasts: 22, rush: .6 };   // seconds to the first power failure, between failures, and how long one lasts; while it's dark the time between groups is multiplied by rush
 let dark = null;
 export const SURVIVAL = survival({
@@ -360,18 +393,18 @@ export const SURVIVAL = survival({
   preparing: REGION.preparing, indoor: true, noHorn: true, look: REGION.look,
   build: buildRegion, gate: GATE, start: { x: 0, z: 1 },
   saveKey: 'relay-gate-survival-station-v1',
-  /* a smaller space: fewer machines at once, and walkers later (they only fit in the cooling hall) */
-  tune: { size: [2, 5], cap: [5, 16], walkers: [[3, 1], [8, 2]], gate: null },
-  /* an entry out of your reach, picked at random; a walker only comes when you are near enough to the hall to meet it */
+  /* a smaller space than the city: fewer machines at once */
+  tune: { size: [2, 5], cap: [5, 18], walkers: [[3, 1], [7, 2]], gate: null },
+  /* an entry out of your reach, picked at random; a walker needs one with room for it (not the corridor's vents) */
   arrive(p, kind) {
-    if (kind === 'walker') { if (p.x < 26) return null; const e = ENTRIES.filter(q => q.x > 30).sort((a, b) => dist2(p, b) - dist2(p, a))[0]; return G.nav.wide.snap(e.x, e.z, 6); }
+    if (kind === 'walker') { const fit = ENTRIES.map(e => G.nav.wide.snap(e.x, e.z, 2)).filter(s => s && dist2(p, s) > 14); return fit.length ? fit[Math.floor(Math.random() * fit.length)] : null; }
     const far = ENTRIES.filter(e => dist2(p, e) > 12), e = far.length ? far[Math.floor(Math.random() * far.length)] : ENTRIES.slice().sort((a, b) => dist2(p, b) - dist2(p, a))[0];
     return G.nav.snap(e.x, e.z, 3) || e;
   },
   begin() {
-    setDoor('west', true, true); setDoor('hall', true, true);
+    for (const id in doors) setDoor(id, true, true);
     for (const n in zones) setPower(n, 1, true);
-    dark = { on: false, at: DARK.first };
+    dark = { on: false, at: DARK.first, seal: null };
   },
   tick(R, run, dt) {
     runStation(dt);
@@ -379,7 +412,9 @@ export const SURVIVAL = survival({
     dark.on = !dark.on; dark.at = run.time + (dark.on ? DARK.lasts : DARK.every);
     for (const n in zones) setPower(n, dark.on ? 0 : 1);
     run.gapK = dark.on ? DARK.rush : 1;
-    if (dark.on) { run.nextAt = Math.min(run.nextAt, G.t + 2); G.audio.play('powerOff', { pos: G.player.pos, gain: .6, rate: .8, len: 2, fade: .5 }); R.say('Power failure · Emergency lights only', '#ff6a5a'); }
-    else { G.audio.play('powerOn', { pos: G.player.pos, gain: .5, len: 1.6, fade: .4 }); R.say('Power restored', '#1fe0ff'); }
+    if (dark.on) { dark.seal = SEALS[Math.floor(Math.random() * SEALS.length)]; for (const id of dark.seal.doors) setDoor(id, false);
+      run.nextAt = Math.min(run.nextAt, G.t + 2); G.audio.play('powerOff', { pos: G.player.pos, gain: .6, rate: .8, len: 2, fade: .5 }); R.say(`Power failure · Blast doors have sealed ${dark.seal.say}`, '#ff6a5a'); }
+    else { for (const id of dark.seal.doors) setDoor(id, true);
+      G.audio.play('powerOn', { pos: G.player.pos, gain: .5, len: 1.6, fade: .4 }); R.say('Power restored · The doors are opening', '#1fe0ff'); }
   },
 });
