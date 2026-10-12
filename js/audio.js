@@ -55,7 +55,8 @@ const CLIPS = {
 const GRAIN_CURVE = Float32Array.from({ length: 64 }, (_, i) => Math.sin(Math.PI * i / 63));
 const HUM = { url: 'sfx/drone-hum.mp3', from: 2.4, to: 6, grain: 1, every: .5, gain: .25, drones: 3 };
 /* Background ambience: two long soundscapes that alternate, each crossfading into the next, under everything else.
-   Now and then a horn sounds somewhere far off: filtered, quieter, and from a random side. */
+   Now and then a horn sounds somewhere far off: filtered, quieter, and from a random side.
+   A region can bring its own soundscapes instead (G.R.ambience, in the same shape as `beds`); a single one crossfades into itself. */
 const AMBIENCE = {
   beds: [
     { name: 'ambTerror', url: 'sfx/ambience-terror.mp3', from: .5, to: 105 },        // "Terror ambience" (fades out after ~105 s)
@@ -161,7 +162,8 @@ export function makeAudio() {
 
   /* ---------- ambience ---------- */
   const rnd = ([a, b]) => a + Math.random() * (b - a);
-  let ambOn = false, bedAt = 0, bedIdx = Math.floor(Math.random() * AMBIENCE.beds.length), firstBed = true, hornAt = 0;
+  const BEDS = G.R.ambience || AMBIENCE.beds;
+  let ambOn = false, bedAt = 0, bedIdx = Math.floor(Math.random() * BEDS.length), firstBed = true, hornAt = 0;
   function playBed(bed, when, offset) {
     const buf = A.buffers[bed.name]; if (!buf) return 0;
     const F = AMBIENCE.fade, dur = Math.min(bed.to, buf.duration) - offset; if (dur < F * 3) return 0;
@@ -187,15 +189,15 @@ export function makeAudio() {
     if (!hornAt) hornAt = now + rnd(AMBIENCE.horn.first);
     if (now >= hornAt) { if (!G.R.noHorn) horn(); hornAt = now + rnd(AMBIENCE.horn.every); }   // indoors there's no horn on the wind
     if (bedAt > now + 2) return;
-    const bed = AMBIENCE.beds[bedIdx]; if (!A.buffers[bed.name]) { bedIdx = (bedIdx + 1) % AMBIENCE.beds.length; return; }
+    const bed = BEDS[bedIdx]; if (!A.buffers[bed.name]) { bedIdx = (bedIdx + 1) % BEDS.length; return; }
     const when = Math.max(now + .05, bedAt), offset = firstBed ? bed.from + Math.random() * (bed.to - bed.from) * .5 : bed.from;   // start somewhere in the middle the first time
     const dur = playBed(bed, when, offset); firstBed = false;
-    bedAt = when + Math.max(1, dur - AMBIENCE.fade); bedIdx = (bedIdx + 1) % AMBIENCE.beds.length;
+    bedAt = when + Math.max(1, dur - AMBIENCE.fade); bedIdx = (bedIdx + 1) % BEDS.length;
   }
   setInterval(tickAmbience, 1000);
-  /* the two long soundscapes (~4 MB) are fetched only once the game starts, so they don't compete with loading it */
+  /* the long soundscapes (~3-4 MB) are fetched only once the game starts, so they don't compete with loading it; the horn only where it sounds */
   let ambLoaded = false;
-  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of AMBIENCE.beds) A.load(b.name, b.url); A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
+  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of BEDS) A.load(b.name, b.url); if (!G.R.noHorn) A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
   A.horn = horn;
 
   for (const k in BANKS) A.load(k, BANKS[k].url);

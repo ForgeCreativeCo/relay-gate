@@ -50,7 +50,7 @@ const UPGRADES = [
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 /* arena: { num, name, startName, blurb, preparing, build, gate, start, saveKey } and, where it differs from open ground,
-   { look, indoor, noHorn, tune, arrive(p, kind), begin(R, run), tick(R, run, dt) }.
+   { look, indoor, noHorn, ambience, tune, arrive(p, kind), begin(R, run), tick(R, run, dt) }.
    arrive says where a 'ground', 'air', 'walker' or 'boss' (the Warden) machine comes in (null for nowhere just now); without it they arrive off-screen.
    tick runs every frame; run.time is the clock, and run.gapK scales the time between groups (an arena can bring them faster for a while). */
 export function survival(arena) {
@@ -139,7 +139,7 @@ export function survival(arena) {
     preparing: arena.preparing,
     endless: true,   // no checkpoints to continue from: every visit is a new run, and going down ends it
     medic: true,     // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
-    indoor: arena.indoor, noHorn: arena.noHorn, look: arena.look,
+    indoor: arena.indoor, noHorn: arena.noHorn, ambience: arena.ambience, look: arena.look,
     /* its own slot in this browser, so a run never touches your campaign save */
     save: { key: arena.saveKey, localOnly: true },
     build: arena.build,

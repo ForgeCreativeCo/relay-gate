@@ -82,6 +82,7 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `sfx/explosion-small.mp3` | A drone crashing ("Small explosion", freesound_community on Pixabay) |
 | `sfx/drone-death.mp3` | Layered with a drone's crash explosion ("Mechanical sound design elements, robot PS 012", AudioPapkin on Pixabay) |
 | `sfx/ambience-terror.mp3` | Background ambience ("Terror ambience", freesound_community on Pixabay) |
+| `sfx/ambience-station.mp3` | Relay Station background ambience ("Drone, unsettling feeling, creepy ambient background", Fronbondi_Skegs on Pixabay) |
 | `sfx/ambience-wasteland.mp3` | Background ambience ("A post-apocalyptic ambient soundscape", Fronbondi_Skegs on Pixabay) |
 | `sfx/horn.mp3` | A distant horn now and then ("Apocalyptic horn", Alex Jauk on Pixabay) |
 | `sfx/player-step.mp3` | Player footsteps ("Step", Pixabay) |
@@ -134,4 +135,3 @@ Each step should be playable before the next one starts:
 - **Does Mara still shoot,** or only heal and revive? For now she does all three.
 - **What carries over between runs,** if anything, and how much.
 - **What happens to the Dead City campaign** once survival works: keep it as a separate mode, or retire it.
-- **Indoor ambience** for station arenas: machine hum, fans, electrical buzz (the current recordings are all outdoor).

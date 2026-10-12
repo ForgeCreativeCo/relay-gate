@@ -282,6 +282,7 @@ export const REGION = {
   clearedText: 'The cooling hall is quiet. That\'s the end of the test section; the rest of the station is still being built.',
   preparing: 'Powering up the station…',
   indoor: true, noHorn: true,
+  ambience: [{ name: 'ambStation', url: 'sfx/ambience-station.mp3', from: 0, to: 999 }],   // "Drone, unsettling feeling", the whole recording
   /* while the region is being built it saves to its own slot in this browser, never to your account */
   save: { key: 'relay-gate-save-r02-preview', localOnly: true },
   look: {
@@ -390,7 +391,7 @@ let dark = null;
 export const SURVIVAL = survival({
   num: '02', name: 'The Relay Station', startName: 'Gate room',
   blurb: 'The station\'s gate is stuck open, there are husks in the vents, and the power keeps failing. Last as long as you can.',
-  preparing: REGION.preparing, indoor: true, noHorn: true, look: REGION.look,
+  preparing: REGION.preparing, indoor: true, noHorn: true, ambience: REGION.ambience, look: REGION.look,
   build: buildRegion, gate: GATE, start: { x: 0, z: 1 },
   saveKey: 'relay-gate-survival-station-v1',
   /* a smaller space than the city: fewer machines at once */
