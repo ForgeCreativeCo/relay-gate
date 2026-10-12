@@ -31,12 +31,12 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `js/look.js` | Generated reflection sky, the ground detail layer (grime, scorch, oil, cracks, road paint, puddles) and scattered debris |
 | `js/geo.js` | Geometry builder (boxes, prisms, cylinders) |
 | `js/fx.js` | Particles (ash, fire, sparks, explosions, smoke) and combat visuals: muzzle flashes, surface-matched impacts, shockwaves, scorch marks, wreck debris |
-| `js/region1.js` | The Dead City map: streets, ruins, props, the relay gate |
+| `js/region1.js` | Region 01, Dead City: the map (streets, ruins, props, the relay gate) and the run through it (objectives, encounters, checkpoints, story beats). A new region is a new file exporting the same `REGION` shape |
 | `js/actors.js` | Player, Mara and raiders |
 | `js/machines.js` | Drones, husks (melee hunters that lie in wait), Hunter Walkers and the Warden boss |
 | `js/combat.js` | Factions, projectiles, damage |
 | `js/loot.js` | Weapon and armour generation, tiers, perks, drops |
-| `js/game.js` | Encounters, objectives, checkpoints, interactions |
+| `js/game.js` | The run engine: plays whatever region it is given (encounters, objectives, checkpoints, the boss, finishing a region) |
 | `js/ui.js` | HUD, pack screen, menu, end card |
 | `js/input.js` | Mouse clicks, the touch joystick and fire button, and keyboard shortcuts |
 | `js/nav.js` | Pathfinding for click-to-move |

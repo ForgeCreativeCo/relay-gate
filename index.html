@@ -197,7 +197,7 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
 
 <div class="hud" id="hud" hidden>
   <div class="tl">
-    <div class="eyebrow">Region 01 · Dead City</div>
+    <div class="eyebrow" id="regionTag">Region 01 · Dead City</div>
     <div class="obj" id="obj"></div>
     <div class="bars">
       <div class="barrow" id="hpRow"><b>Health</b><div class="bar"><i id="hpFill"></i></div><small id="armorTxt"></small></div>
@@ -236,7 +236,7 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
 
 <section class="screen" id="title">
   <div class="titlebox">
-    <div class="sub">Region 01 · Dead City</div>
+    <div class="sub" id="titleTag">Region 01 · Dead City</div>
     <h1>Relay Gate</h1>
     <p class="muted" id="titleInfo">Checking for your save…</p>
     <div class="row">
@@ -284,9 +284,9 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
 
 <section class="screen" id="end" hidden>
   <div class="sheet" style="width:min(560px,100%)">
-    <h3>Region 01</h3>
-    <h2>Dead City cleared</h2>
-    <p class="muted">The relay gate hums open. Region 02 is next on the build list. Until then, the city is yours: keep exploring, or run it again with the gear you've earned.</p>
+    <h3 id="endTag">Region 01</h3>
+    <h2 id="endName">Dead City cleared</h2>
+    <p class="muted" id="endText">The relay gate hums open. Region 02 is next on the build list. Until then, the city is yours: keep exploring, or run it again with the gear you've earned.</p>
     <div class="endstats"><div><b id="eKills">0</b><span>Machines down</span></div><div><b id="eRuns">1</b><span>Runs cleared</span></div><div><b id="eGear">0</b><span>Best weapon</span></div></div>
     <div class="row"><button class="btn primary" id="again" type="button">Run it again with your gear</button><button class="btn" id="explore" type="button">Keep exploring</button></div>
   </div>

@@ -2,7 +2,7 @@
 import { B, G, V, C, damp, reduced, dist2 } from './core.js';
 import { makeTextures, makeMaterials, LOOK } from './tex.js';
 import { makeFx } from './fx.js';
-import { buildRegion, CHECKPOINTS, GATE } from './region1.js';
+import { REGION } from './region1.js';
 import { makeCombat } from './combat.js';
 import { makeDrops, newInventory, genWeapon, upgradeItem } from './loot.js';
 import { Player, Ally } from './actors.js';
@@ -11,7 +11,7 @@ import { makeNav } from './nav.js';
 import { makeAudio } from './audio.js';
 import { makeEnvironment, makeGroundDetail, scatterDebris } from './look.js';
 import { makeSave } from './save.js';
-import { makeGame, freshProgress, OBJECTIVES } from './game.js';
+import { makeGame, freshProgress } from './game.js';
 import { makeUI } from './ui.js';
 
 const $ = id => document.getElementById(id);
@@ -87,15 +87,17 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
     G.FX.weather.emitRate = (h ? 480 : 200) * (reduced ? .4 : 1); fit(); if (G.save) G.save.soon();
   };
 
-  /* the world and the cast */
+  /* the region being played (its map and its run), the world and the cast */
+  G.R = REGION;
+  for (const [id, t] of [['regionTag', `Region ${REGION.num} · ${REGION.name}`], ['titleTag', `Region ${REGION.num} · ${REGION.name}`], ['endTag', `Region ${REGION.num}`], ['endName', `${REGION.name} cleared`], ['endText', REGION.clearedText]]) $(id).textContent = t;
   G.settings = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
   G.audio = makeAudio(); G.audio.apply();
   G.progress = freshProgress(); G.inv = newInventory();
-  mark('materials'); G.region = buildRegion(M); mark('region'); G.nav = makeNav(); mark('nav'); makeGroundDetail(scene); mark('ground'); scatterDebris(scene, M); mark('world');
+  mark('materials'); G.region = REGION.build(M); mark('region'); G.nav = makeNav(); mark('nav'); makeGroundDetail(scene); mark('ground'); scatterDebris(scene, M); mark('world');
   G.CB = makeCombat(M); G.drops = makeDrops(M);
   G.input = makeInput(canvas); G.UI = makeUI(); G.game = makeGame();
-  G.player = new Player(); G.actors.push(G.player); G.player.pos.set(0, 0, -5);
-  G.ally = new Ally(3.6, .4);
+  G.player = new Player(); G.actors.push(G.player); G.player.pos.set(REGION.start.x, 0, REGION.start.z);
+  G.ally = new Ally(REGION.allyWait.x, REGION.allyWait.z);
   G.setPaused = (p) => { G.paused = p; G.input.release(); if (p) G.audio.silenceHums(); };
   G.input.on(a => {
     const P = G.player;
@@ -157,9 +159,9 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   const info = $('titleInfo'), cont = $('contBtn'), nw = $('newBtn');
   const SETTINGS = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
   const describe = () => {
-    if (saved) { const cp = CHECKPOINTS.find(c => c.id === (saved.progress || {}).checkpoint) || CHECKPOINTS[0], n = (saved.inv && saved.inv.items || []).length;
+    if (saved) { const cps = REGION.checkpoints, cp = cps.find(c => c.id === (saved.progress || {}).checkpoint) || cps[0], n = (saved.inv && saved.inv.items || []).length;
       info.textContent = `Continue at the ${cp.name} checkpoint · ${n} item${n === 1 ? '' : 's'} in your pack · Saved to ${G.save.where}.`; cont.textContent = 'Continue'; nw.hidden = false; }
-    else { info.textContent = `A machine-held city, a relay gate, and whatever you can salvage on the way. Progress saves to ${G.save.where}.`; cont.textContent = 'Start'; nw.hidden = true; }
+    else { info.textContent = `${REGION.blurb} Progress saves to ${G.save.where}.`; cont.textContent = 'Start'; nw.hidden = true; }
   };
   const showError = (what, e) => { console.error(e); info.textContent = `${what}: ${(e && e.message) || e}. Try again, or start a new game.`; };
 
@@ -173,23 +175,23 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
       for (const k of ['primary', 'secondary']) upgradeItem(G.inv.equip[k]);
       if (!G.inv.equip.primary) G.inv.equip.primary = newInventory().equip.primary;
       G.progress = Object.assign(freshProgress(), s.progress || {}); G.progress.cleared = Object.assign({}, (s.progress || {}).cleared);
-      if (!OBJECTIVES[G.progress.step]) G.progress.step = 0;
+      if (!REGION.objectives[G.progress.step]) G.progress.step = 0;
       G.settings = Object.assign({}, SETTINGS, s.settings || {});
     }
     G.raiderHostile = !!G.progress.raiders;
     G.player.recalc(); G.player.hp = G.player.maxHp;
     if (G.progress.mara) { G.ally.joined = true; G.actors.push(G.ally); }
-    else { G.ally.teleportNear(V(5.2, 0, 1.8)); G.ally.root.rotation.y = Math.PI * .8; }   // back by the campfire, waiting to be talked to
+    else { const w = REGION.allyWait; G.ally.teleportNear(V(w.x, 0, w.z)); G.ally.root.rotation.y = w.face; }   // back where she waits to be talked to
     G.game.spawnAll(); G.game.applyGate();
     const cp = G.game.checkpoint(); G.player.respawn(cp.x, cp.z); cam.target.set(cp.x, 0, cp.z); if (G.ally.joined) G.ally.teleportNear(G.player.pos);
     G.setQuality(G.settings.quality); G.audio.apply(); if (G.settings.controls !== 'auto') G.input.setMode(G.settings.controls, true); $('fps').hidden = !G.settings.fps;
-    G.UI.objective(OBJECTIVES[G.progress.step].text);
+    G.UI.objective(G.game.objective().text);
   }
   /* Prepare, then wait (on the title screen) for every shader the scene needs, so pressing Continue doesn't stall on them.
      That compile is slowest right after a restart, when the graphics caches are cold. */
   let prepId = 0;
   async function ready(s) {
-    const id = ++prepId; cont.disabled = nw.disabled = true; info.textContent = 'Preparing the city…';
+    const id = ++prepId; cont.disabled = nw.disabled = true; info.textContent = REGION.preparing;
     try { prepare(s); await Promise.race([scene.whenReadyAsync(), new Promise(r => setTimeout(r, 15000))]); }
     catch (e) { if (id === prepId) showError('Couldn\'t prepare your save', e); }
     if (id !== prepId) return;   // a newer prepare took over
