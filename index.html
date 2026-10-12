@@ -112,13 +112,10 @@ body{--sr:env(safe-area-inset-right,0px);--sb:env(safe-area-inset-bottom,0px)}
 body:not([data-mode="touch"]) .touchonly{display:none!important}
 
 /* world-anchored bits */
-.plate{position:fixed;left:0;top:0;min-width:150px;padding:6px 8px;background:var(--panel);border:1px solid rgba(255,74,61,.5);border-radius:2px;display:grid;gap:4px;pointer-events:none;will-change:transform}
-.plate .pn{font-size:9px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:var(--machine)}
-.plate .bar{flex:none;width:100%;height:4px}
-.plate .bar i{background:var(--machine)}
 .mini{position:fixed;left:0;top:0;width:44px;height:3px;background:rgba(0,0,0,.5);pointer-events:none;will-change:transform}
 .mini i{display:block;height:100%;transform-origin:left;background:var(--machine)}
 .mini.raider i{background:#e08a4a}
+.mini.big{width:64px;height:4px}
 .dmg{position:fixed;left:0;top:0;font-weight:600;font-size:14px;text-shadow:0 1px 4px rgba(0,0,0,.95);pointer-events:none;font-variant-numeric:tabular-nums;will-change:transform}
 .dmg.crit{color:var(--amber);font-size:17px}
 .tag{position:fixed;left:0;top:0;text-align:center;white-space:nowrap;pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,.95);display:grid;will-change:transform}

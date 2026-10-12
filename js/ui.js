@@ -1,5 +1,5 @@
 /* HUD, pack, menus and everything drawn over the 3D view. */
-import { B, G, V, V3, clamp } from './core.js';
+import { B, G, V, V3 } from './core.js';
 import { TIERS, ARCH, wstats, dps, power, affixText, PACK_SIZE } from './loot.js';
 import { hostile } from './combat.js';
 
@@ -28,9 +28,8 @@ export function makeUI() {
   const nums = []; for (let k = 0; k < 20; k++) { const e = el('div', 'dmg'); e.hidden = true; document.body.appendChild(e); nums.push({ e, p: V(0, 0, 0), life: 0 }); }
   UI.number = (p, v, crit) => { const n = nums.find(q => q.life <= 0) || nums[0]; n.p.copyFrom(p); n.p.x += (Math.random() - .5) * .7; n.p.y += .3; n.life = .8; n.e.textContent = v; n.e.className = 'dmg' + (crit ? ' crit' : ''); };
 
-  /* ---------- enemy health: plates for walkers, slim bars for the rest ---------- */
-  const plates = [0, 1].map(() => { const p = el('div', 'plate'); p.hidden = true; const n = el('div', 'pn'); const b = el('div', 'bar'); const i = el('i'); b.append(i); p.append(n, b); document.body.append(p); return { p, n, i }; });
-  const minis = []; for (let k = 0; k < 10; k++) { const m = el('div', 'mini'); const i = el('i'); m.append(i); m.hidden = true; document.body.append(m); minis.push({ m, i }); }
+  /* ---------- enemy health: a slim bar just above each enemy (a wider one for walkers) ---------- */
+  const minis = []; for (let k = 0; k < 12; k++) { const m = el('div', 'mini'); const i = el('i'); m.append(i); m.hidden = true; document.body.append(m); minis.push({ m, i }); }
 
   /* ---------- boss bar ---------- */
   let boss = null, pipEls = {};
@@ -77,16 +76,17 @@ export function makeUI() {
     for (const n of nums) { if (n.life <= 0) continue; n.life -= dt; n.p.y += dt * 1.6; const s = UI.project(n.p); if (n.life <= 0 || !s.ok) { n.e.hidden = true; continue; }
       n.e.hidden = false; n.e.style.opacity = Math.min(1, n.life * 2.5).toFixed(2); place(n.e, s.x, s.y, '-50%', '-50%'); }
     /* enemy health */
-    let pi = 0, mi = 0; const pp = P.pos;
+    let mi = 0; const pp = P.pos;
     for (const a of G.actors) {
-      if (!a.alive || a.dormant || a === P || a === A || a === boss) continue;
+      if (!a.alive || a.dormant || a === P || a === A || a === boss || mi >= minis.length) continue;
       const d = Math.hypot(a.pos.x - pp.x, a.pos.z - pp.z); if (d > 26) continue;
-      if (a.parts && pi < plates.length) { const pl = plates[pi++], s = UI.project(V(a.pos.x, 7.2 * a.s, a.pos.z)); if (!s.ok) { pl.p.hidden = true; continue; }
-        pl.p.hidden = false; pl.n.textContent = a.name; pl.i.style.transform = `scaleX(${Math.max(0, a.hp / a.maxHp).toFixed(3)})`; place(pl.p, clamp(s.x, 90, innerWidth - 90), Math.max(s.y, 140)); continue; }
-      if (!a.parts && a.hp < a.maxHp && mi < minis.length) { const m = minis[mi++], s = UI.project(a.pos.add(V(0, a.kind === 'drone' ? .8 : 2.15, 0))); if (!s.ok) { m.m.hidden = true; continue; }
-        m.m.hidden = false; m.m.classList.toggle('raider', a.faction === 'raider' && !hostile(P, a)); m.i.style.transform = `scaleX(${Math.max(0, a.hp / a.maxHp).toFixed(3)})`; place(m.m, s.x, s.y); }
+      /* walkers always show theirs; everything else once it's been hurt */
+      if (!a.parts && a.hp >= a.maxHp) continue;
+      const m = minis[mi++], s = UI.project(a.pos.add(V(0, a.parts ? 4.9 * a.s : a.kind === 'drone' ? .8 : a.kind === 'husk' ? 1.75 : 2.15, 0))); if (!s.ok) { m.m.hidden = true; continue; }
+      m.m.hidden = false; m.m.classList.toggle('big', !!a.parts); m.m.classList.toggle('raider', a.faction === 'raider' && !hostile(P, a));
+      m.i.style.transform = `scaleX(${Math.max(0, a.hp / a.maxHp).toFixed(3)})`; place(m.m, s.x, Math.max(s.y, 8));   // kept on screen when the enemy is near the top edge
     }
-    for (; pi < plates.length; pi++) plates[pi].p.hidden = true; for (; mi < minis.length; mi++) minis[mi].m.hidden = true;
+    for (; mi < minis.length; mi++) minis[mi].m.hidden = true;
     /* boss */
     if (boss) { $('bossFill').style.transform = `scaleX(${Math.max(0, boss.hp / boss.maxHp).toFixed(3)})`; $('bossPhase').textContent = boss.alive ? 'Phase ' + boss.phase : 'Destroyed';
       const cur = P.lock && P.lock.actor === boss ? P.lock.part : (P.hover && P.hover.actor === boss ? P.hover.part : null);
