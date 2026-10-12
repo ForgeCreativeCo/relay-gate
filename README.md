@@ -24,6 +24,8 @@ Press **Survival** on the title screen, or add `?mode=survival` to the address, 
 
 Kills give XP (Mara's count too): 2 for a drone, 3 for a husk, 12 for a walker. Each level stops the game and offers three upgrades, picked at random from twelve; choose one with a click, a tap or the 1, 2 and 3 keys. They cover your gun (damage, fire rate, critical hits, range, healing on kills), you (health, regeneration, armour, speed, dodge) and Mara (her damage, her health and how soon she gets back up), and they last for the run. The XP values, the cost of each level and the upgrades themselves are at the top of `js/survival.js`.
 
+Bosses come with your level. Every third level a Hunter Walker arrives a few seconds after you pick your upgrade, and every tenth level it is the Warden instead, with its health bar, its phases and the drones and husks it calls in. They step out of the gate when it is in reach. While a Warden is alive the ordinary groups come more slowly; when it goes down it drops its machine-forged loot. Each Warden after the first is tougher. Walkers also start turning up with the ordinary groups from six minutes in.
+
 There are two arenas. **Switch to the Relay Station** on the survival title screen (or `?mode=survival&region=2`) plays it indoors, with every door open. The station is four rooms in a loop: the gate room, the service corridor, the cooling hall, and a freight bay that runs south of all three and joins the gate room to the hall through two blast doors wide enough for a walker. Machines come in through the gate, out of the vents in the corridor's alcoves and from the edges of the hall and the bay. Every minute or so the power fails for about twenty seconds: emergency lights only, the blast doors seal either the cooling hall or the gate room off from the rest, and the machines come faster until it is back. Each arena keeps its own best time.
 
 The numbers that set the pressure (time between groups, group size, how many machines at once, when walkers start) are in one block at the top of `js/survival.js`. An arena can replace any of them: the station's, and the timing of its power failures, are at the bottom of `js/region2.js`.
@@ -108,7 +110,7 @@ Each step should be playable before the next one starts:
 
 1. **Survival mode on the Dead City map.** *(First version in, untuned.)* Add a spawner that brings waves in from off-screen and ramps up over time. This is the step that shows whether the idea is fun.
 2. **XP and level-up choices.** *(In, untuned.)* Add an XP bar, a level-up screen with three upgrades, and the upgrades themselves.
-3. **Bosses on level milestones.** Walkers every few levels, and the Warden at the big ones.
+3. **Bosses on level milestones.** *(In, untuned.)* Walkers every few levels, and the Warden at the big ones.
 4. **WASD movement on desktop.** Right-click to walk is awkward for dodging round a crowd. Phones already use a joystick.
 5. **Mara as the medic.** Make healing and revives her main job, and give her upgrade options of her own.
 6. **End card and best run.** Show the run's numbers, save your record, and add Run again.

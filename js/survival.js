@@ -3,7 +3,7 @@
    as an arena (SURVIVAL in region1.js and region2.js). Open one with ?mode=survival, adding &region=2 for the station. */
 import { G, V, rand, dist2, inOpen, boost } from './core.js';
 import { Drone, Walker, Husk } from './machines.js';
-import { newInventory } from './loot.js';
+import { newInventory, rollLoot } from './loot.js';
 
 /* The pressure curve. Pairs are [at the start, at full pressure]; `by` is the minute full pressure is reached. These are the numbers
    to tune by playing; an arena can replace any of them with its own `tune`. */
@@ -14,7 +14,10 @@ const TUNE = {
   cap: [6, 22],                           // machines alive at once
   husks: [.3, .55],                       // how much of a group is husks rather than drones
   by: 9,
-  walkers: [[2.5, 1], [6, 2], [10, 3]],   // from this minute, this many walkers at once
+  walkers: [[6, 1], [10, 2], [14, 3]],    // from this minute, this many walkers at once can come with the ordinary groups
+  /* Bosses arrive with your level: a Hunter Walker every `walker` levels and the Warden every `warden` levels, `warn` seconds after you pick
+     your upgrade. Each Warden after the first has `wardenTough` more health again, and while one is alive groups take `ease` times as long to come. */
+  boss: { walker: 3, warden: 10, warn: 3, wardenTough: .5, ease: 1.6 },
   walkerGap: 45,                          // seconds between one walker arriving and the next
   tough: .08,                             // extra health per minute, on everything
   near: [26, 34],                         // how far from you they arrive: past the edge of the view
@@ -45,7 +48,7 @@ const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(
 
 /* arena: { num, name, startName, blurb, preparing, build, gate, start, saveKey } and, where it differs from open ground,
    { look, indoor, noHorn, tune, arrive(p, kind), begin(R, run), tick(R, run, dt) }.
-   arrive says where a 'ground', 'air' or 'walker' machine comes in (null for nowhere just now); without it they arrive off-screen.
+   arrive says where a 'ground', 'air', 'walker' or 'boss' (the Warden) machine comes in (null for nowhere just now); without it they arrive off-screen.
    tick runs every frame; run.time is the clock, and run.gapK scales the time between groups (an arena can bring them faster for a while). */
 export function survival(arena) {
   const T = Object.assign({}, TUNE, arena.tune), GATE = arena.gate, START = arena.start;
@@ -63,6 +66,9 @@ export function survival(arena) {
       const u = picks[i]; RUN.taken[u.id] = (RUN.taken[u.id] || 0) + 1;
       for (const k in u.add) G.boost[k] = boost(k) + u.add[k];
       G.player.recalc(); G.ally.recalc(); R.say(`${u.name} · ${u.text}`, '#1fe0ff'); RUN.hudAt = 0;
+      /* a boss comes with some levels */
+      const L = RUN.level, due = L % T.boss.warden === 0 ? 'warden' : L % T.boss.walker === 0 ? 'walker' : null;
+      if (due) { RUN.due.push(due); RUN.dueAt = G.t + T.boss.warn; R.say(due === 'warden' ? `Level ${L} · The Warden is coming` : `Level ${L} · A Hunter Walker is coming`, '#ff6a5a'); }
     });
   }
 
@@ -80,14 +86,30 @@ export function survival(arena) {
     return any;
   }
 
+  /* a machine joins the run: tougher the longer it has gone on, and tracked so it hunts you and its wreck gets cleared */
+  function enlist(R, a) { a.maxHp = a.hp = Math.round(a.hp * (1 + T.tough * RUN.time / 60)); RUN.mine.push(R.add(a)); return a; }
+
+  /* The boss a level has earned arrives: through the gate if it is in reach, otherwise wherever there is room for it.
+     Only one Warden at a time; with nowhere to put it yet, it is tried again shortly. */
+  function milestone(R, p) {
+    const what = RUN.due[0], boss = what === 'warden'; if (boss && RUN.warden && RUN.warden.alive) return;
+    const gd = dist2(p, GATE), mouth = T.gate && gd > 12 && gd < T.gate[1] ? { x: GATE.x, z: GATE.z - 3 } : null;
+    const c = mouth || (arena.arrive ? arena.arrive(p, boss ? 'boss' : 'walker') : spot(p, boss ? 2.4 : 1.5)); if (!c) return;
+    RUN.due.shift();
+    const w = new Walker(c.x, c.z, { boss, patrolR: 0, leash: 1e9 });
+    if (boss) { w.maxHp = w.hp = Math.round(w.hp * (1 + T.boss.wardenTough * RUN.wardens++)); RUN.warden = w; }
+    enlist(R, w); if (boss) G.UI.boss(w);
+    G.FX.puffAt(V(c.x, 2, c.z), 20);
+    R.say((boss ? 'The Warden' : 'A Hunter Walker') + (mouth ? ' steps out of the gate' : ' has arrived'), '#ff6a5a');
+  }
+
   /* One group arrives. Returns false if there was no room (or nowhere) for it, so it can be tried again shortly. */
   function group(R, p, m) {
     const alive = RUN.mine.filter(a => a.alive), room = Math.floor(ramp(T.cap, m)) - alive.length; if (room <= 0) return false;
     let n = Math.min(room, Math.round(ramp(T.size, m)));
     const gd = dist2(p, GATE), mouth = T.gate && gd > T.gate[0] && gd < T.gate[1] && Math.random() < T.gate[2] ? { x: GATE.x, z: GATE.z - 3 } : null;
     const at = (kind) => mouth || (arena.arrive ? arena.arrive(p, kind) : spot(p, kind === 'air' ? null : kind === 'walker' ? 1.5 : .6));
-    const tough = 1 + T.tough * m, husks = ramp(T.husks, m);
-    const add = (a) => { a.maxHp = a.hp = Math.round(a.hp * tough); RUN.mine.push(R.add(a)); };
+    const husks = ramp(T.husks, m), add = (a) => enlist(R, a);
     const around = (c, r) => { const x = c.x + rand(-r, r), z = c.z + rand(-r, r); return G.nav.snap(x, z, 3) || c; };
     /* a walker, when one is due */
     const maxW = T.walkers.reduce((k, [from, count]) => m >= from ? count : k, 0);
@@ -128,12 +150,22 @@ export function survival(arena) {
     /* a run starts from nothing: the starter rifle, an empty pack, level 1, the clock at zero */
     spawn(R) {
       G.inv = newInventory(); G.boost = {}; G.player.recalc(); G.ally.recalc(); G.progress.kills = 0;
-      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {} };
+      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, warden: null, wardens: 0 };
       if (arena.begin) arena.begin(R, RUN);
     },
     interactables() {},
-    onKill(R, m) { if (RUN && !RUN.over) RUN.xp += T.xp[m.kind] || 1; },
-    onBossPhase() {},
+    onKill(R, m) {
+      if (!RUN || RUN.over) return; RUN.xp += T.xp[m.kind] || 1;
+      if (m === RUN.warden) { G.UI.boss(null); G.drops.scatter(m.pos.x, m.pos.z - 1, rollLoot('warden')); R.say('The Warden is down', '#1fe0ff'); }
+    },
+    /* the Warden calls for help as it weakens */
+    onBossPhase(R, b, ph) {
+      if (!RUN || RUN.over) return;
+      R.say(ph === 2 ? 'The Warden is calling in drones and husks · Watch for missile markers' : 'The Warden is overheating · It\'s faster now', '#ff6a5a');
+      const near = (r) => { const x = b.pos.x + rand(-r, r), z = b.pos.z + rand(-r, r); return arena.indoor ? G.nav.snap(x, z, 4) : { x, z }; };
+      for (let i = 0; i < 2; i++) { const c = near(6); if (c) enlist(R, new Drone(c.x, c.z)); }
+      const c = G.nav.snap(b.pos.x + rand(-5, 5), b.pos.z + rand(-5, 5), 4); if (c) enlist(R, new Husk(c.x, c.z, { leash: 1e9 }));
+    },
 
     update(R, p) {
       if (!RUN) return;
@@ -149,7 +181,8 @@ export function survival(arena) {
         else if (G.t - a.deadAt > T.wreck) { R.remove(a); a.gone = true; }
       }
       RUN.mine = RUN.mine.filter(a => !a.gone);
-      if (G.t >= RUN.nextAt && G.player.down <= 0) RUN.nextAt = G.t + (group(R, p, m) ? ramp(T.gap, m) * rand(.8, 1.2) * RUN.gapK : 1);
+      if (RUN.due.length && G.t >= RUN.dueAt && G.player.down <= 0) { milestone(R, p); RUN.dueAt = G.t + 1; }
+      if (G.t >= RUN.nextAt && G.player.down <= 0) RUN.nextAt = G.t + (group(R, p, m) ? ramp(T.gap, m) * rand(.8, 1.2) * RUN.gapK * (RUN.warden && RUN.warden.alive ? T.boss.ease : 1) : 1);
       if (G.t >= RUN.hudAt) { RUN.hudAt = G.t + .25; G.UI.objective(`Survive · ${clock(RUN.time)} · ${G.progress.kills} down`); G.UI.xp(RUN.level, RUN.xp / need(RUN.level)); }
       if (RUN.xp >= need(RUN.level) && G.player.down <= 0) levelUp(R);
     },

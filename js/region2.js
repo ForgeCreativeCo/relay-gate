@@ -394,10 +394,10 @@ export const SURVIVAL = survival({
   build: buildRegion, gate: GATE, start: { x: 0, z: 1 },
   saveKey: 'relay-gate-survival-station-v1',
   /* a smaller space than the city: fewer machines at once */
-  tune: { size: [2, 5], cap: [5, 18], walkers: [[3, 1], [7, 2]], gate: null },
-  /* an entry out of your reach, picked at random; a walker needs one with room for it (not the corridor's vents) */
+  tune: { size: [2, 5], cap: [5, 18], walkers: [[7, 1], [11, 2]], gate: null },
+  /* an entry out of your reach, picked at random; a walker or the Warden needs one with room for it (not the corridor's vents) */
   arrive(p, kind) {
-    if (kind === 'walker') { const fit = ENTRIES.map(e => G.nav.wide.snap(e.x, e.z, 2)).filter(s => s && dist2(p, s) > 14); return fit.length ? fit[Math.floor(Math.random() * fit.length)] : null; }
+    if (kind === 'walker' || kind === 'boss') { const nav = kind === 'boss' ? G.nav.huge : G.nav.wide, fit = ENTRIES.map(e => nav.snap(e.x, e.z, 2)).filter(s => s && dist2(p, s) > 14); return fit.length ? fit[Math.floor(Math.random() * fit.length)] : null; }
     const far = ENTRIES.filter(e => dist2(p, e) > 12), e = far.length ? far[Math.floor(Math.random() * far.length)] : ENTRIES.slice().sort((a, b) => dist2(p, b) - dist2(p, a))[0];
     return G.nav.snap(e.x, e.z, 3) || e;
   },
