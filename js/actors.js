@@ -564,7 +564,7 @@ export class Ally extends Actor {
     const quick = 1 + boost('maraCD') / 100;
     if (rescue) {
       if (far < 1.8) { this.reviving += dt; this.cool = .3;
-        if (this.reviving >= MEDIC.revive) { this.reviving = 0; this.reviveCD = MEDIC.reviveEvery / quick; P.revive(MEDIC.back); G.UI.feed('Mara got you back up', '#ffb24a'); G.audio.play('powerOn', { pos: p, gain: .4, rate: 1.5, len: 1, fade: .3 }); } }
+        if (this.reviving >= MEDIC.revive) { this.reviving = 0; this.reviveCD = MEDIC.reviveEvery / quick; this.revives = (this.revives || 0) + 1; P.revive(MEDIC.back); G.UI.feed('Mara got you back up', '#ffb24a'); G.audio.play('powerOn', { pos: p, gain: .4, rate: 1.5, len: 1, fade: .3 }); } }
       else this.reviving = Math.max(0, this.reviving - dt);
     } else { this.reviving = 0;
       if (medic && P.down <= 0 && this.healCD <= 0 && P.hp < P.maxHp * MEDIC.below && far < MEDIC.range) {

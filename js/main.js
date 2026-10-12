@@ -223,6 +223,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   /* and, in survival, the other arena */
   const arena = $('arenaBtn'), station = REGION.num === '02'; arena.hidden = !REGION.endless; arena.textContent = station ? 'Switch to Dead City' : 'Switch to the Relay Station';
   arena.onclick = () => play(station ? 'survival' : 'station');
+  G.otherArena = REGION.endless ? { label: arena.textContent, use: arena.onclick } : null;   // the end of a run offers it too
   if (REGION.endless) $('toCheckpoint').textContent = 'End run';
   nw.onclick = () => $('newConfirm').classList.add('show'); $('newNo').onclick = () => $('newConfirm').classList.remove('show');
   $('newYes').onclick = async () => { $('newConfirm').classList.remove('show'); await G.save.wipe(); saved = null; go(() => { prepare(null); start(); }); };

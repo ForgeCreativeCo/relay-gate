@@ -23,6 +23,7 @@
   --machine:#ff4a3d;
   --gate:#1fe0ff;
   --good:#7ed87a;
+  --mara:#d8c08a;
   --bad:#ff7a6a;
   --f-display:"Saira Stencil One","Impact","Arial Narrow Bold",sans-serif;
   --f-ui:"Chakra Petch","Segoe UI",system-ui,sans-serif;
@@ -48,7 +49,7 @@ button{font-family:var(--f-ui);color:var(--ink)}
 .bar{height:6px;background:rgba(236,230,215,.14);overflow:hidden;flex:0 0 150px}
 .bar i{display:block;height:100%;width:100%;transform-origin:left center;background:var(--amber)}
 .barrow.low b{color:var(--machine)} .barrow.low .bar i{background:var(--machine)}
-.barrow.ally .bar{flex-basis:90px;height:4px} .barrow.ally .bar i{background:#d8c08a}
+.barrow.ally .bar{flex-basis:90px;height:4px} .barrow.ally .bar i{background:var(--mara)}
 .barrow.xp .bar{height:4px} .barrow.xp .bar i{background:var(--gate)} .barrow.xp b{color:var(--gate)}
 .barrow small{font-size:10px;letter-spacing:.06em;text-transform:none;color:var(--dim);font-variant-numeric:tabular-nums}
 .feed{display:grid;gap:3px;margin-top:6px}
@@ -177,12 +178,32 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
 .aff li::before{content:"◆ ";color:var(--amber);font-size:9px}
 .confirm{display:none;gap:8px;align-items:center;flex-wrap:wrap}
 .confirm.show{display:flex}
-.choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.choice{display:grid;gap:6px;align-content:start;text-align:left;padding:14px;border:1px solid var(--line);border-radius:2px;background:rgba(255,255,255,.03);color:inherit;font:inherit;cursor:pointer;min-height:118px}
-.choice:hover,.choice:focus-visible{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber);outline:none}
-.choice .k{font-size:10px;letter-spacing:.16em;color:var(--dim)} .choice .nm{font-size:15px;font-weight:600} .choice .tx{font-size:13px;color:var(--dim)} .choice .hv{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gate)}
+.choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.choice{--kc:var(--amber);display:grid;grid-template-rows:auto auto 1fr auto;gap:8px;text-align:left;padding:14px 14px 12px;border:1px solid var(--line);border-top:2px solid var(--kc);border-radius:2px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.015));color:inherit;font:inherit;cursor:pointer;min-height:176px;transition:transform .12s ease,box-shadow .12s ease,background .12s ease;animation:choiceIn .24s ease both}
+.choice.you{--kc:var(--good)} .choice.mara{--kc:var(--mara)}
+.choice:hover,.choice:focus-visible{border-color:var(--kc);box-shadow:0 0 0 1px var(--kc),0 12px 28px rgba(0,0,0,.5);transform:translateY(-3px);outline:none;background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.03))}
+.choice:active{transform:translateY(0)}
+.choice .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.choice .cat{font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--kc)}
+.choice .key{font:600 11px/1 var(--f-ui);color:var(--dim);border:1px solid var(--line);padding:4px 7px;border-radius:2px}
+body[data-mode="touch"] .choice .key{display:none}
+.choice .nm{font-size:17px;font-weight:600;line-height:1.15}
+.choice .tx{font-size:13px;line-height:1.4}
+.choice .ft{display:grid;gap:6px;align-content:start;padding-top:9px;border-top:1px solid var(--line);font-size:11px;line-height:1.35;color:var(--dim)}
+.choice .ft b{font-weight:600;color:var(--ink)}
+.choice .pips{display:flex;gap:4px;align-items:center;font-variant-numeric:tabular-nums}
+.choice .pips i{width:14px;height:4px;background:rgba(236,230,215,.16)} .choice .pips i.on{background:var(--kc)} .choice .pips i.next{background:var(--kc);opacity:.45}
+.choice .pips i+span{margin-left:4px}
+#lvWarn{color:var(--bad)}
+@keyframes choiceIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.choice{animation:none;transition:none}}
 @media (max-width:520px){.choices{grid-template-columns:1fr}.choice{min-height:0}}
-.endstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media (max-height:440px){.choice{min-height:0;padding:10px 12px;gap:6px}.choice .nm{font-size:15px}}
+.record{margin:0;font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)} .record.new{color:var(--gate)}
+.taken{display:flex;flex-wrap:wrap;gap:6px}
+.taken span{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:5px 8px;border:1px solid var(--line);border-radius:2px;font-variant-numeric:tabular-nums}
+.taken i{width:6px;height:6px;background:var(--amber)} .taken .you i{background:var(--good)} .taken .mara i{background:var(--mara)}
+.endstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
 .endstats div{border:1px solid var(--line);padding:10px;display:grid;gap:2px}
 .endstats b{font-size:22px;font-variant-numeric:tabular-nums}
 .endstats span{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
@@ -293,10 +314,11 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
 </section>
 
 <section class="screen" id="levelup" hidden>
-  <div class="sheet" role="dialog" aria-label="Level up" style="width:min(760px,100%)">
+  <div class="sheet" role="dialog" aria-label="Level up" style="width:min(820px,100%)">
     <h3>Level up</h3>
     <h2 id="lvName">Level 2</h2>
     <p class="muted">Pick one. It lasts for this run.</p>
+    <p class="muted" id="lvWarn" hidden></p>
     <div class="choices" id="lvChoices"></div>
   </div>
 </section>
@@ -306,7 +328,10 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
     <h3 id="endTag">Region 01</h3>
     <h2 id="endName">Dead City cleared</h2>
     <p class="muted" id="endText">The relay gate hums open. Region 02 is next on the build list. Until then, the city is yours: keep exploring, or run it again with the gear you've earned.</p>
-    <div class="endstats"><div><b id="eKills">0</b><span>Machines down</span></div><div><b id="eRuns">1</b><span>Runs cleared</span></div><div><b id="eGear">0</b><span>Best weapon</span></div></div>
+    <p class="record" id="endRecord" hidden></p>
+    <div class="endstats" id="endStats"><div><b id="eKills">0</b><span>Machines down</span></div><div><b id="eRuns">1</b><span>Runs cleared</span></div><div><b id="eGear">0</b><span>Best weapon</span></div></div>
+    <h3 id="endTakenHead" hidden>Upgrades taken</h3>
+    <div class="taken" id="endTaken" hidden></div>
     <div class="row"><button class="btn primary" id="again" type="button">Run it again with your gear</button><button class="btn" id="explore" type="button">Keep exploring</button></div>
   </div>
 </section>

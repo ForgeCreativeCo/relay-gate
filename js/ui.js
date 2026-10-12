@@ -194,22 +194,40 @@ export function makeUI() {
 
   /* ---------- levelling (survival) ---------- */
   UI.xp = (level, k) => { $('xpRow').hidden = false; $('xpTxt').textContent = level; $('xpFill').style.transform = `scaleX(${Math.max(0, Math.min(1, k)).toFixed(3)})`; };
-  /* options: [{ name, text, have }]; the game waits until one is picked (click, tap, or 1 2 3), then pick(index) is called */
+  /* options: [{ kind: 'gun' | 'you' | 'mara', name, text, have, max, total }], where total is what it comes to with this pick.
+     The game waits until one is picked (click, tap, or 1 2 3), then pick(index) is called. note is a warning to show (a boss on its way). */
+  const KIND = { gun: 'Weapon', you: 'You', mara: 'Mara' };
   let lvKey = null;
-  UI.levelUp = (level, options, pick) => {
-    $('lvName').textContent = 'Level ' + level; const box = $('lvChoices'); box.textContent = '';
-    const done = (i) => { window.removeEventListener('keydown', lvKey); $('levelup').hidden = true; G.setPaused(false); pick(i); };
-    options.forEach((o, i) => { const b = el('button', 'choice'); b.type = 'button'; b.append(el('span', 'k', String(i + 1)), el('span', 'nm', o.name), el('span', 'tx', o.text)); if (o.have) b.append(el('span', 'hv', 'Taken ×' + o.have)); b.onclick = () => done(i); box.append(b); });
+  UI.levelUp = (level, options, pick, note) => {
+    $('lvName').textContent = 'Level ' + level; $('lvWarn').hidden = !note; $('lvWarn').textContent = note || '';
+    const box = $('lvChoices'), openedAt = performance.now(); box.textContent = '';
+    /* a tap or key press already on its way when the cards appear doesn't pick one */
+    const done = (i) => { if (performance.now() - openedAt < 350) return; window.removeEventListener('keydown', lvKey); $('levelup').hidden = true; G.setPaused(false); pick(i); };
+    options.forEach((o, i) => {
+      const b = el('button', 'choice ' + o.kind); b.type = 'button'; b.style.animationDelay = i * 70 + 'ms';
+      const top = el('div', 'top'); top.append(el('span', 'cat', KIND[o.kind]), el('span', 'key', String(i + 1)));
+      const ft = el('div', 'ft'), row = el('div', 'pips');
+      if (o.max) { for (let k = 0; k < o.max; k++) row.append(el('i', k < o.have ? 'on' : k === o.have ? 'next' : '')); row.append(el('span', null, `${o.have + 1} of ${o.max}`)); }
+      else row.append(el('span', null, o.have ? 'Taken ×' + o.have : 'New'));
+      ft.append(row);
+      if (o.have) { const t = el('div', 'tot', 'With this: '); t.append(el('b', null, o.total)); ft.append(t); }
+      b.append(top, el('span', 'nm', o.name), el('span', 'tx', o.text), ft); b.onclick = () => done(i); box.append(b);
+    });
     lvKey = e => { const i = ['Digit1', 'Digit2', 'Digit3'].indexOf(e.code); if (i >= 0 && i < options.length) done(i); }; window.addEventListener('keydown', lvKey);
     $('levelup').hidden = false; G.setPaused(true);
   };
 
   /* ---------- end card ---------- */
-  /* a region can bring its own card (survival does): { tag, name, text, stats: three [number, label] pairs, again: the button's label } */
+  /* a region can bring its own card (survival does): { tag, name, record, isRecord, text, stats: [number, label] pairs, taken: [{ kind, text }],
+     again: the button's label, other: { label, use } for a second button } */
   UI.endCard = (card) => {
     if (card) { $('endTag').textContent = card.tag; $('endName').textContent = card.name; $('endText').textContent = card.text;
-      ['eKills', 'eRuns', 'eGear'].forEach((id, i) => { $(id).textContent = card.stats[i][0]; $(id).nextElementSibling.textContent = card.stats[i][1]; });
-      $('again').textContent = card.again; $('explore').hidden = true; $('end').hidden = false; G.setPaused(true); return; }
+      const rec = $('endRecord'); rec.hidden = !card.record; rec.textContent = card.record || ''; rec.classList.toggle('new', !!card.isRecord);
+      const st = $('endStats'); st.textContent = ''; for (const [v, label] of card.stats) { const d = el('div'); d.append(el('b', null, String(v)), el('span', null, label)); st.append(d); }
+      const tk = $('endTaken'), any = !!(card.taken && card.taken.length); $('endTakenHead').hidden = tk.hidden = !any; tk.textContent = '';
+      for (const t of card.taken || []) { const s = el('span', t.kind); s.append(el('i'), t.text); tk.append(s); }
+      $('again').textContent = card.again; const o = $('explore'); o.hidden = !card.other; if (card.other) { o.textContent = card.other.label; o.onclick = card.other.use; }
+      $('end').hidden = false; G.setPaused(true); return; }
     $('eKills').textContent = G.progress.kills; $('eRuns').textContent = G.progress.runs;
     const ws = [G.inv.equip.primary, G.inv.equip.secondary, ...G.inv.items.filter(i => i.type === 'weapon')].filter(Boolean); $('eGear').textContent = ws.length ? Math.max(...ws.map(w => Math.round(dps(w)))) + ' dps' : '—';
     $('end').hidden = false; G.setPaused(true); };

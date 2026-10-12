@@ -28,22 +28,23 @@ const TUNE = {
 };
 
 /* What a level-up can offer: three of these, picked at random. `add` goes into G.boost, where the weapon, the player and Mara read it.
-   One with a `max` stops being offered after that many picks. */
+   kind says whose it is (the card and the end card colour by it); tell(n) is what n picks of it come to. One with a `max` stops being
+   offered after that many picks. */
 const UPGRADES = [
-  { id: 'dmg', name: 'Hollow points', text: '+15% weapon damage', add: { dmg: 15 } },
-  { id: 'rate', name: 'Tuned action', text: '+12% fire rate', add: { rate: 12 } },
-  { id: 'crit', name: 'Weak-point training', text: '+8% critical hit chance', add: { crit: 8 }, max: 6 },
-  { id: 'range', name: 'Long sight', text: '+15% lock-on range', add: { range: 15 }, max: 3 },
-  { id: 'leech', name: 'Salvage rig', text: 'Heal 3 on each kill you make', add: { leech: 3 } },
-  { id: 'hp', name: 'Trauma plates', text: '+25 max health', add: { hp: 25 } },
-  { id: 'regen', name: 'Field dressing', text: '+40% health regeneration', add: { regen: 40 } },
-  { id: 'armor', name: 'Scrap plating', text: '+8 armour', add: { armor: 8 } },
-  { id: 'speed', name: 'Light boots', text: '+8% move speed', add: { speed: 8 }, max: 5 },
-  { id: 'dodge', name: 'Quick recovery', text: '20% faster dodge recovery', add: { dodge: 20 }, max: 4 },
-  { id: 'maraHeal', name: 'Mara: field kit', text: 'Mara\'s heals give you 10 more health', add: { maraHeal: 10 } },
-  { id: 'maraCD', name: 'Mara: quick hands', text: 'Mara can heal and revive 25% more often', add: { maraCD: 25 }, max: 4 },
-  { id: 'mara', name: 'Mara: steady aim', text: 'Mara deals 30% more damage', add: { mara: 30 } },
-  { id: 'maraHp', name: 'Mara: medic\'s vest', text: 'Mara has 40 more health and gets back up 25% sooner', add: { maraHp: 40, maraUp: 25 }, max: 4 },
+  { id: 'dmg', kind: 'gun', name: 'Hollow points', add: { dmg: 15 }, tell: n => `+${15 * n}% weapon damage` },
+  { id: 'rate', kind: 'gun', name: 'Tuned action', add: { rate: 12 }, tell: n => `+${12 * n}% fire rate` },
+  { id: 'crit', kind: 'gun', name: 'Weak-point training', add: { crit: 8 }, max: 6, tell: n => `+${8 * n}% critical hit chance` },
+  { id: 'range', kind: 'gun', name: 'Long sight', add: { range: 15 }, max: 3, tell: n => `+${15 * n}% lock-on range` },
+  { id: 'leech', kind: 'gun', name: 'Salvage rig', add: { leech: 3 }, tell: n => `Heal ${3 * n} on each kill you make` },
+  { id: 'hp', kind: 'you', name: 'Trauma plates', add: { hp: 25 }, tell: n => `+${25 * n} max health` },
+  { id: 'regen', kind: 'you', name: 'Field dressing', add: { regen: 40 }, tell: n => `+${40 * n}% health regeneration` },
+  { id: 'armor', kind: 'you', name: 'Scrap plating', add: { armor: 8 }, tell: n => `+${8 * n} armour` },
+  { id: 'speed', kind: 'you', name: 'Light boots', add: { speed: 8 }, max: 5, tell: n => `+${8 * n}% move speed` },
+  { id: 'dodge', kind: 'you', name: 'Quick recovery', add: { dodge: 20 }, max: 4, tell: n => `${20 * n}% faster dodge recovery` },
+  { id: 'maraHeal', kind: 'mara', name: 'Field kit', add: { maraHeal: 10 }, tell: n => `Mara's heals give you ${10 * n} more health` },
+  { id: 'maraCD', kind: 'mara', name: 'Quick hands', add: { maraCD: 25 }, max: 4, tell: n => `Mara heals and revives ${25 * n}% more often` },
+  { id: 'mara', kind: 'mara', name: 'Steady aim', add: { mara: 30 }, tell: n => `Mara deals ${30 * n}% more damage` },
+  { id: 'maraHp', kind: 'mara', name: 'Medic\'s vest', add: { maraHp: 40, maraUp: 25 }, max: 4, tell: n => `Mara has ${40 * n} more health and gets back up ${25 * n}% sooner` },
 ];
 
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -64,14 +65,14 @@ export function survival(arena) {
     const pool = UPGRADES.filter(u => !u.max || (RUN.taken[u.id] || 0) < u.max), picks = [];
     while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
     G.audio.play('powerOn', { gain: .4, rate: 1.4, len: 1, fade: .3 });
-    G.UI.levelUp(RUN.level, picks.map(u => ({ name: u.name, text: u.text, have: RUN.taken[u.id] || 0 })), (i) => {
-      const u = picks[i]; RUN.taken[u.id] = (RUN.taken[u.id] || 0) + 1;
+    /* a boss comes with some levels: the card says so before you pick */
+    const L = RUN.level, due = L % T.boss.warden === 0 ? 'warden' : L % T.boss.walker === 0 ? 'walker' : null, have = u => RUN.taken[u.id] || 0;
+    G.UI.levelUp(L, picks.map(u => ({ kind: u.kind, name: u.name, text: u.tell(1), have: have(u), max: u.max, total: u.tell(have(u) + 1) })), (i) => {
+      const u = picks[i]; RUN.taken[u.id] = have(u) + 1;
       for (const k in u.add) G.boost[k] = boost(k) + u.add[k];
-      G.player.recalc(); G.ally.recalc(); R.say(`${u.name} · ${u.text}`, '#1fe0ff'); RUN.hudAt = 0;
-      /* a boss comes with some levels */
-      const L = RUN.level, due = L % T.boss.warden === 0 ? 'warden' : L % T.boss.walker === 0 ? 'walker' : null;
+      G.player.recalc(); G.ally.recalc(); R.say(`${u.name} · ${u.tell(have(u))}`, '#1fe0ff'); RUN.hudAt = 0;
       if (due) { RUN.due.push(due); RUN.dueAt = G.t + T.boss.warn; R.say(due === 'warden' ? `Level ${L} · The Warden is coming` : `Level ${L} · A Hunter Walker is coming`, '#ff6a5a'); }
-    });
+    }, due === 'warden' ? 'The Warden arrives after this pick.' : due === 'walker' ? 'A Hunter Walker arrives after this pick.' : '');
   }
 
   /* Somewhere to arrive, past the edge of the view. Drones fly in over the ruins from anywhere (no margin given). Ground machines
@@ -133,7 +134,7 @@ export function survival(arena) {
   return {
     num: arena.num, name: arena.name, tag: `Survival · ${arena.name}`,
     blurb: arena.blurb,
-    titleNote: s => { const b = s && s.progress && s.progress.best; return b ? `Your best run: ${clock(b)}.` : ''; },
+    titleNote: s => { const p = (s && s.progress) || {}; return p.best ? `Your best run: ${clock(p.best)}${p.bestLevel ? ', level ' + p.bestLevel : ''}.` : ''; },
     clearedText: '',
     preparing: arena.preparing,
     endless: true,   // no checkpoints to continue from: every visit is a new run, and going down ends it
@@ -152,13 +153,13 @@ export function survival(arena) {
 
     /* a run starts from nothing: the starter rifle, an empty pack, level 1, the clock at zero */
     spawn(R) {
-      G.inv = newInventory(); G.boost = {}; G.player.recalc(); G.ally.recalc(); G.ally.healCD = G.ally.reviveCD = 0; G.progress.kills = 0;
-      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, warden: null, wardens: 0 };
+      G.inv = newInventory(); G.boost = {}; G.player.recalc(); G.ally.recalc(); G.ally.healCD = G.ally.reviveCD = 0; G.ally.revives = 0; G.progress.kills = 0;
+      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, warden: null, wardens: 0, bosses: { walker: 0, warden: 0 } };
       if (arena.begin) arena.begin(R, RUN);
     },
     interactables() {},
     onKill(R, m) {
-      if (!RUN || RUN.over) return; RUN.xp += T.xp[m.kind] || 1;
+      if (!RUN || RUN.over) return; RUN.xp += T.xp[m.kind] || 1; if (m.kind in RUN.bosses) RUN.bosses[m.kind]++;
       if (m === RUN.warden) { G.UI.boss(null); G.drops.scatter(m.pos.x, m.pos.z - 1, rollLoot('warden')); R.say('The Warden is down', '#1fe0ff'); }
     },
     /* the Warden calls for help as it weakens */
@@ -193,10 +194,14 @@ export function survival(arena) {
     /* going down ends the run */
     onDeath() {
       if (RUN.over) return; RUN.over = true;
-      const P = G.progress, t = RUN.time, was = P.best || 0; if (t > was) P.best = t; G.save.now();
-      G.UI.endCard({ tag: 'Survival', name: `You lasted ${clock(t)}`,
-        text: `You reached level ${RUN.level}. ` + (t > was && was ? `A new best: the one to beat was ${clock(was)}.` : 'Every run starts again from the starter rifle at level 1.'),
-        stats: [[clock(t), 'Time survived'], [P.kills, 'Machines down'], [clock(P.best), 'Best run']], again: 'Run again' });
+      const P = G.progress, t = RUN.time, was = P.best || 0, wasLevel = P.bestLevel, record = t > was; if (record) { P.best = t; P.bestLevel = RUN.level; } G.save.now();
+      const n = G.ally.revives || 0;
+      G.UI.endCard({ tag: `Survival · ${arena.name}`, name: `You lasted ${clock(t)}`,
+        record: record ? (was ? `New best · The one to beat was ${clock(was)}` : 'New best · Your first run here') : `Best run ${clock(was)}${wasLevel ? ' · Level ' + wasLevel : ''}`, isRecord: record,
+        text: (n ? `Mara got you back up ${n === 1 ? 'once' : n === 2 ? 'twice' : n + ' times'}. ` : '') + 'Every run starts again from the starter rifle at level 1.',
+        stats: [[RUN.level, 'Level reached'], [P.kills, 'Machines down'], [RUN.bosses.walker, RUN.bosses.walker === 1 ? 'Walker destroyed' : 'Walkers destroyed'], [RUN.bosses.warden, RUN.bosses.warden === 1 ? 'Warden destroyed' : 'Wardens destroyed']],
+        taken: UPGRADES.filter(u => RUN.taken[u.id]).map(u => ({ kind: u.kind, text: u.name + (RUN.taken[u.id] > 1 ? ' ×' + RUN.taken[u.id] : '') })),
+        again: 'Run again', other: G.otherArena });
     },
   };
 }
