@@ -1,5 +1,5 @@
 /* People: the player, Mara (your recruit) and the Rust Dogs raiders. All four kinds share one rig (squadAnim). */
-import { B, G, V, V3, clamp, damp, lerpAngle, angleTo, dist2, collide, clearShot, rand, inOpen } from './core.js';
+import { B, G, V, V3, clamp, damp, lerpAngle, angleTo, dist2, collide, clearShot, rand, inOpen, boost } from './core.js';
 import { nearestHostile, hostile } from './combat.js';
 import { wstats, TIERS, rollLoot } from './loot.js';
 import { chase } from './nav.js';
@@ -319,9 +319,10 @@ export class Player extends Actor {
   get range() { const w = this.weapon; return w ? wstats(w).range : 18; }
   recalc() {
     const E = G.inv.equip, aff = k => [E.helmet, E.vest].reduce((s, it) => s + (it ? (it.affixes.find(a => a.k === k) || {}).v || 0 : 0), 0);
-    const prev = this.maxHp; this.maxHp = 100 + aff('maxHp'); this.hp = Math.min(this.maxHp, this.hp + Math.max(0, this.maxHp - prev));
-    this.armor = Math.round(((E.helmet ? E.helmet.armor : 0) + (E.vest ? E.vest.armor : 0)) * (1 + aff('armorPct') / 100));
-    this.reduce = this.armor / (this.armor + 50); this.regen = 12 * (1 + aff('regen') / 100); this.dodgeCD = 1 / (1 + aff('dodge') / 100);
+    const prev = this.maxHp; this.maxHp = 100 + aff('maxHp') + boost('hp'); this.hp = Math.min(this.maxHp, this.hp + Math.max(0, this.maxHp - prev));
+    this.armor = Math.round(((E.helmet ? E.helmet.armor : 0) + (E.vest ? E.vest.armor : 0)) * (1 + aff('armorPct') / 100)) + boost('armor');
+    this.reduce = this.armor / (this.armor + 50); this.regen = 12 * (1 + aff('regen') / 100) * (1 + boost('regen') / 100); this.dodgeCD = 1 / (1 + aff('dodge') / 100) / (1 + boost('dodge') / 100);
+    this.speed = SPEED * (1 + boost('speed') / 100);
   }
   takeDamage(d) { if (this.dash > 0 || this.down > 0 || G.paused) return 0; G.UI.hurt(); G.shake = Math.max(G.shake, .22); return d * (1 - this.reduce); }
   damage(d, part, src, point, opt) {
@@ -442,18 +443,18 @@ export class Player extends Actor {
     /* walking: the joystick, or the path */
     const ox = p.x, oz = p.z;
     if (this.dash > 0) { this.dash -= dt; p.x += this.dashDir.x * 24 * dt; p.z += this.dashDir.z * 24 * dt; if (this.dash <= 0 && this.goal) this.moveTo(this.goal.x, this.goal.z, true); }
-    else if (stick) { if (this.path) { this.path = null; this.goal = null; this.pendingUse = null; this.destMark.setEnabled(false); } p.x += stick.x * SPEED * dt; p.z += stick.z * SPEED * dt; }
+    else if (stick) { if (this.path) { this.path = null; this.goal = null; this.pendingUse = null; this.destMark.setEnabled(false); } p.x += stick.x * this.speed * dt; p.z += stick.z * this.speed * dt; }
     else if (this.path && this.path.length) {
       let wp = this.path[0], dx = wp.x - p.x, dz = wp.z - p.z, d = Math.hypot(dx, dz);
       while (d < .25 && this.path.length > 1) { this.path.shift(); wp = this.path[0]; dx = wp.x - p.x; dz = wp.z - p.z; d = Math.hypot(dx, dz); }
       if (d < .25) { this.path = null; this.goal = null; }
-      else { const step = Math.min(d, SPEED * dt); p.x += dx / d * step; p.z += dz / d * step; }
+      else { const step = Math.min(d, this.speed * dt); p.x += dx / d * step; p.z += dz / d * step; }
     }
     this.dashCD -= dt; collide(p, .5, ox, oz);
     const moved = Math.hypot(p.x - ox, p.z - oz);
     this.vel.x = (p.x - ox) / Math.max(dt, 1e-3); this.vel.z = (p.z - oz) / Math.max(dt, 1e-3);
     /* bumped off course by something: find the way again */
-    if (this.path && this.dash <= 0) { if (moved < SPEED * dt * .3) { this.stuckT += dt; if (this.stuckT > .35 && this.goal) { const g = this.goal; if (!this.moveTo(g.x, g.z, true)) this.stop(); } } else this.stuckT = 0; }
+    if (this.path && this.dash <= 0) { if (moved < this.speed * dt * .3) { this.stuckT += dt; if (this.stuckT > .35 && this.goal) { const g = this.goal; if (!this.moveTo(g.x, g.z, true)) this.stop(); } } else this.stuckT = 0; }
     const spd = moved / Math.max(dt, 1e-3), moving = spd > .5;
     if (moving) this.lastMove = { x: (p.x - ox) / moved, z: (p.z - oz) / moved }; else this.lastMove = { x: Math.sin(this.facing), z: Math.cos(this.facing) };
 
@@ -465,7 +466,7 @@ export class Player extends Actor {
 
     /* body */
     const stride0 = this.H.stride;
-    this.H.pel.rotation.x = this.dash > 0 ? .35 : 0; squadAnim(this.H, this.dash > 0 ? 8 : Math.min(spd, SPEED), dt, inRange || (firing && !!aimPt));
+    this.H.pel.rotation.x = this.dash > 0 ? .35 : 0; squadAnim(this.H, this.dash > 0 ? 8 : Math.min(spd, this.speed), dt, inRange || (firing && !!aimPt));
     /* a foot lands each time the stride passes a half-turn */
     if (Math.floor(this.H.stride / Math.PI) > Math.floor(stride0 / Math.PI)) G.audio.play('pstep', { gain: .35, vary: true });
     if (G.t - this.lastHurt > 4 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.regen * dt);
@@ -515,9 +516,11 @@ export class Ally extends Actor {
   hitTargets() { return this.down > 0 ? [] : super.hitTargets(); }
   damage(d, part, src, point) {
     if (!this.joined || this.down > 0) return 0; const dealt = d * .8; this.hp -= dealt; this.lastHurt = G.t;
-    if (this.hp <= 0) { this.hp = 0; this.down = 18; this.untargetable = true; this.revive = 0; G.UI.feed('Mara is down · Stand next to her to help her up', '#ff6a5a'); }
+    if (this.hp <= 0) { this.hp = 0; this.down = 18 / (1 + boost('maraUp') / 100); this.untargetable = true; this.revive = 0; G.UI.feed('Mara is down · Stand next to her to help her up', '#ff6a5a'); }
     return dealt;
   }
+  /* her health, with this run's upgrades; she gains whatever her maximum went up by */
+  recalc() { const prev = this.maxHp; this.maxHp = 140 + boost('maraHp'); this.hp = Math.min(this.maxHp, this.hp + Math.max(0, this.maxHp - prev)); }
   join() { this.joined = true; this.hp = this.maxHp; G.UI.feed('Mara joined your squad', '#ffb24a'); }
   toggleMode() { if (!this.joined || this.down > 0) return; this.mode = this.mode === 'follow' ? 'hold' : 'follow'; this.hold = this.pos.clone(); G.UI.feed(this.mode === 'follow' ? 'Mara: "Right behind you."' : 'Mara: "Holding here."'); }
   /* to the nearest walkable spot behind you: indoors the plain offset can land inside a wall */
@@ -556,7 +559,7 @@ export class Ally extends Actor {
       const H = T.hitTargets(), h = H[Math.floor(Math.random() * H.length)] || { c: T.pos.add(V(0, 1, 0)) };
       const ry = this.root.rotation.y, from = V(p.x + Math.sin(ry) * 1.3 + Math.cos(ry) * .1, 1.52, p.z + Math.cos(ry) * 1.3 - Math.sin(ry) * .1), dir = h.c.subtract(from).normalize();
       dir.addInPlaceFromFloats(rand(-.05, .05), rand(-.03, .03), rand(-.05, .05)); dir.normalize();
-      G.CB.fire({ from, dir, speed: 55, dmg: 5, owner: this, kind: 'ally', life: .7 });
+      G.CB.fire({ from, dir, speed: 55, dmg: 5 * (1 + boost('mara') / 100), owner: this, kind: 'ally', life: .7 });
       this.burst++; this.cool = this.burst % 4 === 0 ? rand(.7, 1.1) : .14;
     }
   }

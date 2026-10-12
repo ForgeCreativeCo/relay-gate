@@ -1,5 +1,5 @@
 /* Items: generated weapons and armour, the pack, and loot lying in the world. */
-import { B, G, V, rand, pick, dist2 } from './core.js';
+import { B, G, V, rand, pick, dist2, boost } from './core.js';
 
 export const TIERS = {
   scrap: { key: 'scrap', label: 'Scrap', color: '#9aa0a6', mult: 1, affixes: 0, rank: 0 },
@@ -59,11 +59,11 @@ export function genArmor(tier, slot) {
   it.value = Math.round((3 + T.rank * 9) * rand(.8, 1.2));
   return it;
 }
-/* Weapon stats with affixes applied; this is what the gun actually uses. */
+/* Weapon stats with affixes and this run's upgrades applied; this is what the gun actually uses. */
 export function wstats(it) {
-  const A = ARCH[it.arch], f = k => (it.affixes.find(a => a.k === k) || {}).v || 0;
-  return { dmg: +(it.dmg * (1 + f('dmgPct') / 100)).toFixed(1), rate: A.rate / (1 + f('rate') / 100), spread: A.spread, pellets: A.pellets, range: A.range * (1 + f('rangePct') / 100),
-    speed: A.speed, life: A.life, crit: f('crit'), vsMachine: f('vsMachine'), leech: f('leech'), tech: !!A.tech };
+  const A = ARCH[it.arch], f = k => (it.affixes.find(a => a.k === k) || {}).v || 0, up = k => 1 + boost(k) / 100;
+  return { dmg: +(it.dmg * (1 + f('dmgPct') / 100) * up('dmg')).toFixed(1), rate: A.rate / (1 + f('rate') / 100) / up('rate'), spread: A.spread, pellets: A.pellets, range: A.range * (1 + f('rangePct') / 100) * up('range'),
+    speed: A.speed, life: A.life, crit: f('crit') + boost('crit'), vsMachine: f('vsMachine'), leech: f('leech') + boost('leech'), tech: !!A.tech };
 }
 export function dps(it) { const s = wstats(it); return s.dmg * s.pellets / s.rate * (1 + s.crit / 100 * .8); }
 export function power(it) { return it.type === 'weapon' ? Math.round(dps(it)) : it.armor; }

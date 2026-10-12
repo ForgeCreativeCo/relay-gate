@@ -1,7 +1,7 @@
 /* Survival: no route to walk, just machines arriving, sooner and in bigger groups, until you go down.
    survival(arena) turns a map into a region like any other (the same shape, played by game.js). Each map's file says how it plays
    as an arena (SURVIVAL in region1.js and region2.js). Open one with ?mode=survival, adding &region=2 for the station. */
-import { G, V, rand, dist2, inOpen } from './core.js';
+import { G, V, rand, dist2, inOpen, boost } from './core.js';
 import { Drone, Walker, Husk } from './machines.js';
 import { newInventory } from './loot.js';
 
@@ -20,7 +20,26 @@ const TUNE = {
   near: [26, 34],                         // how far from you they arrive: past the edge of the view
   gate: [16, 45, .35],                    // with the gate this far from you (nearest, farthest), this share of groups step out of it
   wreck: 15,                              // seconds a wreck lies there before it is cleared away
+  xp: { drone: 2, husk: 3, walker: 12, warden: 40 },   // what each kill is worth (Mara's count too)
+  level: [8, 6, 1.2],                     // XP for the next level: the first number, plus the second per level so far, plus the third times that count squared
 };
+
+/* What a level-up can offer: three of these, picked at random. `add` goes into G.boost, where the weapon, the player and Mara read it.
+   One with a `max` stops being offered after that many picks. */
+const UPGRADES = [
+  { id: 'dmg', name: 'Hollow points', text: '+15% weapon damage', add: { dmg: 15 } },
+  { id: 'rate', name: 'Tuned action', text: '+12% fire rate', add: { rate: 12 } },
+  { id: 'crit', name: 'Weak-point training', text: '+8% critical hit chance', add: { crit: 8 }, max: 6 },
+  { id: 'range', name: 'Long sight', text: '+15% lock-on range', add: { range: 15 }, max: 3 },
+  { id: 'leech', name: 'Salvage rig', text: 'Heal 3 on each kill you make', add: { leech: 3 } },
+  { id: 'hp', name: 'Trauma plates', text: '+25 max health', add: { hp: 25 } },
+  { id: 'regen', name: 'Field dressing', text: '+40% health regeneration', add: { regen: 40 } },
+  { id: 'armor', name: 'Scrap plating', text: '+8 armour', add: { armor: 8 } },
+  { id: 'speed', name: 'Light boots', text: '+8% move speed', add: { speed: 8 }, max: 5 },
+  { id: 'dodge', name: 'Quick recovery', text: '20% faster dodge recovery', add: { dodge: 20 }, max: 4 },
+  { id: 'mara', name: 'Mara: steady aim', text: 'Mara deals 30% more damage', add: { mara: 30 } },
+  { id: 'maraHp', name: 'Mara: medic\'s vest', text: 'Mara has 40 more health and gets back up 25% sooner', add: { maraHp: 40, maraUp: 25 }, max: 4 },
+];
 
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -32,6 +51,20 @@ export function survival(arena) {
   const T = Object.assign({}, TUNE, arena.tune), GATE = arena.gate, START = arena.start;
   const ramp = ([a, b], m) => a + (b - a) * Math.min(1, m / T.by);
   let RUN = null;
+  const need = (level) => Math.round(T.level[0] + T.level[1] * (level - 1) + T.level[2] * (level - 1) ** 2);
+
+  /* a level: the game waits while you pick one of three upgrades */
+  function levelUp(R) {
+    RUN.xp -= need(RUN.level); RUN.level++;
+    const pool = UPGRADES.filter(u => !u.max || (RUN.taken[u.id] || 0) < u.max), picks = [];
+    while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    G.audio.play('powerOn', { gain: .4, rate: 1.4, len: 1, fade: .3 });
+    G.UI.levelUp(RUN.level, picks.map(u => ({ name: u.name, text: u.text, have: RUN.taken[u.id] || 0 })), (i) => {
+      const u = picks[i]; RUN.taken[u.id] = (RUN.taken[u.id] || 0) + 1;
+      for (const k in u.add) G.boost[k] = boost(k) + u.add[k];
+      G.player.recalc(); G.ally.recalc(); R.say(`${u.name} · ${u.text}`, '#1fe0ff'); RUN.hudAt = 0;
+    });
+  }
 
   /* Somewhere to arrive, past the edge of the view. Drones fly in over the ruins from anywhere (no margin given). Ground machines
      look for a spot with a clear walk to you first, and settle for any open ground. */
@@ -92,13 +125,14 @@ export function survival(arena) {
     objectives: [{ id: 'survive', text: 'Survive', at: () => null }],
     rerunFrom: 'survive',
 
-    /* a run starts from nothing: the starter rifle, an empty pack, the clock at zero */
+    /* a run starts from nothing: the starter rifle, an empty pack, level 1, the clock at zero */
     spawn(R) {
-      G.inv = newInventory(); G.player.recalc(); G.progress.kills = 0;
-      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false };
+      G.inv = newInventory(); G.boost = {}; G.player.recalc(); G.ally.recalc(); G.progress.kills = 0;
+      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {} };
       if (arena.begin) arena.begin(R, RUN);
     },
     interactables() {},
+    onKill(R, m) { if (RUN && !RUN.over) RUN.xp += T.xp[m.kind] || 1; },
     onBossPhase() {},
 
     update(R, p) {
@@ -116,7 +150,8 @@ export function survival(arena) {
       }
       RUN.mine = RUN.mine.filter(a => !a.gone);
       if (G.t >= RUN.nextAt && G.player.down <= 0) RUN.nextAt = G.t + (group(R, p, m) ? ramp(T.gap, m) * rand(.8, 1.2) * RUN.gapK : 1);
-      if (G.t >= RUN.hudAt) { RUN.hudAt = G.t + .25; G.UI.objective(`Survive · ${clock(RUN.time)} · ${G.progress.kills} down`); }
+      if (G.t >= RUN.hudAt) { RUN.hudAt = G.t + .25; G.UI.objective(`Survive · ${clock(RUN.time)} · ${G.progress.kills} down`); G.UI.xp(RUN.level, RUN.xp / need(RUN.level)); }
+      if (RUN.xp >= need(RUN.level) && G.player.down <= 0) levelUp(R);
     },
 
     /* going down ends the run */
@@ -124,7 +159,7 @@ export function survival(arena) {
       if (RUN.over) return; RUN.over = true;
       const P = G.progress, t = RUN.time, was = P.best || 0; if (t > was) P.best = t; G.save.now();
       G.UI.endCard({ tag: 'Survival', name: `You lasted ${clock(t)}`,
-        text: t > was && was ? `A new best: the one to beat was ${clock(was)}.` : 'The machines keep coming through the gate. Every run starts again from the starter rifle.',
+        text: `You reached level ${RUN.level}. ` + (t > was && was ? `A new best: the one to beat was ${clock(was)}.` : 'Every run starts again from the starter rifle at level 1.'),
         stats: [[clock(t), 'Time survived'], [P.kills, 'Machines down'], [clock(P.best), 'Best run']], again: 'Run again' });
     },
   };

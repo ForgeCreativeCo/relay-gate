@@ -191,6 +191,18 @@ export function makeUI() {
   $('wipeBtn').onclick = () => $('wipeConfirm').classList.add('show'); $('wipeNo').onclick = () => $('wipeConfirm').classList.remove('show');
   $('wipeYes').onclick = async () => { await G.save.wipe(); location.reload(); };
 
+  /* ---------- levelling (survival) ---------- */
+  UI.xp = (level, k) => { $('xpRow').hidden = false; $('xpTxt').textContent = level; $('xpFill').style.transform = `scaleX(${Math.max(0, Math.min(1, k)).toFixed(3)})`; };
+  /* options: [{ name, text, have }]; the game waits until one is picked (click, tap, or 1 2 3), then pick(index) is called */
+  let lvKey = null;
+  UI.levelUp = (level, options, pick) => {
+    $('lvName').textContent = 'Level ' + level; const box = $('lvChoices'); box.textContent = '';
+    const done = (i) => { window.removeEventListener('keydown', lvKey); $('levelup').hidden = true; G.setPaused(false); pick(i); };
+    options.forEach((o, i) => { const b = el('button', 'choice'); b.type = 'button'; b.append(el('span', 'k', String(i + 1)), el('span', 'nm', o.name), el('span', 'tx', o.text)); if (o.have) b.append(el('span', 'hv', 'Taken ×' + o.have)); b.onclick = () => done(i); box.append(b); });
+    lvKey = e => { const i = ['Digit1', 'Digit2', 'Digit3'].indexOf(e.code); if (i >= 0 && i < options.length) done(i); }; window.addEventListener('keydown', lvKey);
+    $('levelup').hidden = false; G.setPaused(true);
+  };
+
   /* ---------- end card ---------- */
   /* a region can bring its own card (survival does): { tag, name, text, stats: three [number, label] pairs, again: the button's label } */
   UI.endCard = (card) => {
@@ -206,6 +218,7 @@ export function makeUI() {
   /* keyboard shortcuts for screens */
   UI.onAction = (a) => {
     const open = id => !$(id).hidden;
+    if (open('levelup') && a !== 'mute') return;   // the pick comes first
     if (a === 'pack') { if (open('pack')) UI.closePack(); else if (!open('menu') && !open('end')) UI.openPack(); }
     if (a === 'menu') { if (open('pack')) UI.closePack(); else if (open('menu')) UI.closeMenu(); else if (!open('end')) UI.openMenu(); }
     if (a === 'part') UI.cyclePart();

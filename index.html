@@ -49,6 +49,7 @@ button{font-family:var(--f-ui);color:var(--ink)}
 .bar i{display:block;height:100%;width:100%;transform-origin:left center;background:var(--amber)}
 .barrow.low b{color:var(--machine)} .barrow.low .bar i{background:var(--machine)}
 .barrow.ally .bar{flex-basis:90px;height:4px} .barrow.ally .bar i{background:#d8c08a}
+.barrow.xp .bar{height:4px} .barrow.xp .bar i{background:var(--gate)} .barrow.xp b{color:var(--gate)}
 .barrow small{font-size:10px;letter-spacing:.06em;text-transform:none;color:var(--dim);font-variant-numeric:tabular-nums}
 .feed{display:grid;gap:3px;margin-top:6px}
 .feed div{font-size:12px;font-weight:500;line-height:1.35;letter-spacing:.02em;padding-left:8px;border-left:2px solid var(--amber);transition:opacity .6s,transform .6s}
@@ -175,6 +176,11 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
 .aff li::before{content:"◆ ";color:var(--amber);font-size:9px}
 .confirm{display:none;gap:8px;align-items:center;flex-wrap:wrap}
 .confirm.show{display:flex}
+.choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.choice{display:grid;gap:6px;align-content:start;text-align:left;padding:14px;border:1px solid var(--line);border-radius:2px;background:rgba(255,255,255,.03);color:inherit;font:inherit;cursor:pointer;min-height:118px}
+.choice:hover,.choice:focus-visible{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber);outline:none}
+.choice .k{font-size:10px;letter-spacing:.16em;color:var(--dim)} .choice .nm{font-size:15px;font-weight:600} .choice .tx{font-size:13px;color:var(--dim)} .choice .hv{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gate)}
+@media (max-width:520px){.choices{grid-template-columns:1fr}.choice{min-height:0}}
 .endstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .endstats div{border:1px solid var(--line);padding:10px;display:grid;gap:2px}
 .endstats b{font-size:22px;font-variant-numeric:tabular-nums}
@@ -202,6 +208,7 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
     <div class="bars">
       <div class="barrow" id="hpRow"><b>Health</b><div class="bar"><i id="hpFill"></i></div><small id="armorTxt"></small></div>
       <div class="barrow ally" id="allyRow" hidden><b>Mara</b><div class="bar"><i id="allyFill"></i></div><small id="allyTxt"></small></div>
+      <div class="barrow xp" id="xpRow" hidden><b>Level</b><div class="bar"><i id="xpFill"></i></div><small id="xpTxt"></small></div>
     </div>
     <div class="feed" id="feed" aria-live="polite"></div>
   </div>
@@ -281,6 +288,15 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
     <div class="row"><button class="btn" id="toCheckpoint" type="button">Back to checkpoint</button><button class="btn danger" id="wipeBtn" type="button">Start over</button></div>
     <div class="confirm" id="wipeConfirm"><span class="muted">Wipe your gear and progress?</span><button class="btn danger" id="wipeYes" type="button">Wipe it</button><button class="btn" id="wipeNo" type="button">Cancel</button></div>
     <p class="muted" id="saveInfo"></p>
+  </div>
+</section>
+
+<section class="screen" id="levelup" hidden>
+  <div class="sheet" role="dialog" aria-label="Level up" style="width:min(760px,100%)">
+    <h3>Level up</h3>
+    <h2 id="lvName">Level 2</h2>
+    <p class="muted">Pick one. It lasts for this run.</p>
+    <div class="choices" id="lvChoices"></div>
   </div>
 </section>
 

@@ -22,6 +22,8 @@ You need an internet connection the first time, because Babylon.js and the fonts
 
 Press **Survival** on the title screen, or add `?mode=survival` to the address, e.g. http://localhost:8000/?mode=survival. You start in the gate plaza with Mara and the starter rifle. Machines arrive from past the edge of the view (and some step out of the gate), sooner and in bigger groups as the clock runs: drones and husks first, Hunter Walkers from two and a half minutes. Going down ends the run and shows how long you lasted, your kills and your best time. Every run starts again from nothing; only your best time is kept, in this browser, in its own slot that never touches your Dead City save.
 
+Kills give XP (Mara's count too): 2 for a drone, 3 for a husk, 12 for a walker. Each level stops the game and offers three upgrades, picked at random from twelve; choose one with a click, a tap or the 1, 2 and 3 keys. They cover your gun (damage, fire rate, critical hits, range, healing on kills), you (health, regeneration, armour, speed, dodge) and Mara (her damage, her health and how soon she gets back up), and they last for the run. The XP values, the cost of each level and the upgrades themselves are at the top of `js/survival.js`.
+
 There are two arenas. **Switch to the Relay Station** on the survival title screen (or `?mode=survival&region=2`) plays it indoors, in the station from the Region 02 test section with every door open. Machines come in through the gate, out of the vents in the corridor's alcoves and from the corners of the cooling hall. Every minute or so the power fails for about twenty seconds: emergency lights only, and the machines come faster until it is back. Walkers only fit in the cooling hall, so one only arrives when you are near it. Each arena keeps its own best time.
 
 The numbers that set the pressure (time between groups, group size, how many machines at once, when walkers start) are in one block at the top of `js/survival.js`. An arena can replace any of them: the station's, and the timing of its power failures, are at the bottom of `js/region2.js`.
@@ -105,7 +107,7 @@ Relay Gate is changing from a level-by-level campaign to an endless survival gam
 Each step should be playable before the next one starts:
 
 1. **Survival mode on the Dead City map.** *(First version in, untuned.)* Add a spawner that brings waves in from off-screen and ramps up over time. This is the step that shows whether the idea is fun.
-2. **XP and level-up choices.** Add an XP bar, a level-up screen with three upgrades, and the upgrades themselves.
+2. **XP and level-up choices.** *(In, untuned.)* Add an XP bar, a level-up screen with three upgrades, and the upgrades themselves.
 3. **Bosses on level milestones.** Walkers every few levels, and the Warden at the big ones.
 4. **WASD movement on desktop.** Right-click to walk is awkward for dodging round a crowd. Phones already use a joystick.
 5. **Mara as the medic.** Make healing and revives her main job, and give her upgrade options of her own.

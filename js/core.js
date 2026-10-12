@@ -30,8 +30,11 @@ export const G = {
   lightSources: [],   // fires and the gate; the nearest borrow the pooled lights
   interactables: [],  // {pos, radius, label, action, enabled()}
   raiderHostile: false,
+  boost: {},          // what this run's level-up choices add (survival): percentages and flat amounts by name, e.g. { dmg: 30, hp: 25 }
   shake: 0,
 };
+
+export const boost = k => G.boost[k] || 0;
 
 /* Walkable test: inside any open rectangle (shrunk by margin). */
 export function inOpen(x, z, m = .5) {

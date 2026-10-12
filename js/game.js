@@ -65,7 +65,7 @@ export function makeGame() {
 
   /* ---------- kills ---------- */
   GM.onMachineDown = (m, src) => {
-    P().kills++;
+    P().kills++; if (REG.onKill) REG.onKill(R, m);
     if (m.kind === 'walker') G.drops.scatter(m.pos.x, m.pos.z, rollLoot('walker'));
     if (m === GM.boss) {
       const enc = GM.encounters.find(e => e.boss);
