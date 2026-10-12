@@ -20,6 +20,8 @@ You need an internet connection the first time, because Babylon.js and the fonts
 
 Relay Gate is a PWA: once it is online (GitHub Pages works), you can install it from the browser and it opens fullscreen, like an app, with its own icon. The title screen has an **Install** button wherever the browser can install it (Chrome and Edge on a computer, and Android): it opens the browser's install dialog. On an iPhone or iPad the button explains how: **Share**, then **Add to Home Screen** in Safari. Chrome and Edge also put an install icon at the right of the address bar. Once you have played it online, it starts without a connection too. Inside Claude none of this applies: the game runs as an artifact there.
 
+The manifest's `id` is `/relay-gate/`. Every project on forgecreativeco.github.io shares one site, and browsers read an app's `id` from the site root, so a bare `./` would give every project the same id and the browser would treat them as one app ("Open in app" on another project's page). Give each project its own, e.g. `/nomad-horizon/`.
+
 ## How a run plays
 
 You start with Mara and the starter rifle. Machines arrive from past the edge of the view (and some step out of the gate), sooner and in bigger groups as the clock runs: drones and husks first, Hunter Walkers from two and a half minutes. Going down ends the run and shows how long you lasted, your kills and your best time. Every run starts again from nothing; only your best run is kept.
