@@ -57,14 +57,15 @@ export function humanModel(o) {
     gmesh('rifle', g, G.M.gun, { parent: rifle }); }
   const meshes = root.getChildMeshes();
   meshes.forEach(m => { if (m.material !== o.visor) G.sg.addShadowCaster(m); m.receiveShadows = true; m.isPickable = false; });
-  return { root, pel, legs, neck, rifle, meshes, stride: 0 };
+  return { root, pel, legs, neck, rifle, meshes, stride: 0, pelY: .94 };
 }
 function walkAnim(H, speed, dt) {
   H.stride += dt * (speed > .3 ? 11 * Math.min(1.3, speed / 6) : 0); const amp = clamp(speed / 6, 0, 1), k = Math.min(1, dt * 14);
   H.legs.forEach(l => { const s = Math.sin(H.stride + (l.s > 0 ? 0 : Math.PI)); l.hip.rotation.x += ((-s * .65 * amp) - l.hip.rotation.x) * k; l.knee.rotation.x += ((Math.max(0, s) * .9 * amp) - l.knee.rotation.x) * k; });
-  H.pel.position.y = .94 - Math.abs(Math.sin(H.stride)) * .04 * amp;
+  H.pel.position.y = H.pelY - Math.abs(Math.sin(H.stride)) * .04 * amp;
 }
-function fall(H, k) { H.pel.rotation.x = -1.42 * k; H.pel.position.y = .94 - .66 * k; }
+function fall(H, k) { H.pel.rotation.x = -1.42 * k; H.pel.position.y = H.pelY * (1 - .7 * k); }
+function standUp(H) { H.pel.rotation.x = 0; H.pel.position.y = H.pelY; }
 
 /* ---------- the squad: the player (relay operator) and Mara (field medic) ----------
    Same skeleton as humanModel, but the rifle is held in both hands: each frame the arms solve to its grip and foregrip.
@@ -141,21 +142,21 @@ function finishSquad(H) {
   }
   H.meshes = H.root.getChildMeshes();
   H.meshes.forEach(m => { if (!m.material.disableLighting) G.sg.addShadowCaster(m); m.receiveShadows = true; m.isPickable = false; });
-  H.stride = 0; H.blade = POSE.ready.blade; H.rx = POSE.ready.rx; H.rp = POSE.ready.pos.clone(); H.head = POSE.ready.head;
+  H.pelY = H.pelY || .94; H.pose = H.pose || POSE; H.muzzleY = H.muzzleY || 1.52; H.muzzleF = H.muzzleF || 1.2; H.stride = 0; H.blade = H.pose.ready.blade; H.rx = H.pose.ready.rx; H.rp = H.pose.ready.pos.clone(); H.head = H.pose.ready.head;
   return H;
 }
 const POSE = { ready: { pos: V(.12, .47, .42), rx: .55, blade: .18, head: .14 }, aim: { pos: V(.1, .6, .46), rx: 0, blade: .42, head: .04 } };
 /* legs, rifle carry (low ready, or shouldered while aiming) and the arms that follow it */
 function squadAnim(H, speed, dt, aiming) {
   walkAnim(H, speed, dt);
-  const amp = clamp(speed / 6, 0, 1), P = aiming ? POSE.aim : POSE.ready, k = damp(10, dt), r = H.rifle.r;
+  const amp = clamp(speed / 6, 0, 1), P = aiming ? H.pose.aim : H.pose.ready, k = damp(10, dt), r = H.rifle.r;
   H.blade += (P.blade - H.blade) * k; H.rx += (P.rx - H.rx) * k; H.head += (P.head - H.head) * k; H.rp.addInPlace(P.pos.subtract(H.rp).scaleInPlace(k));
   const bob = Math.sin(H.stride * 2) * .015 * amp + Math.sin(G.t * 1.7) * .004;
   r.position.set(H.rp.x, H.rp.y + bob, H.rp.z); r.rotation.x = H.rx + Math.sin(H.stride) * .03 * amp;
-  H.torso.rotation.set(.06 * amp, H.blade, Math.sin(H.stride) * .035 * amp); H.neck.rotation.set(H.head, -H.blade * .85, 0);
+  H.torso.rotation.set(.06 * amp, H.blade, Math.sin(H.stride) * .035 * amp); if (!H.fixedHead) H.neck.rotation.set(H.head, -H.blade * .85, 0);
   [H.root, H.pel, H.torso, r, H.rifle.grip, H.rifle.fore].forEach(n => n.computeWorldMatrix(true));
   solveArm(H.armR, inSpace(H.rifle.grip, H.torso), V(1, -1, -.4)); solveArm(H.armL, inSpace(H.rifle.fore, H.torso), V(-1, -1.3, -.2));
-  H.extra(amp);
+  if (H.extra) H.extra(amp);
 }
 export function operatorModel() {
   const M = G.M, root = tn('operator'), pel = tn('pelvis', root); pel.position.y = .94; const torso = tn('torso', pel);
@@ -239,6 +240,62 @@ export function medicModel() {
   };
   return finishSquad(H);
 }
+/* ---------- the player from a model file: models/operator.glb ----------
+   The file is one static mesh with no skeleton, so the skeleton is built here: bones sit on the joints squadAnim drives
+   (hips, knees, shoulders, elbows) and each vertex is weighted to the bones nearest it. Joint positions were measured off
+   the model once it is standing at game scale (feet at y 0, facing +z). If the file fails to load the player keeps operatorModel(). */
+let operatorMesh = null;
+const OP_GLB = { file: 'operator.glb', scale: 1.85, pelY: .66, neck: 1.2, hip: [.2, .66, .14], knee: [.21, .36, .13], ankle: [.22, .06, .08], shoulder: [.33, 1.07, .07], elbow: [.56, .94, .15], hand: [.8, .78, .22] };
+const OP_GLB_POSE = { ready: { pos: V(.14, .28, .4), rx: .55, blade: .3, head: 0 }, aim: { pos: V(.12, .4, .34), rx: 0, blade: .55, head: 0 } };
+export async function loadOperator() {
+  try {
+    const r = await B.SceneLoader.ImportMeshAsync('', 'models/', OP_GLB.file, G.scene), m = r.meshes.find(x => x.getTotalVertices() > 0), s = OP_GLB.scale;
+    const W = m.computeWorldMatrix(true).clone();
+    m.parent = null; m.position.setAll(0); m.rotationQuaternion = null; m.rotation.setAll(0); m.scaling.setAll(1);
+    m.bakeTransformIntoVertices(W.multiply(B.Matrix.RotationY(Math.PI / 2)).multiply(B.Matrix.Scaling(s, s, s)));   // the file faces -x once loaded
+    m.refreshBoundingInfo(); m.bakeTransformIntoVertices(B.Matrix.Translation(0, -m.getBoundingInfo().minimum.y, 0)); m.refreshBoundingInfo();
+    r.meshes.forEach(x => { if (x !== m) x.dispose(); }); r.transformNodes.forEach(x => x.dispose());
+    if (m.material) m.material.maxSimultaneousLights = 8;
+    m.isPickable = false; m.setEnabled(false); operatorMesh = m;
+  } catch (e) { console.warn('models/' + OP_GLB.file + ' did not load, so the player uses the built-in model', e); }
+}
+const segDist = (q, a, b) => { const ab = b.subtract(a), t = clamp(V3.Dot(q.subtract(a), ab) / ab.lengthSquared(), 0, 1); return V3.Distance(q, a.add(ab.scale(t))); };
+export function operatorGlbModel() {
+  const m = operatorMesh, J = OP_GLB, P = a => V(...a), root = tn('operator'), pel = tn('pelvis', root); pel.position.y = J.pelY;
+  const torso = tn('torso', pel), neck = tn('neck', torso); neck.position.y = J.neck - J.pelY;
+  const legs = [-1, 1].map(s => { const hip = tn('hip', pel); hip.position.set(s * J.hip[0], 0, J.hip[2]); const knee = tn('knee', hip); knee.position.y = -(J.hip[1] - J.knee[1]); return { hip, knee, s }; });
+  const arm = s => {
+    const S = P(J.shoulder), E = P(J.elbow), Hd = P(J.hand); [S, E, Hd].forEach(v => { v.x *= s; });
+    const sh = tn('shoulder', torso); sh.position.set(S.x, S.y - J.pelY, S.z); sh.rotationQuaternion = fromTo(DOWN, E.subtract(S).normalize());
+    const a = V3.Distance(S, E), b = V3.Distance(E, Hd), el = tn('elbow', sh); el.position.y = -a;
+    el.rotationQuaternion = fromTo(DOWN, Hd.subtract(E).normalize().applyRotationQuaternion(B.Quaternion.Inverse(sh.rotationQuaternion)));
+    return { sh, el, a, b, S, E, Hd, s };
+  };
+  const armR = arm(1), armL = arm(-1);
+  /* the skeleton mirrors the joint nodes; each bone follows its node every frame */
+  const skel = new B.Skeleton('operator', 'operator', G.scene), bone = new Map();
+  const local = n => B.Matrix.Compose(n.scaling, n.rotationQuaternion || B.Quaternion.RotationYawPitchRoll(n.rotation.y, n.rotation.x, n.rotation.z), n.position);
+  for (const n of [pel, torso, neck, ...legs.flatMap(l => [l.hip, l.knee]), armR.sh, armR.el, armL.sh, armL.el]) { const b = new B.Bone(n.name, skel, skel.bones[bone.get(n.parent)] || null, local(n), null, local(n)); b.linkTransformNode(n); bone.set(n, skel.bones.indexOf(b)); }
+  /* weights: each vertex goes to the nearest bone segments it is allowed to (legs below the belt, arms out past the shoulders), blended over a few centimetres */
+  const segs = [[pel, V(0, .55, .08), V(0, .85, .04), q => q.y > .45 && q.y < .95], [torso, V(0, .85, 0), V(0, J.neck - .05, 0), q => q.y > .7], [neck, V(0, J.neck + .02, .02), V(0, 1.6, 0), q => q.y > J.neck - .1 && Math.abs(q.x) < .3]];
+  for (const l of legs) { const s = l.s, h = P(J.hip), k = P(J.knee), a = P(J.ankle); [h, k, a].forEach(v => { v.x *= s; }); segs.push([l.hip, h, k, q => q.y < J.hip[1] + .09 && q.x * s > -.02], [l.knee, k, a, q => q.y < J.knee[1] + .14 && q.x * s > -.02]); }
+  for (const A of [armR, armL]) segs.push([A.sh, A.S, A.E, q => q.x * A.s > .24 && q.y > .65 && q.y < 1.3 && q.z > -.04], [A.el, A.E, A.Hd.add(A.Hd.subtract(A.E).scale(.3)), q => q.x * A.s > .4 && q.z > -.04]);
+  const pos = m.getVerticesData(B.VertexBuffer.PositionKind), n = pos.length / 3, idx = new Float32Array(n * 4), wt = new Float32Array(n * 4), q = V(0, 0, 0), back = bone.get(torso);
+  for (let i = 0; i < n; i++) {
+    q.set(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]);
+    const c = q.z < -.04 && q.y > .8 ? [] : segs.filter(sg => sg[3](q)).map(([nd, a, b]) => [bone.get(nd), segDist(q, a, b)]);   // the radio pack and its antenna ride on the back
+    if (!c.length) { idx[i * 4] = back; wt[i * 4] = 1; continue; }
+    c.sort((u, v) => u[1] - v[1]);
+    const top = c.slice(0, 4).map(([b, d]) => [b, Math.exp(-(d - c[0][1]) / .03)]), sum = top.reduce((t, x) => t + x[1], 0);
+    top.forEach(([b, w], k) => { idx[i * 4 + k] = b; wt[i * 4 + k] = w / sum; });
+  }
+  m.setVerticesData(B.VertexBuffer.MatricesIndicesKind, idx, false); m.setVerticesData(B.VertexBuffer.MatricesWeightsKind, wt, false);
+  m.skeleton = skel; m.numBoneInfluencers = 4; m.parent = root; m.setEnabled(true); m.receiveShadows = true; m.alwaysSelectAsActiveMesh = true;   // bind-pose bounds don't follow the limbs
+  const rifle = carbine(pel, false); rifle.r.scaling.setAll(1.15);
+  const H = { root, pel, torso, neck, legs, armR, armL, rifle, pelY: J.pelY, pose: OP_GLB_POSE, fixedHead: true, muzzleY: 1.08, muzzleF: 1.1 };
+  finishSquad(H); return H;
+}
+
 /* muzzle flash size and camera kick per weapon type */
 const FLASH_SIZE = { rifle: .75, smg: .6, shotgun: 1.3, marksman: 1.1, arc: .8 }, RECOIL = { shotgun: .14, marksman: .1 };
 const TRACER = { scrap: '#ffc35a', military: '#ffc35a', proto: '#c58bff', machine: '#ffd84a' };
@@ -254,10 +311,10 @@ function ringMesh(name, hex, alpha) {
 export class Player extends Actor {
   constructor() {
     super('player', 100);
-    this.H = operatorModel();
+    this.H = operatorMesh ? operatorGlbModel() : operatorModel();
     this.root = this.H.root; this.facing = 0; this.dash = 0; this.dashCD = 0; this.down = 0; this.cool = 0; this.lastMove = { x: 0, z: 1 }; this.vel = { x: 0, z: 0 };
     this.lamp = new B.PointLight('lamp', V(0, 2.3, .3), G.scene); this.lamp.parent = this.root; this.lamp.diffuse = B.Color3.FromHexString('#ffe0c2'); this.lamp.intensity = .6;   // a soft, nearly white pool: a coloured lamp is the only light inside shadows, and tinted them blood-red this.lamp.range = 8;
-    this.muzzle = new B.PointLight('muzzle', V(.1, 1.55, 1.2), G.scene); this.muzzle.parent = this.root; this.muzzle.intensity = 0; this.muzzle.range = 9; this.muzzleT = 0;
+    this.muzzle = new B.PointLight('muzzle', V(.1, this.H.muzzleY, this.H.muzzleF), G.scene); this.muzzle.parent = this.root; this.muzzle.intensity = 0; this.muzzle.range = 9; this.muzzleT = 0;
     this.focus = null; this.hover = null;
     this.path = null; this.goal = null; this.lock = null; this.auto = null; this.target = null; this.pendingUse = null; this.steering = false;
     this.repathT = 0; this.scanT = 0; this.steerT = 0; this.stuckT = 0;
@@ -283,7 +340,7 @@ export class Player extends Actor {
   }
   onHit(target) { if (target.faction !== 'raider' || hostile(this, target)) this.focus = target; }
   onKill(target) { const w = this.weapon, s = w && wstats(w); if (s && s.leech) this.hp = Math.min(this.maxHp, this.hp + s.leech); }
-  respawn(x, z) { this.pos.set(x, 0, z); this.hp = this.maxHp; this.down = 0; this.untargetable = false; this.alive = true; this.H.pel.rotation.x = 0; this.H.pel.position.y = .94; this.stop(); }
+  respawn(x, z) { this.pos.set(x, 0, z); this.hp = this.maxHp; this.down = 0; this.untargetable = false; this.alive = true; standUp(this.H); this.stop(); }
   tryDash() {
     if (this.dashCD > 0 || this.down > 0) return;
     /* dodge toward the cursor with a mouse, otherwise the way you're walking (or facing) */
@@ -433,7 +490,7 @@ export class Player extends Actor {
       else h = { c: aimPt };
       if (h) {
         const fw = { x: Math.sin(this.facing), z: Math.cos(this.facing) };
-        const from = V(p.x + fw.x * 1.2 + fw.z * .1, 1.52, p.z + fw.z * 1.2 - fw.x * .1);
+        const mf = this.H.muzzleF, from = V(p.x + fw.x * mf + fw.z * .1, this.H.muzzleY, p.z + fw.z * mf - fw.x * .1);
         const hex = s.tech ? '#7fe8ff' : TRACER[w.tier], mat = G.CB.tierMat(hex), life = Math.max(s.life, s.range * 1.15 / s.speed);
         for (let k = 0; k < s.pellets; k++) {
           const dir = h.c.subtract(from), L = dir.length(); dir.addInPlaceFromFloats(rand(-1, 1) * s.spread * L, rand(-.6, .6) * s.spread * L, rand(-1, 1) * s.spread * L); dir.normalize();
@@ -470,14 +527,14 @@ export class Ally extends Actor {
   }
   join() { this.joined = true; this.hp = this.maxHp; G.UI.feed('Mara joined your squad', '#ffb24a'); }
   toggleMode() { if (!this.joined || this.down > 0) return; this.mode = this.mode === 'follow' ? 'hold' : 'follow'; this.hold = this.pos.clone(); G.UI.feed(this.mode === 'follow' ? 'Mara: "Right behind you."' : 'Mara: "Holding here."'); }
-  teleportNear(p) { this.pos.set(p.x - 1.6, 0, p.z - 1.4); this.down = 0; this.untargetable = false; this.hp = this.maxHp; this.H.pel.rotation.x = 0; this.H.pel.position.y = .94; this.mode = 'follow'; }
+  teleportNear(p) { this.pos.set(p.x - 1.6, 0, p.z - 1.4); this.down = 0; this.untargetable = false; this.hp = this.maxHp; standUp(this.H); this.mode = 'follow'; }
   update(dt) {
     const P = G.player, p = this.pos;
     if (!this.joined) { this.H.neck.rotation.y = Math.sin(G.t * .6) * .5; return; }
     if (this.down > 0) {
       fall(this.H, 1); this.down -= dt;
       if (dist2(P.pos, p) < 2.4 && P.down <= 0) { this.revive += dt; if (this.revive > 1.8) this.down = 0; } else this.revive = Math.max(0, this.revive - dt);
-      if (this.down <= 0) { this.untargetable = false; this.hp = this.maxHp * .5; this.H.pel.rotation.x = 0; this.H.pel.position.y = .94; G.UI.feed('Mara is back up', '#ffb24a'); }
+      if (this.down <= 0) { this.untargetable = false; this.hp = this.maxHp * .5; standUp(this.H); G.UI.feed('Mara is back up', '#ffb24a'); }
       return;
     }
     if (G.t - this.lastHurt > 5 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + 8 * dt);

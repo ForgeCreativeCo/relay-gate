@@ -5,7 +5,7 @@ import { makeFx } from './fx.js';
 import { REGION } from './region1.js';
 import { makeCombat } from './combat.js';
 import { makeDrops, newInventory, genWeapon, upgradeItem } from './loot.js';
-import { Player, Ally } from './actors.js';
+import { Player, Ally, loadOperator } from './actors.js';
 import { makeInput } from './input.js';
 import { makeNav } from './nav.js';
 import { makeAudio } from './audio.js';
@@ -28,6 +28,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   const scene = new B.Scene(engine); G.engine = engine; G.scene = scene;
   /* ask for the account save straight away, in parallel with building the city */
   G.save = makeSave(); const savedP = G.save.load();
+  const operatorP = loadOperator();   // the player's model file, fetched while the city builds
   scene.clearColor = new B.Color4(...C(LOOK.sky).asArray(), 1); scene.fogMode = B.Scene.FOGMODE_EXP2; scene.fogColor = C(LOOK.fog); scene.fogDensity = LOOK.fogD; scene.ambientColor = new B.Color3(0, 0, 0);
   scene.skipPointerMovePicking = true;
   G.machineColor = C(LOOK.machine);
@@ -96,6 +97,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   mark('materials'); G.region = REGION.build(M); mark('region'); G.nav = makeNav(); mark('nav'); makeGroundDetail(scene); mark('ground'); scatterDebris(scene, M); mark('world');
   G.CB = makeCombat(M); G.drops = makeDrops(M);
   G.input = makeInput(canvas); G.UI = makeUI(); G.game = makeGame();
+  mark('model-start'); await operatorP; mark('model-done');
   G.player = new Player(); G.actors.push(G.player); G.player.pos.set(REGION.start.x, 0, REGION.start.z);
   G.ally = new Ally(REGION.allyWait.x, REGION.allyWait.z);
   G.setPaused = (p) => { G.paused = p; G.input.release(); if (p) G.audio.silenceHums(); };
