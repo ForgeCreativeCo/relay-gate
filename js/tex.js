@@ -155,6 +155,10 @@ export function makeMaterials(scene, T) {
     bone: mat('bone', '#cfc6ae', { tex: T.cloth, rough: 1 }), medRed: mat('medRed', '#9c2f1c'),
     leather: mat('leather', '#4a3626', { tex: T.cloth, rough: 1 }), medBoot: mat('medBoot', '#3a2c22', { tex: T.cloth, rough: 1 }),
     lens: mat('lens', '#000000', { unlit: true, emissive: '#8affa0' }), vial: mat('vial', '#000000', { unlit: true, emissive: '#4fb873' }),
+    /* the Rust Dogs: hide and rags over scrap plate (M.raider, M.rust), with orange goggles (M.goggle) */
+    raiderLegs: mat('raiderLegs', '#4f4436', { tex: T.cloth, rough: 1 }), rag: mat('rag', '#8a3416', { tex: T.cloth, twoSided: true }),
+    raiderWrap: mat('raiderWrap', '#9a8a6a', { tex: T.cloth, rough: 1 }), raiderDark: mat('raiderDark', '#3a2f27', { tex: T.cloth, rough: 1 }),
+    raiderBoot: mat('raiderBoot', '#2e2620', { tex: T.cloth, rough: 1 }),
     fire: mat('fire', '#000000', { unlit: true, emissive: '#ff7a1a' }), tarp: mat('tarp', '#6b5a3e', { tex: T.cloth, twoSided: true }),
     tarpB: mat('tarpB', '#4f5a4a', { tex: T.cloth, twoSided: true }),
     sand: mat('sand', '#8c7b5a', { tex: T.cloth, rough: 1 }), crate: mat('crate', '#3a3a44', { tex: T.metal, bump: T.metalN, metal: .15, rough: .6 }),

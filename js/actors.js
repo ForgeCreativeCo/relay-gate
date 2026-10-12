@@ -1,6 +1,5 @@
-/* People: the player, Mara (your recruit) and the raiders. The player and Mara have their own models; raiders use humanModel. */
-import { B, G, V, V3, MT, clamp, damp, lerpAngle, angleTo, dist2, collide, clearShot, rand, inOpen } from './core.js';
-import { Geo, gbox, gcyl, gmesh } from './geo.js';
+/* People: the player, Mara (your recruit) and the Rust Dogs raiders. All four kinds share one rig (squadAnim). */
+import { B, G, V, V3, clamp, damp, lerpAngle, angleTo, dist2, collide, clearShot, rand, inOpen } from './core.js';
 import { nearestHostile, hostile } from './combat.js';
 import { wstats, TIERS, rollLoot } from './loot.js';
 
@@ -20,45 +19,7 @@ export class Actor {
   die() {}
 }
 
-/* ---------- the human model ---------- */
-function limb(parent, r, len, material) { const m = B.MeshBuilder.CreateCapsule('limb', { radius: r, height: len, tessellation: 8, subdivisions: 1 }, G.scene); m.parent = parent; m.position.y = -len / 2 + r; m.material = material; return m; }
-export function humanModel(o) {
-  const S = G.scene, root = new B.TransformNode('human', S), pel = new B.TransformNode('pelvis', S); pel.parent = root; pel.position.y = .94;
-  const add = (m, mat, p) => { m.parent = p || pel; m.material = mat; return m; };
-  add(B.MeshBuilder.CreateCapsule('torso', { radius: .21, height: .72, tessellation: 10 }, S), o.cloth).position.y = .38;
-  const chest = add(B.MeshBuilder.CreateCapsule('chest', { radius: .25, height: .56, tessellation: 10 }, S), o.armor); chest.position.set(0, .44, .02); chest.scaling.set(1.12, 1, .78);
-  const belt = add(B.MeshBuilder.CreateCylinder('belt', { diameter: .44, height: .08, tessellation: 12 }, S), G.M.gun); belt.position.y = .1; belt.scaling.z = .8;
-  [-.12, .12].forEach(x => { add(B.MeshBuilder.CreateBox('pouch', { width: .1, height: .12, depth: .07 }, S), o.cloth).position.set(x, .32, .22); });
-  if (o.cross) { const c1 = add(B.MeshBuilder.CreateBox('cross', { width: .16, height: .05, depth: .02 }, S), G.M.visor); c1.position.set(0, .55, .22); const c2 = add(B.MeshBuilder.CreateBox('cross', { width: .05, height: .16, depth: .02 }, S), G.M.visor); c2.position.set(0, .55, .22); }
-  const neck = new B.TransformNode('neck', S); neck.parent = pel; neck.position.y = .84;
-  add(B.MeshBuilder.CreateSphere('head', { diameter: .28, segments: 10 }, S), G.M.skin, neck);
-  if (o.helmet) add(B.MeshBuilder.CreateSphere('helmet', { diameter: .36, segments: 10, slice: .55 }, S), o.armor, neck).position.y = .02;
-  else { add(B.MeshBuilder.CreateSphere('hood', { diameter: .36, segments: 10, slice: .65 }, S), o.cloth, neck).position.set(0, 0, -.02);
-    add(B.MeshBuilder.CreateTorus('scarf', { diameter: .3, thickness: .1, tessellation: 12 }, S), o.scarf || G.M.scarf, neck).position.y = -.14; }
-  add(B.MeshBuilder.CreateBox('visor', { width: .22, height: .05, depth: .05 }, S), o.visor, neck).position.set(0, .01, .14);
-  const pack = add(B.MeshBuilder.CreateCapsule('pack', { radius: .15, height: .48, tessellation: 8 }, S), o.cloth); pack.position.set(0, .45, -.27); pack.scaling.x = 1.5;
-  const roll = add(B.MeshBuilder.CreateCylinder('roll', { diameter: .16, height: .46, tessellation: 8 }, S), o.armor); roll.position.set(0, .74, -.27); roll.rotation.z = Math.PI / 2;
-  const legs = [];
-  for (const s of [-1, 1]) {
-    const hip = new B.TransformNode('hip', S); hip.parent = pel; hip.position.set(s * .11, 0, 0);
-    limb(hip, .085, .5, o.cloth); const knee = new B.TransformNode('knee', S); knee.parent = hip; knee.position.y = -.46;
-    limb(knee, .075, .48, o.cloth); add(B.MeshBuilder.CreateBox('boot', { width: .14, height: .12, depth: .27 }, S), G.M.gun, knee).position.set(0, -.48, .05);
-    legs.push({ hip, knee, s });
-    const sh = new B.TransformNode('shoulder', S); sh.parent = pel; sh.position.set(s * .28, .66, 0);
-    add(B.MeshBuilder.CreateSphere('pad', { diameter: .17, segments: 8 }, S), o.armor, sh);
-    sh.rotation.set(o.rifle ? -.9 + (s > 0 ? 0 : -.25) : -.15, 0, s * (o.rifle ? .25 : .12));
-    limb(sh, .065, .36, o.cloth); const el = new B.TransformNode('elbow', S); el.parent = sh; el.position.y = -.32; el.rotation.x = o.rifle ? -.7 : -.2; limb(el, .058, .34, o.cloth);
-  }
-  let rifle = null;
-  if (o.rifle) { rifle = new B.TransformNode('rifle', S); rifle.parent = pel; rifle.position.set(.08, .4, .4);
-    const g = Geo(); gbox(g, { x: 0, y: 0, z: 0, w: .07, h: .11, d: .52, ao: false }); gcyl(g, { r0: .022, h: .42, seg: 6, M: MT(0, 0, 0, Math.PI / 2, 0, 0).multiply(MT(0, .02, .46)), ao: false });
-    gbox(g, { x: 0, y: -.12, z: .06, w: .05, h: .16, d: .07, rx: .25, ao: false }); gbox(g, { x: 0, y: -.03, z: -.34, w: .06, h: .12, d: .2, ao: false });
-    gcyl(g, { r0: .03, h: .18, seg: 6, M: MT(0, 0, 0, Math.PI / 2, 0, 0).multiply(MT(0, .1, .02)), ao: false });
-    gmesh('rifle', g, G.M.gun, { parent: rifle }); }
-  const meshes = root.getChildMeshes();
-  meshes.forEach(m => { if (m.material !== o.visor) G.sg.addShadowCaster(m); m.receiveShadows = true; m.isPickable = false; });
-  return { root, pel, legs, neck, rifle, meshes, stride: 0 };
-}
+/* ---------- shared animation ---------- */
 function walkAnim(H, speed, dt) {
   H.stride += dt * (speed > .3 ? 11 * Math.min(1.3, speed / 6) : 0); const amp = clamp(speed / 6, 0, 1), k = Math.min(1, dt * 14);
   H.legs.forEach(l => { const s = Math.sin(H.stride + (l.s > 0 ? 0 : Math.PI)); l.hip.rotation.x += ((-s * .65 * amp) - l.hip.rotation.x) * k; l.knee.rotation.x += ((Math.max(0, s) * .9 * amp) - l.knee.rotation.x) * k; });
@@ -66,8 +27,8 @@ function walkAnim(H, speed, dt) {
 }
 function fall(H, k) { H.pel.rotation.x = -1.42 * k; H.pel.position.y = .94 - .66 * k; }
 
-/* ---------- the squad: the player (relay operator) and Mara (field medic) ----------
-   Same skeleton as humanModel, but the rifle is held in both hands: each frame the arms solve to its grip and foregrip.
+/* ---------- the rig: the player (relay operator), Mara (field medic) and the raiders below all use it ----------
+   A pelvis, torso, neck, legs and arms, with the rifle held in both hands: each frame the arms solve to its grip and foregrip.
    Parts that never move against their joint are merged per material afterwards, so each figure stays around twenty draws. */
 const MB = B.MeshBuilder, DOWN = V(0, -1, 0);
 const tn = (n, p) => { const t = new B.TransformNode(n, G.scene); if (p) t.parent = p; return t; };
@@ -92,13 +53,13 @@ const inSpace = (src, space) => V3.TransformCoordinates(src.getAbsolutePosition(
 function squadLegs(pel, o) {
   const legs = [];
   for (const s of [-1, 1]) {
-    const hip = tn('hip', pel); hip.position.set(s * .11, 0, 0);
-    put(cap(.1, .5), o.legs, hip, [0, -.22, 0]);
+    const hip = tn('hip', pel), t = o.thick || 1; hip.position.set(s * (o.hipX || .11), 0, 0);
+    put(cap(.1 * t, .5), o.legs, hip, [0, -.22, 0]);
     if (o.thighPouch && s > 0) put(box(.07, .15, .13), o.web, hip, [.085, -.2, 0]);
     const knee = tn('knee', hip); knee.position.y = -.45;
-    put(cap(.082, .46), o.legs, knee, [0, -.21, 0]);
+    put(cap(.082 * t, .46), o.legs, knee, [0, -.21, 0]);
     if (o.kneePad) put(sph(.15, 10), o.pad, knee, [0, -.01, .07], null, [.95, 1.05, .6]);
-    if (o.wraps) for (let k = 0; k < 3; k++) put(tor(.165, .03, 12), o.wrap, knee, [0, -.15 - k * .065, 0], [.12, 0, 0]);
+    if (o.wraps) for (let k = 0; k < (o.wraps === 'one' && s < 0 ? 0 : 3); k++) put(tor(.165, .03, 12), o.wrap, knee, [0, -.15 - k * .065, 0], [.12, 0, 0]);
     put(cyl(.12, .17, .175), o.boot, knee, [0, -.36, 0]); put(box(.14, .11, .26), o.boot, knee, [0, -.43, .04]); put(box(.145, .03, .28), G.M.sole, knee, [0, -.48, .04]);
     legs.push({ hip, knee, s });
   }
@@ -141,21 +102,21 @@ function finishSquad(H) {
   }
   H.meshes = H.root.getChildMeshes();
   H.meshes.forEach(m => { if (!m.material.disableLighting) G.sg.addShadowCaster(m); m.receiveShadows = true; m.isPickable = false; });
-  H.stride = 0; H.blade = POSE.ready.blade; H.rx = POSE.ready.rx; H.rp = POSE.ready.pos.clone(); H.head = POSE.ready.head;
+  H.pose = H.pose || POSE; H.stride = 0; H.blade = H.pose.ready.blade; H.rx = H.pose.ready.rx; H.rp = H.pose.ready.pos.clone(); H.head = H.pose.ready.head;
   return H;
 }
 const POSE = { ready: { pos: V(.12, .47, .42), rx: .55, blade: .18, head: .14 }, aim: { pos: V(.1, .6, .46), rx: 0, blade: .42, head: .04 } };
 /* legs, rifle carry (low ready, or shouldered while aiming) and the arms that follow it */
 function squadAnim(H, speed, dt, aiming) {
   walkAnim(H, speed, dt);
-  const amp = clamp(speed / 6, 0, 1), P = aiming ? POSE.aim : POSE.ready, k = damp(10, dt), r = H.rifle.r;
+  const amp = clamp(speed / 6, 0, 1), P = aiming ? H.pose.aim : H.pose.ready, k = damp(10, dt), r = H.rifle.r;
   H.blade += (P.blade - H.blade) * k; H.rx += (P.rx - H.rx) * k; H.head += (P.head - H.head) * k; H.rp.addInPlace(P.pos.subtract(H.rp).scaleInPlace(k));
   const bob = Math.sin(H.stride * 2) * .015 * amp + Math.sin(G.t * 1.7) * .004;
   r.position.set(H.rp.x, H.rp.y + bob, H.rp.z); r.rotation.x = H.rx + Math.sin(H.stride) * .03 * amp;
-  H.torso.rotation.set(.06 * amp, H.blade, Math.sin(H.stride) * .035 * amp); H.neck.rotation.set(H.head, -H.blade * .85, 0);
+  H.torso.rotation.set((H.lean || 0) + .06 * amp, H.blade, Math.sin(H.stride) * .035 * amp); H.neck.rotation.set(H.head, -H.blade * .85, 0);
   [H.root, H.pel, H.torso, r, H.rifle.grip, H.rifle.fore].forEach(n => n.computeWorldMatrix(true));
   solveArm(H.armR, inSpace(H.rifle.grip, H.torso), V(1, -1, -.4)); solveArm(H.armL, inSpace(H.rifle.fore, H.torso), V(-1, -1.3, -.2));
-  H.extra(amp);
+  if (H.extra) H.extra(amp);
 }
 export function operatorModel() {
   const M = G.M, root = tn('operator'), pel = tn('pelvis', root); pel.position.y = .94; const torso = tn('torso', pel);
@@ -239,6 +200,94 @@ export function medicModel() {
   };
   return finishSquad(H);
 }
+/* ---------- the Rust Dogs: grunts and heavies, on the squad's rig ----------
+   They lean in and carry low at the hip, where the squad stands upright and shoulders its rifles; the head tips up to see past the lean. */
+const RAIDER_POSE = { ready: { pos: V(.16, .34, .36), rx: .18, blade: .12, head: -.12 }, aim: { pos: V(.13, .5, .42), rx: .02, blade: .32, head: -.14 } };
+const HEAVY_POSE = { ready: { pos: V(.16, .4, .34), rx: .06, blade: .1, head: -.05 }, aim: { pos: V(.14, .48, .38), rx: 0, blade: .22, head: -.06 } };
+function raiderGun(parent, lmg) {
+  const M = G.M, r = tn('rifle', parent);
+  if (!lmg) {
+    /* pipe rifle: rusty receiver, bare pipe barrel, cloth-wrapped grip, taped magazine, wooden stock */
+    put(box(.06, .1, .3), M.rust, r);
+    put(cyl(.46, .026, .026, 8), M.gun, r, [0, .02, .38], [Math.PI / 2, 0, 0]); put(cyl(.05, .045, .045, 8), M.rust, r, [0, .02, .6], [Math.PI / 2, 0, 0]);
+    put(box(.07, .075, .2), M.raiderWrap, r, [0, -.01, .25]);
+    [.18, .25, .32].forEach(z => put(tor(.085, .012, 8), M.raiderDark, r, [0, -.01, z], [Math.PI / 2, 0, 0]));
+    put(box(.045, .18, .07), M.gun, r, [0, -.12, .05], [.12, 0, 0]); put(box(.05, .035, .075), M.raiderWrap, r, [0, -.1, .052], [.12, 0, 0]);
+    put(box(.05, .11, .26), M.wood, r, [0, -.04, -.27], [-.1, 0, 0]);
+  } else {
+    /* drum-fed machine gun with a barrel shroud */
+    put(box(.09, .13, .42), M.gun, r); put(box(.06, .03, .26), M.rust, r, [0, .085, -.02]);
+    put(cyl(.32, .07, .07, 10), M.rust, r, [0, .01, .36], [Math.PI / 2, 0, 0]); put(cyl(.2, .034, .034, 8), M.gun, r, [0, .01, .62], [Math.PI / 2, 0, 0]);
+    put(cyl(.07, .2, .2, 14), M.rust, r, [0, -.15, .04], [0, 0, Math.PI / 2]); put(box(.035, .03, .12), M.gun, r, [0, .11, .1]);
+    put(box(.06, .13, .22), M.gun, r, [0, -.03, -.3]); put(box(.04, .1, .04), M.wood, r, [0, -.09, .3]);
+  }
+  put(box(.045, .12, .055), M.gun, r, [0, -.1, lmg ? -.1 : -.08], [-.3, 0, 0]);
+  const grip = tn('grip', r); grip.position.set(0, -.11, lmg ? -.1 : -.08);
+  const fore = tn('fore', r); fore.position.set(0, lmg ? -.13 : -.08, lmg ? .3 : .25);
+  return { r, grip, fore };
+}
+export function gruntModel() {
+  const M = G.M, root = tn('grunt'), pel = tn('pelvis', root); pel.position.y = .94; const torso = tn('torso', pel);
+  put(cap(.19, .4), M.raiderLegs, pel, [0, .1, 0], null, [1, 1, .8]); put(cyl(.05, .42, .42, 12), M.raiderDark, pel, [0, .11, 0], [0, 0, .06], [1, 1, .8]);
+  put(box(.1, .12, .07), M.raiderWrap, pel, [.17, .03, .1], [0, -.5, 0]);
+  const flapF = tn('flap', pel); flapF.position.set(0, .06, .16); put(box(.15, .3, .015), M.rag, flapF, [0, -.15, 0]);
+  const flapB = tn('flap', pel); flapB.position.set(0, .06, -.16); put(box(.17, .34, .015), M.rag, flapB, [0, -.17, 0]);
+  /* chest: hide, mismatched scrap plates, a rag shawl over the left shoulder with tatters down the back */
+  put(cap(.19, .6), M.raider, torso, [0, .42, 0], null, [1.05, 1, .8]);
+  put(box(.3, .24, .05), M.rust, torso, [-.03, .5, .16], [-.1, 0, .14]); put(box(.15, .12, .04), M.rust, torso, [.1, .34, .17], [0, 0, -.22]);
+  put(cyl(.26, .3, .6, 16, { cap: B.Mesh.NO_CAP, sideOrientation: B.Mesh.DOUBLESIDE }), M.rag, torso, [-.04, .64, 0], [0, 0, .32], [1, 1, .85]);
+  const tat = tn('tatters', torso); tat.position.set(0, .56, -.22);
+  [-.12, -.03, .06, .14].forEach((x, k) => put(box(.05, .22 + (k % 2) * .08, .012), M.rag, tat, [x, -.11 - (k % 2) * .04, 0], [0, 0, (k - 1.5) * .08]));
+  /* spiked shoulder plate on the right */
+  put(sph(.23, 10, .5), M.rust, torso, [.24, .66, 0], [0, 0, -.35], [1, .6, 1.1]);
+  [[.3, .75, -.05, -.7, -.2], [.27, .78, .05, -.45, .25], [.33, .7, .07, -.95, .1]].forEach(([x, y, z, rz, rx]) => put(cyl(.12, 0, .04, 6), M.rust, torso, [x, y, z], [rx, 0, rz]));
+  /* head: wrapped hood, breather, mismatched goggles, a rag tail */
+  const neck = tn('neck', torso); neck.position.y = .84;
+  put(sph(.26, 10), M.skin, neck); put(sph(.33, 12, .62), M.raiderWrap, neck, [0, .02, -.03], null, [1, 1.05, 1.05]);
+  put(tor(.31, .05, 12), M.raiderDark, neck, [0, .07, -.01], [.25, 0, 0]); put(tor(.3, .055, 12), M.raiderWrap, neck, [0, -.04, 0], [-.15, 0, 0]);
+  put(box(.12, .1, .1), M.gun, neck, [0, -.07, .13]); put(cyl(.07, .065, .065, 10), M.rust, neck, [0, -.09, .2], [Math.PI / 2, 0, 0]);
+  [[-1, .085], [1, .065]].forEach(([s, d]) => { put(cyl(.035, d + .02, d + .02), M.gun, neck, [s * .055, .03, .125], [Math.PI / 2, 0, 0]); put(cyl(.006, d, d), M.goggle, neck, [s * .055, .03, .144], [Math.PI / 2, 0, 0]); });
+  const tail = tn('tail', neck); tail.position.set(-.04, -.02, -.15); tail.rotation.set(.3, 0, -.1); put(box(.08, .3, .02), M.rag, tail, [0, -.15, 0]);
+  /* bedroll across the top of the back, tied with two straps */
+  put(cyl(.4, .15, .15, 10), M.raiderWrap, torso, [0, .62, -.24], [0, 0, Math.PI / 2]); [-.1, .1].forEach(x => put(tor(.16, .02, 10), M.raiderDark, torso, [x, .62, -.24], [0, 0, Math.PI / 2]));
+  const legs = squadLegs(pel, { legs: M.raiderLegs, wrap: M.raiderWrap, boot: M.raiderBoot, wraps: 'one' });
+  const arm = { sleeve: M.raider, wrap: M.raiderWrap, glove: M.raiderBoot, a: .3, b: .31, r: .06, x: .21, y: .62, cuff: true };
+  const H = { root, pel, torso, neck, legs, armR: squadArm(torso, 1, arm), armL: squadArm(torso, -1, arm), rifle: raiderGun(pel, false), pose: RAIDER_POSE, lean: .2 };
+  H.extra = amp => {
+    const st = H.stride;
+    tat.rotation.x = .1 + .5 * amp + Math.sin(st * 2) * .1 * amp + Math.sin(G.t * 1.6) * .04;
+    tail.rotation.x = .3 + .4 * amp + Math.sin(st * 2 + 1) * .1 * amp + Math.sin(G.t * 2) * .05;
+    flapF.rotation.x = -Math.max(0, Math.sin(st)) * .5 * amp; flapB.rotation.x = .1 * amp + Math.max(0, -Math.sin(st)) * .4 * amp;
+  };
+  return finishSquad(H);
+}
+export function heavyModel() {
+  const M = G.M, root = tn('heavy'), pel = tn('pelvis', root); pel.position.y = .94; const torso = tn('torso', pel);
+  put(cap(.22, .44), M.raiderLegs, pel, [0, .1, 0], null, [1.1, 1, .85]); put(cyl(.08, .5, .5, 12), M.raiderDark, pel, [0, .1, 0], null, [1, 1, .8]);
+  put(box(.3, .22, .05), M.rust, pel, [0, -.06, .19], [.1, 0, 0]);
+  /* plated chest, bolts, a rag sash */
+  put(cap(.24, .66), M.raider, torso, [0, .44, 0], null, [1.15, 1, .85]);
+  put(box(.48, .42, .12), M.rust, torso, [0, .48, .17]); put(box(.4, .1, .1), M.rust, torso, [0, .25, .18], [.15, 0, 0]); put(box(.48, .44, .1), M.rust, torso, [0, .48, -.17]);
+  [[-.15, .62], [.15, .62], [-.15, .34], [.15, .34]].forEach(([x, y]) => put(box(.03, .03, .02), M.gun, torso, [x, y, .235]));
+  put(box(.07, .85, .02), M.rag, torso, [.02, .44, .24], [0, 0, .55]);
+  /* layered shoulder plates, spikes on the left */
+  [-1, 1].forEach(s => { put(box(.24, .07, .3), M.rust, torso, [s * .31, .74, 0], [0, 0, s * .38]); put(box(.2, .06, .26), M.rust, torso, [s * .37, .65, 0], [0, 0, s * .6]); });
+  [[-.36, .8, 0, 0, .8], [-.32, .83, .09, .3, .6], [-.33, .82, -.09, -.3, .65]].forEach(([x, y, z, rx, rz]) => put(cyl(.11, 0, .05, 6), M.rust, torso, [x, y, z], [rx, 0, rz]));
+  /* welded bucket helmet with an eye slit */
+  const neck = tn('neck', torso); neck.position.y = .88;
+  put(sph(.26, 10), M.skin, neck); put(cyl(.3, .31, .34, 10), M.rust, neck, [0, .03, 0]); put(cyl(.03, .3, .3, 10), M.raiderDark, neck, [0, .19, 0]);
+  put(box(.2, .035, .02), M.goggle, neck, [0, .05, .168]); put(box(.13, .08, .03), M.gun, neck, [0, -.07, .165]); put(tor(.36, .06, 12), M.rag, neck, [0, -.14, 0]);
+  /* twin tanks and two exhaust stacks with embers at the top: the heavy's mark from above */
+  [-1, 1].forEach(s => {
+    put(cyl(.42, .16, .16), M.rust, torso, [s * .1, .48, -.3]); put(sph(.16, 10), M.rust, torso, [s * .1, .69, -.3]);
+    const st = tn('stack', torso); st.position.set(s * .2, .66, -.27); st.rotation.set(-.12, 0, s * -.1);
+    put(cyl(.55, .055, .065, 8), M.gun, st, [0, .275, 0]); put(cyl(.04, .075, .075, 8), M.raiderDark, st, [0, .55, 0]); put(cyl(.01, .05, .05, 8), M.goggle, st, [0, .572, 0]);
+  });
+  const legs = squadLegs(pel, { legs: M.raiderLegs, pad: M.rust, boot: M.raiderBoot, thick: 1.25, hipX: .13, kneePad: true });
+  const arm = { sleeve: M.raider, pad: M.rust, glove: M.raiderBoot, a: .31, b: .31, r: .078, x: .27, y: .64, elbowPad: true };
+  return finishSquad({ root, pel, torso, neck, legs, armR: squadArm(torso, 1, arm), armL: squadArm(torso, -1, arm), rifle: raiderGun(pel, true), pose: HEAVY_POSE, lean: .08 });
+}
+
 /* muzzle flash size and camera kick per weapon type */
 const FLASH_SIZE = { rifle: .75, smg: .6, shotgun: 1.3, marksman: 1.1, arc: .8 }, RECOIL = { shotgun: .14, marksman: .1 };
 const TRACER = { scrap: '#ffc35a', military: '#ffc35a', proto: '#c58bff', machine: '#ffd84a' };
@@ -513,7 +562,7 @@ export class Ally extends Actor {
 export class Raider extends Actor {
   constructor(x, z, opts = {}) {
     super('raider', 70);
-    this.H = humanModel({ cloth: G.M.raider, armor: opts.heavy ? G.M.scarf : G.M.raider, visor: G.M.goggle, helmet: false, rifle: true });
+    this.H = opts.heavy ? heavyModel() : gruntModel();
     this.root = this.H.root; this.root.position.set(x, 0, z); this.home = V(x, 0, z); this.goal = this.home.clone(); this.leash = opts.leash || 5;
     this.root.rotation.y = opts.face || 0; this.cool = rand(.5, 1.5); this.burst = 0; this.move = 0; this.dead = 0; this.retarget = 0;
     this.H.meshes.forEach(m => { m.metadata = { actor: this, part: 'body' }; m.isPickable = true; });
@@ -539,12 +588,12 @@ export class Raider extends Actor {
     if (d > .4) { speed = Math.min(4.5, d * 3); const ox = p.x, oz = p.z; p.x += dx / d * speed * dt; p.z += dz / d * speed * dt; collide(p, .45, ox, oz); }
     if (T) this.root.rotation.y = lerpAngle(this.root.rotation.y, angleTo(p, T.pos), damp(7, dt));
     else if (speed > .5) this.root.rotation.y = lerpAngle(this.root.rotation.y, Math.atan2(dx, dz), damp(8, dt));
-    walkAnim(this.H, speed, dt);
+    squadAnim(this.H, speed, dt, !!T);
     this.cool -= dt;
     if (T && this.cool <= 0) {
       if (!clearShot(p, T.pos, 1.3)) { this.cool = .4; return; }
       const H = T.hitTargets(), h = H.find(q => q.part === 'core' || q.part === 'body') || H[0];
-      const from = V(p.x + Math.sin(this.root.rotation.y) * 1.1, 1.35, p.z + Math.cos(this.root.rotation.y) * 1.1), dir = h.c.subtract(from).normalize(), sp = T.faction === 'machine' ? .04 : .09;
+      const ry = this.root.rotation.y, from = V(p.x + Math.sin(ry) * 1.05 + Math.cos(ry) * .15, 1.3, p.z + Math.cos(ry) * 1.05 - Math.sin(ry) * .15), dir = h.c.subtract(from).normalize(), sp = T.faction === 'machine' ? .04 : .09;
       dir.addInPlaceFromFloats(rand(-sp, sp), rand(-sp / 2, sp / 2), rand(-sp, sp)); dir.normalize();
       G.CB.fire({ from, dir, speed: 42, dmg: T.faction === 'machine' ? 6 : 5, owner: this, kind: 'raider', life: .9 });
       this.burst++; this.cool = this.burst % 3 === 0 ? rand(1.2, 2.2) : .16;
