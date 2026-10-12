@@ -56,14 +56,18 @@ export class Drone extends Actor {
     this.retarget -= dt; if (this.retarget <= 0) { this.retarget = .7; this.target = pickTarget(this, 20); announce(this, .7, [['whir', { gain: .6, rate: 1.1, gap: 1.5, key: 'droneAlert' }]]); }
     const T = this.target && this.target.alive && !this.target.untargetable ? this.target : null;
     let gx, gz;
-    if (T) { this.orbitA += dt * .55 * this.orbitDir; const R0 = 8.5; gx = T.pos.x + Math.cos(this.orbitA) * R0; gz = T.pos.z + Math.sin(this.orbitA) * R0; if (Math.random() < dt * .15) this.orbitDir *= -1; }
+    if (T) { this.orbitA += dt * .55 * this.orbitDir; const R0 = G.R.indoor ? 5.5 : 8.5; gx = T.pos.x + Math.cos(this.orbitA) * R0; gz = T.pos.z + Math.sin(this.orbitA) * R0; if (Math.random() < dt * .15) this.orbitDir *= -1; }
     else { this.orbitA += dt * .35; gx = this.home.x + Math.cos(this.orbitA) * 4; gz = this.home.z + Math.sin(this.orbitA) * 4; }
     const hx = gx - this.home.x, hz = gz - this.home.z, hd = Math.hypot(hx, hz); if (hd > 20) { gx = this.home.x + hx / hd * 20; gz = this.home.z + hz / hd * 20; }
-    const dx = gx - p.x, dz = gz - p.z, d = Math.hypot(dx, dz), sp = Math.min(d * 2, 7);
+    const d = Math.hypot(gx - p.x, gz - p.z), sp = Math.min(d * 2, 7);
+    /* outdoors it flies straight there, over everything; indoors it has to go through the doorways like anyone else */
+    const to = G.R.indoor && d > .1 ? chase(this, G.nav, gx, gz, dt, .8) : { x: gx, z: gz }, dx = to.x - p.x, dz = to.z - p.z, dl = Math.hypot(dx, dz) || 1;
     const ox = p.x, oz = p.z;
-    if (d > .1) { p.x += dx / d * sp * dt; p.z += dz / d * sp * dt; }
+    if (d > .1) { p.x += dx / dl * sp * dt; p.z += dz / dl * sp * dt; }
     if (this.knock) { p.x += this.knock.x * dt; p.z += this.knock.z * dt; this.knock.scaleInPlace(Math.exp(-dt * 5)); }
-    if (G.R.indoor) { const y = p.y; collide(p, .7, ox, oz); p.y = y; }   // outdoors drones fly over the ruins; indoors the walls reach above them
+    /* outdoors drones fly over the ruins; indoors the walls reach above them. It is held to the same width as anyone on foot: any wider and
+       it can't cross from one room into the next (rooms overlap by a metre, and each is shrunk by a body's width) */
+    if (G.R.indoor) { const y = p.y; collide(p, .45, ox, oz); p.y = y; }
     p.y += (this.alt + Math.sin(G.t * 2 + this.orbitA) * .25 - p.y) * damp(3, dt);
     const face = T ? angleTo(p, T.pos) : Math.atan2(dx, dz);
     this.root.rotation.y = lerpAngle(this.root.rotation.y, face, damp(6, dt)); this.root.rotation.z = -clamp(dx * .05, -.3, .3);

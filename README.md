@@ -22,7 +22,9 @@ You need an internet connection the first time, because Babylon.js and the fonts
 
 Press **Survival** on the title screen, or add `?mode=survival` to the address, e.g. http://localhost:8000/?mode=survival. You start in the gate plaza with Mara and the starter rifle. Machines arrive from past the edge of the view (and some step out of the gate), sooner and in bigger groups as the clock runs: drones and husks first, Hunter Walkers from two and a half minutes. Going down ends the run and shows how long you lasted, your kills and your best time. Every run starts again from nothing; only your best time is kept, in this browser, in its own slot that never touches your Dead City save.
 
-The numbers that set the pressure (time between groups, group size, how many machines at once, when walkers start) are in one block at the top of `js/survival.js`.
+There are two arenas. **Switch to the Relay Station** on the survival title screen (or `?mode=survival&region=2`) plays it indoors, in the station from the Region 02 test section with every door open. Machines come in through the gate, out of the vents in the corridor's alcoves and from the corners of the cooling hall. Every minute or so the power fails for about twenty seconds: emergency lights only, and the machines come faster until it is back. Walkers only fit in the cooling hall, so one only arrives when you are near it. Each arena keeps its own best time.
+
+The numbers that set the pressure (time between groups, group size, how many machines at once, when walkers start) are in one block at the top of `js/survival.js`. An arena can replace any of them: the station's, and the timing of its power failures, are at the bottom of `js/region2.js`.
 
 ## Region 02 test section (paused)
 
@@ -45,7 +47,7 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `js/fx.js` | Particles (ash, fire, sparks, explosions, smoke) and combat visuals: muzzle flashes, surface-matched impacts, shockwaves, scorch marks, wreck debris |
 | `js/region1.js` | Region 01, Dead City: the map (streets, ruins, props, the relay gate) and the run through it (objectives, encounters, checkpoints, story beats). A new region is a new file exporting the same `REGION` shape, listed in `main.js` |
 | `js/region2.js` | Region 02, The Relay Station (in progress): rooms and corridors with generated walls (the ones between you and the camera sink out of the way), doors, power zones that go dark or light up, and the run through the test section |
-| `js/survival.js` | Survival on the Dead City map: the spawner that brings machines in from off-screen, the pressure curve, and the end of a run. It is a region like the others, borrowing Dead City's map |
+| `js/survival.js` | Survival: the spawner that brings machines in, the pressure curve, and the end of a run. It turns a map into a survival arena; each map's file says how it plays as one (where machines come in, anything of its own such as the station's power failures) |
 | `js/gate.js` | The relay gate model, shared by every region that has one |
 | `js/actors.js` | Player, Mara and raiders |
 | `js/machines.js` | Drones, husks (melee hunters that lie in wait), Hunter Walkers and the Warden boss |
@@ -109,18 +111,18 @@ Each step should be playable before the next one starts:
 5. **Mara as the medic.** Make healing and revives her main job, and give her upgrade options of her own.
 6. **End card and best run.** Show the run's numbers, save your record, and add Run again.
 7. **Something that carries over between runs** (gear, unlocks or a starting choice), once the core run is fun on its own.
-8. **More arenas.** Reuse the Region 02 work: the wall generator and power zones can make indoor arenas where, for example, the lights die every few waves.
+8. **More arenas.** *(The station is in as a second arena, untuned.)* Reuse the Region 02 work: the wall generator and power zones can make indoor arenas where, for example, the lights die every few waves.
 
 ### Things to watch
 
 - **How many enemies at once.** Every machine is a fully modelled, individually animated actor with its own materials and shadows. Dozens on screen is fine; hundreds (a Vampire Survivors-style swarm) would mean rebuilding how enemies are drawn and updated. Plan for fewer, tougher enemies.
 - **Balance is the main job now.** Spawn rates, the difficulty ramp and boss timing are the game, and they get tuned by playing, not up front.
 - **Walkers need room.** They now walk round cover instead of through it, on a map of the ground that leaves space for something their size. Where no gap is wide enough (a 3 m corridor) there is no way through for them, and they head straight for you as they used to.
-- **Drones don't find paths.** Outdoors they fly over everything. Indoors they bump along walls, which will matter in station arenas.
+- **Drones indoors.** Outdoors they fly over everything. Indoors they now go through the doorways like anything on foot, and are held to a person's width so they can cross from room to room, which lets their rotors clip a wall now and then.
 
 ### Still open
 
-- **Which arena first.** One idea is the gate plaza in Dead City, with the gate stuck open and the machines pouring through it.
+- **Where a run starts.** Dead City starts in the gate plaza and the station in the gate room, both with the gate stuck open. Neither has been compared with anywhere else.
 - **Does Mara still shoot,** or only heal and revive?
 - **What carries over between runs,** if anything, and how much.
 - **What happens to the Dead City campaign** once survival works: keep it as a separate mode, or retire it.

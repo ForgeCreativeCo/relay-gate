@@ -25,9 +25,9 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   try { engine = new B.Engine(canvas, true, { stencil: true, antialias: true, powerPreference: 'high-performance' }, true); }
   catch (e) { fail('This browser has WebGL turned off, so the game cannot run here.'); return; }
   const scene = new B.Scene(engine); G.engine = engine; G.scene = scene;
-  /* the region being played: Dead City unless the address asks for another (?region=2) or for survival (?mode=survival). Its look is applied before anything is lit. */
+  /* the region being played: Dead City unless the address asks for another (?region=2), played as survival if it asks for that (?mode=survival). Its look is applied before anything is lit. */
   const query = new URLSearchParams(location.search), REGIONS = { '01': './region1.js', '02': './region2.js' }, asked = (query.get('region') || '').padStart(2, '0');
-  const { REGION } = await import(query.get('mode') === 'survival' ? './survival.js' : REGIONS[asked] || REGIONS['01']);
+  const map = await import(REGIONS[asked] || REGIONS['01']), REGION = query.get('mode') === 'survival' ? map.SURVIVAL : map.REGION;   // every map has a campaign run and a survival one
   Object.assign(LOOK, REGION.look || {}); G.R = REGION;
   /* ask for the account save straight away, in parallel with building the region */
   G.save = makeSave(REGION.save); const savedP = G.save.load();
@@ -214,6 +214,9 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   cont.onclick = () => go(start);
   /* the other way to play: survival from the campaign, the campaign from survival */
   const other = $('modeBtn'); other.textContent = REGION.endless ? 'Campaign' : 'Survival'; other.onclick = () => { location.search = REGION.endless ? '' : '?mode=survival'; };
+  /* and, in survival, the other arena */
+  const arena = $('arenaBtn'), station = REGION.num === '02'; arena.hidden = !REGION.endless; arena.textContent = station ? 'Switch to Dead City' : 'Switch to the Relay Station';
+  arena.onclick = () => { location.search = station ? '?mode=survival' : '?mode=survival&region=2'; };
   if (REGION.endless) $('toCheckpoint').textContent = 'End run';
   nw.onclick = () => $('newConfirm').classList.add('show'); $('newNo').onclick = () => $('newConfirm').classList.remove('show');
   $('newYes').onclick = async () => { $('newConfirm').classList.remove('show'); await G.save.wipe(); saved = null; go(() => { prepare(null); start(); }); };

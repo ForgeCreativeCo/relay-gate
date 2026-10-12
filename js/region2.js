@@ -2,12 +2,13 @@
    Walls are generated around the walkable rectangles. The ones on the camera's side sink into the floor while you're behind them,
    so a room never hides who's in it. Each room belongs to a power zone that can be dark, flickering or lit.
    This is the test section: the gate room, a service corridor and the cooling hall. */
-import { B, G, V, C, R, damp } from './core.js';
+import { B, G, V, C, R, damp, dist2 } from './core.js';
 import { Geo, gbox, gcyl, gmesh } from './geo.js';
 import { makeMat } from './tex.js';
 import { makeNav } from './nav.js';
 import { Drone, Walker, Husk } from './machines.js';
 import { buildGate } from './gate.js';
+import { survival } from './survival.js';
 
 /* Walkable rectangles [x0, z0, x1, z1] (on a half-metre grid) and the power zone each belongs to. North is +z.
    Where two connect they overlap by at least a metre: each one is shrunk by your body's width when deciding where you can stand,
@@ -204,6 +205,7 @@ export function buildRegion(M) {
   for (const x of [35, 43, 51]) lamp('hall', x, 14, 0, -1);
   lamp('hall', 54, -6, -1, 0); lamp('hall', 54, 5, -1, 0);
   alarm('hall', 32, 14, 0, -1); alarm('hall', 54, -11, -1, 0); alarm('hall', 47, 14, 0, -1);
+  alarm('gate', 9, 3, -1, 0); alarm('gate', -8.2, 10, 0, -1); alarm('corridor', 18.8, 1.5, 0, -1); alarm('corridor', 25, 1.5, 0, -1);   // only the hall goes dark in the campaign; in survival everything does
 
   /* ---------- the gate room: the gate you came through, cable runs, kit left by whoever was here before ---------- */
   const gate = buildGate(M, GATE);
@@ -308,14 +310,18 @@ export const REGION = {
       R.say('The gate powers down behind you', '#1fe0ff');
       setTimeout(() => R.say('Mara: "So this is where the gates lead. Whatever runs them is in here somewhere."', '#ffb24a'), 1800); }
     if (R.atStep('out') && p.x > 10) R.step('door');
-    updateCuts(dt); updateDoors(dt);
-    for (const Z of Object.values(zones)) {
-      if (Z.k !== Z.target) { Z.k += Math.sign(Z.target - Z.k) * Math.min(Math.abs(Z.target - Z.k), dt * .5); applyPower(Z, Math.random() < .3 ? .2 : 1); }   // power comes back in stutters
-      else if (Z.flicker && Z.k > 0) applyPower(Z, Math.random() < .04 ? .25 : 1);
-    }
+    runStation(dt);
     if (hack) updateHack(R, dt);
   },
 };
+/* the station's own moving parts, whatever is being played in it: sinking walls, doors, and power fading in and out */
+function runStation(dt) {
+  updateCuts(dt); updateDoors(dt);
+  for (const Z of Object.values(zones)) {
+    if (Z.k !== Z.target) { Z.k += Math.sign(Z.target - Z.k) * Math.min(Math.abs(Z.target - Z.k), dt * .5); applyPower(Z, Math.random() < .3 ? .2 : 1); }   // power comes back in stutters
+    else if (Z.flicker && Z.k > 0) applyPower(Z, Math.random() < .04 ? .25 : 1);
+  }
+}
 
 /* ---------- Mara works the hall door's lock; the station seals the corridor and sends husks ---------- */
 function startHack(R) {
@@ -341,3 +347,39 @@ function updateHack(R, dt) {
     R.say('Mara: "Got it. Lockdown\'s lifted too."', '#ffb24a'); R.step('power'); G.save.soon();
   }
 }
+
+/* ---------- the station as a survival arena ---------- */
+/* Every door stands open. Machines come in through the gate, out of the vents in the corridor's alcoves, and from the corners of the
+   cooling hall. Every so often the power fails: emergency lights only, and they come faster until it is back. */
+const ENTRIES = [{ x: GATE.x, z: GATE.z - 3 }, { x: 15.75, z: 4 }, { x: 22.75, z: -4 }, { x: 52.5, z: 9 }, { x: 52.5, z: -10.8 }, { x: 31.5, z: 12.6 }, { x: 31.6, z: -11 }];
+const DARK = { first: 50, every: 65, lasts: 22, rush: .6 };   // seconds to the first power failure, between failures, and how long one lasts; while it's dark the time between groups is multiplied by rush
+let dark = null;
+export const SURVIVAL = survival({
+  num: '02', name: 'The Relay Station', startName: 'Gate room',
+  blurb: 'The station\'s gate is stuck open, there are husks in the vents, and the power keeps failing. Last as long as you can.',
+  preparing: REGION.preparing, indoor: true, noHorn: true, look: REGION.look,
+  build: buildRegion, gate: GATE, start: { x: 0, z: 1 },
+  saveKey: 'relay-gate-survival-station-v1',
+  /* a smaller space: fewer machines at once, and walkers later (they only fit in the cooling hall) */
+  tune: { size: [2, 5], cap: [5, 16], walkers: [[3, 1], [8, 2]], gate: null },
+  /* an entry out of your reach, picked at random; a walker only comes when you are near enough to the hall to meet it */
+  arrive(p, kind) {
+    if (kind === 'walker') { if (p.x < 26) return null; const e = ENTRIES.filter(q => q.x > 30).sort((a, b) => dist2(p, b) - dist2(p, a))[0]; return G.nav.wide.snap(e.x, e.z, 6); }
+    const far = ENTRIES.filter(e => dist2(p, e) > 12), e = far.length ? far[Math.floor(Math.random() * far.length)] : ENTRIES.slice().sort((a, b) => dist2(p, b) - dist2(p, a))[0];
+    return G.nav.snap(e.x, e.z, 3) || e;
+  },
+  begin() {
+    setDoor('west', true, true); setDoor('hall', true, true);
+    for (const n in zones) setPower(n, 1, true);
+    dark = { on: false, at: DARK.first };
+  },
+  tick(R, run, dt) {
+    runStation(dt);
+    if (run.time < dark.at) return;
+    dark.on = !dark.on; dark.at = run.time + (dark.on ? DARK.lasts : DARK.every);
+    for (const n in zones) setPower(n, dark.on ? 0 : 1);
+    run.gapK = dark.on ? DARK.rush : 1;
+    if (dark.on) { run.nextAt = Math.min(run.nextAt, G.t + 2); G.audio.play('powerOff', { pos: G.player.pos, gain: .6, rate: .8, len: 2, fade: .5 }); R.say('Power failure · Emergency lights only', '#ff6a5a'); }
+    else { G.audio.play('powerOn', { pos: G.player.pos, gain: .5, len: 1.6, fade: .4 }); R.say('Power restored', '#1fe0ff'); }
+  },
+});

@@ -5,6 +5,7 @@ import { Raider } from './actors.js';
 import { Drone, Walker, Husk } from './machines.js';
 import { rollLoot } from './loot.js';
 import { buildGate } from './gate.js';
+import { survival } from './survival.js';
 
 /* Walkable areas, south to north: outpost → Ring Road → Market Square → east street → rail yard → north street → gate plaza. */
 export const AREAS = {
@@ -295,3 +296,11 @@ export const REGION = {
     if (R.atStep('north') && p.z > 118) R.step('boss');
   },
 };
+
+/* ---------- the same city as a survival arena: you start in the gate plaza, with the gate stuck open behind you ---------- */
+export const SURVIVAL = survival({
+  num: '01', name: 'Dead City', startName: 'Gate plaza',
+  blurb: 'The gate is stuck open and the machines keep coming. Last as long as you can.',
+  preparing: REGION.preparing, build: buildRegion, gate: GATE, start: { x: 50, z: 130 },
+  saveKey: 'relay-gate-survival-v1',
+});
