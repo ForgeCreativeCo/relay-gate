@@ -185,7 +185,7 @@ export function makeAudio() {
     if (!ambOn || A.ctx.state !== 'running') return;
     const now = A.ctx.currentTime;
     if (!hornAt) hornAt = now + rnd(AMBIENCE.horn.first);
-    if (now >= hornAt) { horn(); hornAt = now + rnd(AMBIENCE.horn.every); }
+    if (now >= hornAt) { if (!G.R.noHorn) horn(); hornAt = now + rnd(AMBIENCE.horn.every); }   // indoors there's no horn on the wind
     if (bedAt > now + 2) return;
     const bed = AMBIENCE.beds[bedIdx]; if (!A.buffers[bed.name]) { bedIdx = (bedIdx + 1) % AMBIENCE.beds.length; return; }
     const when = Math.max(now + .05, bedAt), offset = firstBed ? bed.from + Math.random() * (bed.to - bed.from) * .5 : bed.from;   // start somewhere in the middle the first time

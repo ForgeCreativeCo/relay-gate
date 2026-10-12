@@ -2,8 +2,10 @@
    When that isn't available (signed out, a preview), the save stays in this browser. */
 import { G } from './core.js';
 
-const LOCAL = 'relay-gate-save-v1';
-export function makeSave() {
+/* opts.key: a different slot in this browser; opts.localOnly: never touch the account save (a region still being built uses both,
+   so testing it can't overwrite your Dead City progress) */
+export function makeSave(opts = {}) {
+  const LOCAL = opts.key || 'relay-gate-save-v1';
   const S = { remote: null, ref: null, timer: null, writing: false, again: false, where: 'this browser' };
   const readLocal = () => { try { const t = localStorage.getItem(LOCAL); return t ? JSON.parse(t) : null; } catch (e) { return null; } };
   const writeLocal = (d) => { try { localStorage.setItem(LOCAL, JSON.stringify(d)); } catch (e) {} };
@@ -15,7 +17,7 @@ export function makeSave() {
   S.load = async (ms = 4000) => {
     const local = readLocal();
     const remote = async () => {
-      const C = window.claude; if (!C || typeof C.use !== 'function') return null;
+      const C = window.claude; if (opts.localOnly || !C || typeof C.use !== 'function') return null;
       const [db, user] = await Promise.all([C.use('db'), C.use('user')]);   // called on window.claude, never detached
       if (!db || !user) return null;
       const id = await user.id();

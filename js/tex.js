@@ -115,7 +115,10 @@ export const LOOK = {
   sky: '#4a443d', fog: '#4a443d', fogD: .016, hemiSky: '#b0a494', hemiGround: '#2d2824', hemiI: .82,
   sun: '#e6d2b4', sunI: 1.15, sunDir: [-.55, -1, .4], ground: '#7d756b', road: '#5c5852', build: '#a39a8f', rubble: '#8a8178',
   machine: '#ff2a2a', gate: '#1fe0ff', human: '#ffb24a', exposure: 1.5, contrast: 1.3, sat: -22, bloomW: .55, bloomT: .55, glowI: .9,
+  weatherK: 1,   // how much ash drifts through the air
+  env: null,     // reflection sky colours (look.js makeEnvironment); null keeps the outdoor sky
 };
+/* A region can override any of these with its own `look` (main.js applies it before the lights and materials are made). */
 
 export function makeMaterials(scene, T) {
   const mat = (n, h, o) => makeMat(scene, n, h, o);

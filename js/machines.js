@@ -59,8 +59,10 @@ export class Drone extends Actor {
     else { this.orbitA += dt * .35; gx = this.home.x + Math.cos(this.orbitA) * 4; gz = this.home.z + Math.sin(this.orbitA) * 4; }
     const hx = gx - this.home.x, hz = gz - this.home.z, hd = Math.hypot(hx, hz); if (hd > 20) { gx = this.home.x + hx / hd * 20; gz = this.home.z + hz / hd * 20; }
     const dx = gx - p.x, dz = gz - p.z, d = Math.hypot(dx, dz), sp = Math.min(d * 2, 7);
+    const ox = p.x, oz = p.z;
     if (d > .1) { p.x += dx / d * sp * dt; p.z += dz / d * sp * dt; }
     if (this.knock) { p.x += this.knock.x * dt; p.z += this.knock.z * dt; this.knock.scaleInPlace(Math.exp(-dt * 5)); }
+    if (G.R.indoor) { const y = p.y; collide(p, .7, ox, oz); p.y = y; }   // outdoors drones fly over the ruins; indoors the walls reach above them
     p.y += (this.alt + Math.sin(G.t * 2 + this.orbitA) * .25 - p.y) * damp(3, dt);
     const face = T ? angleTo(p, T.pos) : Math.atan2(dx, dz);
     this.root.rotation.y = lerpAngle(this.root.rotation.y, face, damp(6, dt)); this.root.rotation.z = -clamp(dx * .05, -.3, .3);

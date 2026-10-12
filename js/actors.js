@@ -519,7 +519,8 @@ export class Ally extends Actor {
   }
   join() { this.joined = true; this.hp = this.maxHp; G.UI.feed('Mara joined your squad', '#ffb24a'); }
   toggleMode() { if (!this.joined || this.down > 0) return; this.mode = this.mode === 'follow' ? 'hold' : 'follow'; this.hold = this.pos.clone(); G.UI.feed(this.mode === 'follow' ? 'Mara: "Right behind you."' : 'Mara: "Holding here."'); }
-  teleportNear(p) { this.pos.set(p.x - 1.6, 0, p.z - 1.4); this.down = 0; this.untargetable = false; this.hp = this.maxHp; this.H.pel.rotation.x = 0; this.H.pel.position.y = .94; this.mode = 'follow'; }
+  /* to the nearest walkable spot behind you: indoors the plain offset can land inside a wall */
+  teleportNear(p) { const s = (G.nav && G.nav.snap(p.x - 1.6, p.z - 1.4, 4)) || p; this.pos.set(s.x, 0, s.z); this.down = 0; this.untargetable = false; this.hp = this.maxHp; this.H.pel.rotation.x = 0; this.H.pel.position.y = .94; this.mode = 'follow'; }
   update(dt) {
     const P = G.player, p = this.pos;
     if (!this.joined) { this.H.neck.rotation.y = Math.sin(G.t * .6) * .5; return; }

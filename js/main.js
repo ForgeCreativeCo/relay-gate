@@ -2,7 +2,6 @@
 import { B, G, V, C, damp, reduced, dist2 } from './core.js';
 import { makeTextures, makeMaterials, LOOK } from './tex.js';
 import { makeFx } from './fx.js';
-import { REGION } from './region1.js';
 import { makeCombat } from './combat.js';
 import { makeDrops, newInventory, genWeapon, upgradeItem } from './loot.js';
 import { Player, Ally } from './actors.js';
@@ -26,8 +25,12 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   try { engine = new B.Engine(canvas, true, { stencil: true, antialias: true, powerPreference: 'high-performance' }, true); }
   catch (e) { fail('This browser has WebGL turned off, so the game cannot run here.'); return; }
   const scene = new B.Scene(engine); G.engine = engine; G.scene = scene;
-  /* ask for the account save straight away, in parallel with building the city */
-  G.save = makeSave(); const savedP = G.save.load();
+  /* the region being played: Dead City unless the address asks for another (?region=2). Its look is applied before anything is lit. */
+  const REGIONS = { '01': './region1.js', '02': './region2.js' }, asked = (new URLSearchParams(location.search).get('region') || '').padStart(2, '0');
+  const { REGION } = await import(REGIONS[asked] || REGIONS['01']);
+  Object.assign(LOOK, REGION.look || {}); G.R = REGION;
+  /* ask for the account save straight away, in parallel with building the region */
+  G.save = makeSave(REGION.save); const savedP = G.save.load();
   scene.clearColor = new B.Color4(...C(LOOK.sky).asArray(), 1); scene.fogMode = B.Scene.FOGMODE_EXP2; scene.fogColor = C(LOOK.fog); scene.fogDensity = LOOK.fogD; scene.ambientColor = new B.Color3(0, 0, 0);
   scene.skipPointerMovePicking = true;
   G.machineColor = C(LOOK.machine);
@@ -47,7 +50,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   G.boom = (pos, i) => { boomL.position.copyFrom(pos); boomL.position.y += 1.5; boomL.intensity = Math.max(boomL.intensity, i); };
 
   /* materials, effects, post-processing */
-  mark('engine'); makeEnvironment(scene);
+  mark('engine'); makeEnvironment(scene, LOOK.env);
   const T = makeTextures(scene); const M = G.M = makeMaterials(scene, T);
   G.glow = new B.GlowLayer('glow', scene, { mainTextureSamples: 1, blurKernelSize: 48 }); G.glow.intensity = LOOK.glowI;
   /* only things that actually glow go through the glow pass (it used to redraw every mesh in the scene a second time, as black) */
@@ -84,11 +87,10 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
     /* FXAA smooths edges; 4x multisampling on top of it cost a fifth of the frame for little visible difference */
     sun.shadowEnabled = h; pipe.bloomEnabled = h; pipe.grainEnabled = h; pipe.chromaticAberrationEnabled = h; pipe.samples = 1; G.glow.blurKernelSize = h ? 48 : 24;
     if (ssao && ssaoOn !== h) { try { const mgr = scene.postProcessRenderPipelineManager; if (h) mgr.attachCamerasToRenderPipeline('ssao', cam); else mgr.detachCamerasFromRenderPipeline('ssao', cam); ssaoOn = h; } catch (e) {} }
-    G.FX.weather.emitRate = (h ? 480 : 200) * (reduced ? .4 : 1); fit(); if (G.save) G.save.soon();
+    G.FX.weather.emitRate = (h ? 480 : 200) * (reduced ? .4 : 1) * LOOK.weatherK; fit(); if (G.save) G.save.soon();
   };
 
-  /* the region being played (its map and its run), the world and the cast */
-  G.R = REGION;
+  /* the region's map and run, the world and the cast */
   for (const [id, t] of [['regionTag', `Region ${REGION.num} · ${REGION.name}`], ['titleTag', `Region ${REGION.num} · ${REGION.name}`], ['endTag', `Region ${REGION.num}`], ['endName', `${REGION.name} cleared`], ['endText', REGION.clearedText]]) $(id).textContent = t;
   G.settings = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
   G.audio = makeAudio(); G.audio.apply();
@@ -133,7 +135,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
     /* hand the pooled lights to the nearest fires, lamps and the gate */
     lightT -= dt;
     if (lightT <= 0) { lightT = .4;
-      const near = G.lightSources.map(s => [s, dist2(p, s.pos)]).filter(x => x[1] < 42).sort((a, b) => a[1] - b[1]).slice(0, 2);
+      const near = G.lightSources.map(s => [s, dist2(p, s.pos)]).filter(x => x[1] < 42 && x[0].intensity > .01).sort((a, b) => a[1] - b[1]).slice(0, 2);   // a lamp that's switched off doesn't take a slot
       pool.forEach((pl, i) => { const s = near[i] && near[i][0]; pl.src = s || null; if (s) { pl.l.position.copyFrom(s.pos); pl.l.diffuse.copyFrom(s.color); pl.l.range = s.range; } else pl.l.intensity = 0; });
       let best = null, bd = 35; for (const a of G.actors) if (a.parts && a.alive && !a.dormant && a.partAlive('head')) { const d = dist2(p, a.pos); if (d < bd) { bd = d; best = a; } }
       if (best !== spotOwner) { spotOwner = best; if (best) { spot.parent = best.head; spot.position.set(0, 0, .7); spot.direction.set(0, -.55, 1); } }

@@ -3,18 +3,20 @@
 import { B, G, V, R, rnd, inOpen, insideObstacle } from './core.js';
 
 /* ---------- environment: a small sky cube that metal, glass and puddles reflect ---------- */
-export function makeEnvironment(scene) {
+/* opts (a region's LOOK.env) can swap the colours, and turn the sun's and the gate's glow down (k = 0 to 1) */
+export function makeEnvironment(scene, opts) {
   const N = 64, faces = [];
   const mix = (a, b, t) => a + (b - a) * t, clamp01 = v => Math.max(0, Math.min(1, v));
-  const zenith = [78, 74, 72], horizon = [176, 156, 130], ground = [44, 40, 36];
+  const E = Object.assign({ zenith: [78, 74, 72], horizon: [176, 156, 130], ground: [44, 40, 36], sun: 1, gate: 1 }, opts);
+  const zenith = E.zenith, horizon = E.horizon, ground = E.ground;
   const sun = (() => { const d = [.55, 1, -.4], l = Math.hypot(...d); return d.map(v => v / l); })();   // opposite the light's direction
   const gate = (() => { const d = [0, .12, 1], l = Math.hypot(...d); return d.map(v => v / l); })();   // the relay gate, north
   const color = (x, y, z) => {
     let c;
     if (y >= 0) { const t = Math.pow(clamp01(y), .55); c = [0, 1, 2].map(i => mix(horizon[i], zenith[i], t)); }
     else { const t = clamp01(-y * 3); c = [0, 1, 2].map(i => mix(horizon[i] * .55, ground[i], t)); }
-    const s = Math.max(0, x * sun[0] + y * sun[1] + z * sun[2]); const sg = Math.pow(s, 24) * 160 + Math.pow(s, 4) * 40;          // warm glow where the light comes from
-    const g = Math.max(0, x * gate[0] + y * gate[1] + z * gate[2]); const gg = Math.pow(g, 30) * 90;                                  // a cyan cast toward the gate
+    const s = Math.max(0, x * sun[0] + y * sun[1] + z * sun[2]); const sg = (Math.pow(s, 24) * 160 + Math.pow(s, 4) * 40) * E.sun;          // warm glow where the light comes from
+    const g = Math.max(0, x * gate[0] + y * gate[1] + z * gate[2]); const gg = Math.pow(g, 30) * 90 * E.gate;                                  // a cyan cast toward the gate
     return [c[0] + sg * 1 + gg * .1, c[1] + sg * .85 + gg * .85, c[2] + sg * .6 + gg];
   };
   /* face order +X, -X, +Y, -Y, +Z, -Z */
@@ -34,10 +36,14 @@ export function makeEnvironment(scene) {
 }
 
 /* ---------- ground detail: one overlay across the playable area ---------- */
-/* Painted onto two canvases: colour + alpha (grime, scorch, oil, cracks, paint, puddles) and roughness (puddles and oil are glossy). */
+/* Painted onto two canvases: colour + alpha (grime, scorch, oil, cracks, paint, puddles) and roughness (puddles and oil are glossy).
+   What's region-specific comes from G.decalHints: scorch, oil, paint lines, skids, puddles, and the area and resolution to cover. */
 export function makeGroundDetail(scene) {
-  const X0 = -20, Z0 = -18, X1 = 72, Z1 = 162, W = X1 - X0, D = Z1 - Z0;
-  const PX = 1024, PZ = 2048, sx = PX / W, sz = PZ / D;
+  const H = G.decalHints;
+  let [X0, Z0, X1, Z1] = H.bounds || [1e9, 1e9, -1e9, -1e9];
+  if (!H.bounds) for (const o of G.open) { X0 = Math.min(X0, o[0] - 3); Z0 = Math.min(Z0, o[1] - 3); X1 = Math.max(X1, o[2] + 3); Z1 = Math.max(Z1, o[3] + 3); }
+  const W = X1 - X0, D = Z1 - Z0, k0 = Math.min(16, 2048 / Math.max(W, D));
+  const [PX, PZ] = H.res || [Math.round(W * k0), Math.round(D * k0)], sx = PX / W, sz = PZ / D;
   const mk = () => { const c = document.createElement('canvas'); c.width = PX; c.height = PZ; return c; };
   const colC = mk(), rufC = mk(), col = colC.getContext('2d'), ruf = rufC.getContext('2d');
   ruf.fillStyle = 'rgb(0,235,0)'; ruf.fillRect(0, 0, PX, PZ);   // green = roughness: matte everywhere by default
@@ -80,13 +86,10 @@ export function makeGroundDetail(scene) {
   const paint = (x0, z0, x1, z1, w, rgb, a) => { const L = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(L / 1.2); col.lineCap = 'butt'; col.lineWidth = pr(w);
     for (let k = 0; k < n; k++) { if (rnd() < .25) continue; const t0 = k / n, t1 = Math.min(1, (k + R(.6, 1)) / n);
       col.strokeStyle = `rgba(${rgb},${(a * R(.35, 1)).toFixed(2)})`; col.beginPath(); col.moveTo(px(x0 + (x1 - x0) * t0), pz(z0 + (z1 - z0) * t0)); col.lineTo(px(x0 + (x1 - x0) * t1), pz(z0 + (z1 - z0) * t1)); col.stroke(); } };
-  for (const x of [-4.2, 4.2]) paint(x, 14, x, 64, .12, '196,188,160', .2);          // Ring Road edge lines
-  for (const z of [76.2, 83.8]) paint(17, z, 41, z, .12, '196,188,160', .18);           // east street
-  for (const x of [45.8, 54.2]) paint(x, 100, x, 117, .12, '196,188,160', .18);         // north street
-  for (const [cx, cz, along] of [[0, 15.5, 'x'], [0, 62.5, 'x'], [42.5, 80, 'z']])    // zebra crossings
-    for (let k = -3; k <= 3; k++) along === 'x' ? paint(cx + k * 1.1, cz - 1.4, cx + k * 1.1, cz + 1.4, .45, '200,192,170', .13) : paint(cx - 1.4, cz + k * 1.1, cx + 1.4, cz + k * 1.1, .45, '200,192,170', .13);
+  for (const [x0, z0, x1, z1, w, rgb, a] of H.paint || []) paint(x0, z0, x1, z1, w, rgb, a);
   /* tyre skids on the streets */
-  for (let k = 0; k < 10; k++) { const z = R(16, 60), x = R(-3, 3), a = R(-.3, .3), l = R(4, 9); for (const off of [-.8, .8]) { col.strokeStyle = 'rgba(10,9,8,.22)'; col.lineWidth = pr(.22);
+  const sk = H.skids || { n: 0 };
+  for (let k = 0; k < sk.n; k++) { const z = R(sk.z[0], sk.z[1]), x = R(sk.x[0], sk.x[1]), a = R(-.3, .3), l = R(4, 9); for (const off of [-.8, .8]) { col.strokeStyle = 'rgba(10,9,8,.22)'; col.lineWidth = pr(.22);
     col.beginPath(); col.moveTo(px(x + off), pz(z)); col.quadraticCurveTo(px(x + off + Math.sin(a) * l * .5), pz(z + l * .5), px(x + off + Math.sin(a) * l), pz(z + l)); col.stroke(); } }
   /* 7. puddles: darker (wet) and very smooth so they reflect the sky, fires and the gate */
   /* a damp, darker rim, then standing water. Real water barely reflects at this camera angle, so puddles are given a partly
@@ -97,8 +100,8 @@ export function makeGroundDetail(scene) {
     for (const [a, d, rr] of blobs) { const cx = x + Math.cos(a) * d, cz = z + Math.sin(a) * d;
       for (const [ctx, fill, edge] of [[col, 'rgba(150,156,162,.45)', .1], [ruf, 'rgba(0,14,95,1)', .06]]) { const g = ctx.createRadialGradient(px(cx), pz(cz), pr(rr) * (1 - edge), px(cx), pz(cz), pr(rr));
         g.addColorStop(0, fill); g.addColorStop(1, fill.replace(/[\d.]+\)$/, '0)')); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px(cx), pz(cz), pr(rr), 0, 6.283); ctx.fill(); } } };
-  const puddleSpots = [[0, -6, 1.4], [-6, 2, 1], [6, 6, 1.2]];
-  for (let k = 0; k < 30; k++) { const p = randIn(1.2); if (p) puddleSpots.push([p[0], p[1], R(.5, 1.6)]); }
+  const puddleSpots = (H.puddles || []).slice();
+  for (let k = 0; k < (H.puddleN == null ? 30 : H.puddleN); k++) { const p = randIn(1.2); if (p) puddleSpots.push([p[0], p[1], R(.5, 1.6)]); }
   for (const [x, z, r] of puddleSpots) { if (G.decalHints.scorch.some(([sx2, sz2, sr]) => Math.hypot(sx2 - x, sz2 - z) < sr + r + 1)) continue; puddle(x, z, r); }
 
   /* the overlay itself */

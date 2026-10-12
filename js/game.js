@@ -3,7 +3,8 @@
 import { G, V, dist2 } from './core.js';
 import { rollLoot } from './loot.js';
 
-export function freshProgress() { return { step: 0, checkpoint: G.R.checkpoints[0].id, mara: false, raiders: false, cleared: {}, gate: false, runs: 0, kills: 0 }; }
+/* a region can start some of these differently (Region 02 opens with Mara already in the squad) */
+export function freshProgress() { return Object.assign({ step: 0, checkpoint: G.R.checkpoints[0].id, mara: false, raiders: false, cleared: {}, gate: false, runs: 0, kills: 0 }, G.R.fresh && G.R.fresh()); }
 
 export function makeGame() {
   const GM = { encounters: [], boss: null, bossSeen: false };
@@ -44,7 +45,7 @@ export function makeGame() {
     const L = [];
     REG.interactables(R, P(), L);
     const g = REG.gate;
-    if (P().gate && P().step >= stepOf('gate')) L.push({ pos: V(g.x, 0, g.z - 1.5), r: 3, label: 'Step through the relay gate', use: () => GM.finish() });
+    if (P().gate && stepOf('gate') >= 0 && P().step >= stepOf('gate')) L.push({ pos: V(g.x, 0, g.z - 1.5), r: 3, label: 'Step through the relay gate', use: () => GM.finish() });
     return L;
   };
   GM.setRaiderHostile = (why) => {

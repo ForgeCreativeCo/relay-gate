@@ -4,6 +4,7 @@ import { Geo, gbox, gprism, gcyl, gmesh, Buckets } from './geo.js';
 import { Raider } from './actors.js';
 import { Drone, Walker, Husk } from './machines.js';
 import { rollLoot } from './loot.js';
+import { buildGate } from './gate.js';
 
 /* Walkable areas, south to north: outpost → Ring Road → Market Square → east street → rail yard → north street → gate plaza. */
 export const AREAS = {
@@ -32,8 +33,14 @@ const ob = (x, z, hw, hd, h) => G.obstacles.push({ x, z, hw, hd, h });
 export function buildRegion(M) {
   const scene = G.scene;
   G.open = Object.values(AREAS);
-  /* where the ground detail pass should put scorch marks and oil stains */
-  G.decalHints = { scorch: [], oil: [] };
+  /* what the ground detail pass paints: scorch marks and oil stains (pushed as props go down), faded road paint, skids and puddles */
+  const paint = [];
+  for (const x of [-4.2, 4.2]) paint.push([x, 14, x, 64, .12, '196,188,160', .2]);          // Ring Road edge lines
+  for (const z of [76.2, 83.8]) paint.push([17, z, 41, z, .12, '196,188,160', .18]);           // east street
+  for (const x of [45.8, 54.2]) paint.push([x, 100, x, 117, .12, '196,188,160', .18]);         // north street
+  for (const [cx, cz, along] of [[0, 15.5, 'x'], [0, 62.5, 'x'], [42.5, 80, 'z']])            // zebra crossings
+    for (let k = -3; k <= 3; k++) paint.push(along === 'x' ? [cx + k * 1.1, cz - 1.4, cx + k * 1.1, cz + 1.4, .45, '200,192,170', .13] : [cx - 1.4, cz + k * 1.1, cx + 1.4, cz + k * 1.1, .45, '200,192,170', .13]);
+  G.decalHints = { scorch: [], oil: [], bounds: [-20, -18, 72, 162], res: [1024, 2048], paint, skids: { n: 10, x: [-3, 3], z: [16, 60] }, puddles: [[0, -6, 1.4], [-6, 2, 1], [6, 6, 1.2]] };
   const BK = Buckets(40), RUB = [[], [], []], SAND = [];
   const at = (x, z, m) => BK.at(x, z, m);
 
@@ -198,27 +205,7 @@ export function buildRegion(M) {
   block(39, 128, 2.6, 1.2, 1.3); block(61, 128, 2.6, 1.2, 1.3); block(43, 140, 1.4, 2.8, 1.5); block(57, 140, 1.4, 2.8, 1.5); block(36, 146, 2, 2, 2.4); block(64, 146, 2, 2, 2.4);
   barrier(46, 123, 0, true); barrier(54, 124, .2);
   for (let k = 0; k < 30; k++) rubblePile(R(31, 69), R(118, 156), 1, .5);
-  const gate = {};
-  { const g = Geo(), oct = []; for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 + Math.PI / 8; oct.push([Math.cos(a) * .9, Math.sin(a) * .9]); }
-    const oct2 = oct.map(([a, b]) => [a * .75, b * .75]), GX = GATE.x, GZ = GATE.z, GY = GATE.y;
-    for (const s of [-1, 1]) { const vert = MT(0, 0, 0, 0, 0, Math.PI / 2).multiply(MT(GX + s * 4.9, 0, GZ));
-      gprism(g, oct, 0, 1.4, vert, { uv: .4 }); gprism(g, oct2, 1.4, 8, vert, { uv: .4 }); gprism(g, oct, 8, 8.7, vert, { uv: .4 }); gbox(g, { x: GX + s * 4.9, y: GY, z: GZ, w: 1.8, h: 1.3, d: 1.9, tint: .85 }); }
-    gprism(g, [[-1.8, 0], [1.8, 0], [1.4, .6], [-1.4, .6]], GX - 6.6, GX + 6.6, MT(0, 0, GZ), { uv: .4 });
-    gprism(g, [[-.8, 8.4], [.8, 8.4], [.6, 9.2], [-.6, 9.2]], GX - 6, GX + 6, MT(0, 0, GZ), { uv: .4 });
-    gmesh('gateFrame', g, M.gateFrame);
-    ob(GX - 4.9, GZ, 1, 1, 9); ob(GX + 4.9, GZ, 1, 1, 9);
-    const ring = B.MeshBuilder.CreateTorus('ring', { diameter: 7.8, thickness: .65, tessellation: 6 }, scene); ring.rotation.x = Math.PI / 2; ring.position.set(GX, GY, GZ); ring.material = M.gateFrame; ring.receiveShadows = true; G.sg.addShadowCaster(ring);
-    gate.ring2 = B.MeshBuilder.CreateTorus('ring2', { diameter: 6.9, thickness: .08, tessellation: 6 }, scene); gate.ring2.rotation.set(Math.PI / 2, 0, Math.PI / 6); gate.ring2.position.set(GX, GY, GZ - .05); gate.ring2.material = M.gateNode;
-    gate.discA = B.MeshBuilder.CreateDisc('discA', { radius: 3.4, tessellation: 6 }, scene); gate.discA.position.set(GX, GY, GZ); gate.discA.rotation.z = Math.PI / 6; gate.discA.material = M.gateDisc;
-    gate.discB = B.MeshBuilder.CreateDisc('discB', { radius: 2.4, tessellation: 6 }, scene); gate.discB.position.set(GX, GY, GZ - .06); gate.discB.material = M.gateDisc;
-    const n = Geo(); for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3 + Math.PI / 6; gbox(n, { x: GX + Math.cos(a) * 3.92, y: GY + Math.sin(a) * 3.92, z: GZ, w: .5, h: .5, d: .95, rz: a, ao: false }); }
-    gate.nodes = gmesh('gateNodes', n, M.gateNode, { shadow: false });
-    for (const s of [-1, 1]) for (let c = 0; c < 2; c++) { const a = V(GX + s * 2.4, GY - 2.7 + c * .3, GZ + .3), b = V(GX + s * 4.6, 1.3 + c * .4, GZ - 1.3 - c * .3), path = [];
-      for (let k = 0; k <= 12; k++) { const t = k / 12; path.push(V(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t - Math.sin(t * Math.PI) * .9, a.z + (b.z - a.z) * t)); }
-      const tube = B.MeshBuilder.CreateTube('cable', { path, radius: .07, tessellation: 6 }, scene); tube.material = M.mechDark; tube.isPickable = false; G.sg.addShadowCaster(tube); }
-    gate.source = { pos: V(GX, GY, GZ - 1.2), color: C('#1fe0ff'), range: 18, intensity: .5, gate: true }; G.lightSources.push(gate.source);
-    [gate.ring2, gate.discA, gate.discB, ring].forEach(m => { m.isPickable = false; });
-  }
+  const gate = buildGate(M, GATE);
 
   /* ---------- bare trees in the yard and plaza ---------- */
   { const g = Geo(); for (const [x, z] of [[41.5, 96], [65, 66], [32, 120], [68, 120], [32, 154], [68, 154], [-15, 94], [15, 66]]) {
