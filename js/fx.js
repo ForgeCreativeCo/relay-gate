@@ -9,7 +9,11 @@ export function ps(name, cap, emitter) {
     gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.45, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = gr; g.fillRect(0, 0, 64, 64); dot.update(); dot.hasAlpha = true;
   }
-  const p = new B.ParticleSystem(name, cap, G.scene); p.particleTexture = dot; p.emitter = emitter; p.colorDead = new B.Color4(0, 0, 0, 0); return p;
+  const p = new B.ParticleSystem(name, cap, G.scene); p.particleTexture = dot; p.emitter = emitter; p.colorDead = new B.Color4(0, 0, 0, 0);
+  /* every system shares the one dot texture: disposing a system (which Babylon also does when its emitter mesh is disposed, e.g. a
+     walker cleared away) must never dispose that texture, or every particle effect in the game stops drawing */
+  const dispose = p.dispose.bind(p); p.dispose = () => dispose(false);
+  return p;
 }
 const C4 = (r, g, b, a) => new B.Color4(r, g, b, a);
 function cfg(p, o) {

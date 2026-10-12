@@ -18,11 +18,16 @@ const $ = id => document.getElementById(id);
 const canvas = $('c'); G.canvas = canvas;
 function fail(msg) { const d = document.createElement('div'); d.className = 'fail'; d.textContent = msg; document.body.appendChild(d); $('title').hidden = true; }
 
+/* startup timing marks (visible in the browser's performance tools): boot, textures, world, save, title */
+const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
 (async function boot() {
+  mark('boot');
   let engine;
   try { engine = new B.Engine(canvas, true, { stencil: true, antialias: true, powerPreference: 'high-performance' }, true); }
   catch (e) { fail('This browser has WebGL turned off, so the game cannot run here.'); return; }
   const scene = new B.Scene(engine); G.engine = engine; G.scene = scene;
+  /* ask for the account save straight away, in parallel with building the city */
+  G.save = makeSave(); const savedP = G.save.load();
   scene.clearColor = new B.Color4(...C(LOOK.sky).asArray(), 1); scene.fogMode = B.Scene.FOGMODE_EXP2; scene.fogColor = C(LOOK.fog); scene.fogDensity = LOOK.fogD; scene.ambientColor = new B.Color3(0, 0, 0);
   scene.skipPointerMovePicking = true;
   G.machineColor = C(LOOK.machine);
@@ -42,7 +47,7 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
   G.boom = (pos, i) => { boomL.position.copyFrom(pos); boomL.position.y += 1.5; boomL.intensity = Math.max(boomL.intensity, i); };
 
   /* materials, effects, post-processing */
-  makeEnvironment(scene);
+  mark('engine'); makeEnvironment(scene);
   const T = makeTextures(scene); const M = G.M = makeMaterials(scene, T);
   G.glow = new B.GlowLayer('glow', scene, { mainTextureSamples: 1, blurKernelSize: 48 }); G.glow.intensity = LOOK.glowI;
   /* only things that actually glow go through the glow pass (it used to redraw every mesh in the scene a second time, as black) */
@@ -86,9 +91,9 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
   G.settings = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
   G.audio = makeAudio(); G.audio.apply();
   G.progress = freshProgress(); G.inv = newInventory();
-  G.region = buildRegion(M); G.nav = makeNav(); makeGroundDetail(scene); scatterDebris(scene, M);
+  mark('materials'); G.region = buildRegion(M); mark('region'); G.nav = makeNav(); mark('nav'); makeGroundDetail(scene); mark('ground'); scatterDebris(scene, M); mark('world');
   G.CB = makeCombat(M); G.drops = makeDrops(M);
-  G.input = makeInput(canvas); G.save = makeSave(); G.UI = makeUI(); G.game = makeGame();
+  G.input = makeInput(canvas); G.UI = makeUI(); G.game = makeGame();
   G.player = new Player(); G.actors.push(G.player); G.player.pos.set(0, 0, -5);
   G.ally = new Ally(3.6, .4);
   G.setPaused = (p) => { G.paused = p; G.input.release(); if (p) G.audio.silenceHums(); };
@@ -144,33 +149,68 @@ function fail(msg) { const d = document.createElement('div'); d.className = 'fai
 
   /* ---------- title screen ---------- */
   fit();
-  const saved = await G.save.load();
+  mark('save-start'); let saved = await savedP; mark('save-done');
   const info = $('titleInfo'), cont = $('contBtn'), nw = $('newBtn');
-  if (saved) { const cp = CHECKPOINTS.find(c => c.id === (saved.progress || {}).checkpoint) || CHECKPOINTS[0], n = (saved.inv && saved.inv.items || []).length;
-    info.textContent = `Continue at the ${cp.name} checkpoint · ${n} item${n === 1 ? '' : 's'} in your pack · Saved to ${G.save.where}.`; cont.textContent = 'Continue'; }
-  else { info.textContent = `A machine-held city, a relay gate, and whatever you can salvage on the way. Progress saves to ${G.save.where}.`; cont.textContent = 'Start'; nw.hidden = true; }
-  cont.disabled = false; nw.disabled = false; cont.focus(); window.__booted = true;
-  cont.onclick = () => start(saved);
-  nw.onclick = () => $('newConfirm').classList.add('show'); $('newNo').onclick = () => $('newConfirm').classList.remove('show');
-  $('newYes').onclick = async () => { await G.save.wipe(); start(null); };
+  const SETTINGS = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
+  const describe = () => {
+    if (saved) { const cp = CHECKPOINTS.find(c => c.id === (saved.progress || {}).checkpoint) || CHECKPOINTS[0], n = (saved.inv && saved.inv.items || []).length;
+      info.textContent = `Continue at the ${cp.name} checkpoint · ${n} item${n === 1 ? '' : 's'} in your pack · Saved to ${G.save.where}.`; cont.textContent = 'Continue'; nw.hidden = false; }
+    else { info.textContent = `A machine-held city, a relay gate, and whatever you can salvage on the way. Progress saves to ${G.save.where}.`; cont.textContent = 'Start'; nw.hidden = true; }
+  };
+  const showError = (what, e) => { console.error(e); info.textContent = `${what}: ${(e && e.message) || e}. Try again, or start a new game.`; };
 
-  function start(s) {
-    G.audio.unlock();
+  /* Set the world up for a save (or a fresh game): pack, progress, settings, enemies, checkpoint. Safe to run again (a late account save, New game). */
+  function prepare(s) {
+    G.game.clearAll(); G.drops.clear(); G.CB.clear(); G.FX.clearDebris();
+    G.ally.joined = false; G.actors = G.actors.filter(a => a !== G.ally);
+    G.inv = newInventory(); G.progress = freshProgress(); G.settings = Object.assign({}, SETTINGS);
     if (s) {
-      const inv = s.inv || {}; G.inv = { items: (inv.items || []).map(upgradeItem), equip: Object.assign({ primary: null, secondary: null, helmet: null, vest: null }, inv.equip || {}), active: inv.active || 'primary', scrap: inv.scrap || 0 };
+      const inv = s.inv || {}; G.inv = { items: (inv.items || []).filter(Boolean).map(upgradeItem), equip: Object.assign({ primary: null, secondary: null, helmet: null, vest: null }, inv.equip || {}), active: inv.active || 'primary', scrap: inv.scrap || 0 };
       for (const k of ['primary', 'secondary']) upgradeItem(G.inv.equip[k]);
       if (!G.inv.equip.primary) G.inv.equip.primary = newInventory().equip.primary;
       G.progress = Object.assign(freshProgress(), s.progress || {}); G.progress.cleared = Object.assign({}, (s.progress || {}).cleared);
-      G.settings = Object.assign({ quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false }, s.settings || {});
+      if (!OBJECTIVES[G.progress.step]) G.progress.step = 0;
+      G.settings = Object.assign({}, SETTINGS, s.settings || {});
     }
     G.raiderHostile = !!G.progress.raiders;
     G.player.recalc(); G.player.hp = G.player.maxHp;
     if (G.progress.mara) { G.ally.joined = true; G.actors.push(G.ally); }
+    else { G.ally.teleportNear(V(5.2, 0, 1.8)); G.ally.root.rotation.y = Math.PI * .8; }   // back by the campfire, waiting to be talked to
     G.game.spawnAll(); G.game.applyGate();
     const cp = G.game.checkpoint(); G.player.respawn(cp.x, cp.z); cam.target.set(cp.x, 0, cp.z); if (G.ally.joined) G.ally.teleportNear(G.player.pos);
-    G.setQuality(G.settings.quality); G.audio.apply(); G.audio.startAmbience(); if (G.settings.controls !== 'auto') G.input.setMode(G.settings.controls, true); $('fps').hidden = !G.settings.fps;
+    G.setQuality(G.settings.quality); G.audio.apply(); if (G.settings.controls !== 'auto') G.input.setMode(G.settings.controls, true); $('fps').hidden = !G.settings.fps;
     G.UI.objective(OBJECTIVES[G.progress.step].text);
+  }
+  /* Prepare, then wait (on the title screen) for every shader the scene needs, so pressing Continue doesn't stall on them.
+     That compile is slowest right after a restart, when the graphics caches are cold. */
+  let prepId = 0;
+  async function ready(s) {
+    const id = ++prepId; cont.disabled = nw.disabled = true; info.textContent = 'Preparing the city…';
+    try { prepare(s); await Promise.race([scene.whenReadyAsync(), new Promise(r => setTimeout(r, 15000))]); }
+    catch (e) { if (id === prepId) showError('Couldn\'t prepare your save', e); }
+    if (id !== prepId) return;   // a newer prepare took over
+    if (!info.textContent.startsWith('Couldn')) describe();
+    cont.disabled = nw.disabled = false; cont.focus();
+  }
+  await ready(saved);
+  window.__booted = true; mark('title');
+  /* the account answered after the title screen went ahead with this browser's copy: switch to it if it's newer */
+  G.save.onLate = state => { if (G.started || !state) return; if (!saved || (state.savedAt || 0) > (saved.savedAt || 0)) { saved = state; ready(saved); } else describe(); };
+
+  /* Clicks respond at once ("Starting…"); the work runs a moment later so that change is drawn first. Failures are shown, never swallowed. */
+  const go = (fn) => {
+    if (cont.disabled) return; cont.disabled = nw.disabled = true; const label = cont.textContent; cont.textContent = 'Starting…';
+    setTimeout(() => { try { fn(); } catch (e) { showError('Couldn\'t start', e); cont.textContent = label; cont.disabled = nw.disabled = false; } }, 30);
+  };
+  cont.onclick = () => go(start);
+  nw.onclick = () => $('newConfirm').classList.add('show'); $('newNo').onclick = () => $('newConfirm').classList.remove('show');
+  $('newYes').onclick = async () => { $('newConfirm').classList.remove('show'); await G.save.wipe(); saved = null; go(() => { prepare(null); start(); }); };
+
+  function start() {
+    G.audio.unlock(); G.audio.startAmbience();
     $('title').hidden = true; $('hud').hidden = false; G.input.restStick(); G.UI.showTips();
     G.started = true; G.paused = false; G.save.now();
   }
+  /* after the title screen, errors go to the message feed instead of disappearing */
+  window.addEventListener('error', e => { if (G.started && G.UI) G.UI.feed('Something went wrong: ' + (e.message || 'unknown error'), '#ff6a5a'); });
 })();

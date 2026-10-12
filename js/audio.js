@@ -185,12 +185,12 @@ export function makeAudio() {
     bedAt = when + Math.max(1, dur - AMBIENCE.fade); bedIdx = (bedIdx + 1) % AMBIENCE.beds.length;
   }
   setInterval(tickAmbience, 1000);
-  A.startAmbience = () => { ambOn = true; tickAmbience(); };
+  /* the two long soundscapes (~4 MB) are fetched only once the game starts, so they don't compete with loading it */
+  let ambLoaded = false;
+  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of AMBIENCE.beds) A.load(b.name, b.url); A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
   A.horn = horn;
 
   for (const k in BANKS) A.load(k, BANKS[k].url);
-  for (const b of AMBIENCE.beds) A.load(b.name, b.url);
-  A.load(AMBIENCE.horn.name, AMBIENCE.horn.url);
   for (const k in CLIPS) A.load(k, CLIPS[k].url);
   A.load('hum', HUM.url);
   return A;
