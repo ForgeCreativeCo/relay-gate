@@ -121,6 +121,11 @@ export class Player extends Actor {
   swap() { const E = G.inv.equip; if (!E.secondary) { G.UI.feed('No second weapon equipped'); return; } G.inv.active = G.inv.active === 'primary' ? 'secondary' : 'primary'; this.cool = .25; G.UI.feed('Switched to ' + this.weapon.name); G.save.soon(); }
   stop() { this.path = null; this.goal = null; this.lock = null; this.pendingUse = null; this.steering = false; this.destMark.setEnabled(false); }
 
+  /* the joystick (screen right / down) as a ground direction: up on the stick is away from the camera */
+  stickDir(st) {
+    const f = G.camera.getDirection(B.Vector3.Forward()), l = Math.hypot(f.x, f.z) || 1, fx = f.x / l, fz = f.z / l, m = st.m / Math.hypot(st.x, st.y);
+    return { x: (fz * st.x - fx * st.y) * m, z: (-fx * st.x - fz * st.y) * m };
+  }
   /* ---------- turning clicks into orders ---------- */
   groundAt(x, y) {
     const ray = G.scene.createPickingRay(x, y, B.Matrix.Identity(), G.camera); if (ray.direction.y > -.01) return null;
@@ -154,7 +159,8 @@ export class Player extends Actor {
   command(c) {
     if (this.down > 0) return;
     if (c.kind === 'fire') return;   // left button only fires (while held); targets are picked automatically
-    if (c.kind === 'tap') { const e = this.enemyAt(c.x, c.y, true); if (e) { this.setLock(e.actor, e.part); return; } }
+    /* touch: the joystick moves you, so a tap only targets (on or right beside an enemy); a tap on open ground drops the lock */
+    if (c.kind === 'tap') { const e = this.enemyAt(c.x, c.y, true) || this.enemyAt(c.x, c.y); if (e) this.setLock(e.actor, e.part); else this.lock = null; return; }
     const g = this.groundAt(c.x, c.y); if (!g) return;
     this.lock = null; this.steering = true; this.pendingUse = null;
     /* clicked next to something you can use: walk over and use it */
@@ -191,25 +197,28 @@ export class Player extends Actor {
 
     /* target: picked automatically (the nearest threat in range with a clear shot, sticking with it while it lasts).
        Mouse: fires only while left is held; a threat under the cursor gets priority (and the part you point at), and with nothing in range shots go toward the cursor.
-       Touch: fires by itself; tapping an enemy locks on and walks you into range. */
-    const w = this.weapon, s = w && wstats(w), mouse = I.mode === 'mouse', firing = !mouse || I.fireHeld;
-    let T = this.pickTarget(dt), aimPart = null, aimPt = null;
+       Touch: fires while the fire button is held; tapping an enemy locks on; with nothing in range shots go straight ahead. */
+    const w = this.weapon, s = w && wstats(w), mouse = I.mode === 'mouse', firing = I.fireHeld;
+    const stick = !mouse && I.stick ? this.stickDir(I.stick) : null;
+    let T = this.pickTarget(dt), aimPart = null, aimPt = null, ahead = false;
     if (mouse && firing && !this.lock) {
       const hv = this.hover && this.hover.actor;
       if (hv && hostile(this, hv) && !hv.untargetable && dist2(p, hv.pos) <= s.range && clearShot(p, hv.pos)) { T = hv; aimPart = this.hover.part; }
       else if (!T && I.pointer) { const g = this.groundAt(I.pointer.x, I.pointer.y); if (g && Math.hypot(g.x - p.x, g.z - p.z) > 1) aimPt = V(g.x, 1.2, g.z); }
     }
     const inRange = !!(T && s && dist2(p, T.pos) <= s.range && clearShot(p, T.pos));
-    if (this.lock) {
+    if (this.lock && mouse) {   // on touch you steer yourself into range
       if (inRange) { this.path = null; this.goal = null; }
       else { this.repathT -= dt; const c = this.chaseAt; if (this.repathT <= 0 && (!this.path || !c || Math.hypot(c.x - T.pos.x, c.z - T.pos.z) > 1.5)) { this.repathT = .4; this.chaseAt = { x: T.pos.x, z: T.pos.z }; this.moveTo(T.pos.x, T.pos.z, true); this.destMark.setEnabled(false); } }
     }
     if (firing && T && !inRange) aimPt = T.pos.add(V(0, T.parts ? 3 * (T.s || 1) : 1.1, 0));   // out of reach: shoot toward it anyway
+    if (firing && !mouse && !T) { aimPt = V(p.x + Math.sin(this.facing) * 10, 1.2, p.z + Math.cos(this.facing) * 10); ahead = true; }
     this.target = T; G.assist = T;
 
-    /* walking the path */
+    /* walking: the joystick, or the path */
     const ox = p.x, oz = p.z;
     if (this.dash > 0) { this.dash -= dt; p.x += this.dashDir.x * 24 * dt; p.z += this.dashDir.z * 24 * dt; if (this.dash <= 0 && this.goal) this.moveTo(this.goal.x, this.goal.z, true); }
+    else if (stick) { if (this.path) { this.path = null; this.goal = null; this.pendingUse = null; this.destMark.setEnabled(false); } p.x += stick.x * SPEED * dt; p.z += stick.z * SPEED * dt; }
     else if (this.path && this.path.length) {
       let wp = this.path[0], dx = wp.x - p.x, dz = wp.z - p.z, d = Math.hypot(dx, dz);
       while (d < .25 && this.path.length > 1) { this.path.shift(); wp = this.path[0]; dx = wp.x - p.x; dz = wp.z - p.z; d = Math.hypot(dx, dz); }
@@ -226,7 +235,7 @@ export class Player extends Actor {
 
     /* facing: at the target while it's in reach, else where you're going */
     if (inRange) this.facing = lerpAngle(this.facing, angleTo(p, T.pos), damp(16, dt));
-    else if (firing && aimPt) this.facing = lerpAngle(this.facing, angleTo(p, aimPt), damp(16, dt));
+    else if (firing && aimPt && !ahead) this.facing = lerpAngle(this.facing, angleTo(p, aimPt), damp(16, dt));
     else if (moving) this.facing = lerpAngle(this.facing, Math.atan2(this.lastMove.x, this.lastMove.z), damp(12, dt));
     this.root.rotation.y = this.facing;
 

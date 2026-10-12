@@ -38,7 +38,7 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `js/loot.js` | Weapon and armour generation, tiers, perks, drops |
 | `js/game.js` | Encounters, objectives, checkpoints, interactions |
 | `js/ui.js` | HUD, pack screen, menu, end card |
-| `js/input.js` | Click/tap commands and keyboard shortcuts |
+| `js/input.js` | Mouse clicks, the touch joystick and fire button, and keyboard shortcuts |
 | `js/nav.js` | Pathfinding for click-to-move |
 | `js/save.js` | Saving and loading |
 | `js/audio.js` | Sound effects: loading, volume, positional sound, and cutting gun recordings into single shots |
@@ -60,4 +60,4 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 
 ## Controls
 
-Right-click to walk somewhere (hold to keep steering; right-click Mara, the stash or the gate to walk over and use it) · hold left-click to fire: the gun locks on to the nearest threat in range by itself (point at an enemy, or a part of a walker, to aim there instead; with nothing in range it fires toward the cursor) · guns never need reloading · S stop · T next part · Space dodge toward the cursor · Q swap · E use · I pack · C command Mara · M mute · Esc menu. On a phone, tap the ground to move and tap an enemy to lock on; the gun fires by itself at your target or the nearest threat. Dodge, Swap and Use buttons appear on screen.
+Right-click to walk somewhere (hold to keep steering; right-click Mara, the stash or the gate to walk over and use it) · hold left-click to fire: the gun locks on to the nearest threat in range by itself (point at an enemy, or a part of a walker, to aim there instead; with nothing in range it fires toward the cursor) · guns never need reloading · S stop · T next part · Space dodge toward the cursor · Q swap · E use · I pack · C command Mara · M mute · Esc menu. On a phone the game plays in landscape: drag your left thumb anywhere on the left side for a joystick, and hold Fire to shoot (it locks on to the nearest threat by itself, or tap an enemy to lock on to it). Dodge, Swap and Use buttons appear on screen.

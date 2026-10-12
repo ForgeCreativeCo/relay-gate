@@ -49,7 +49,7 @@ export function makeUI() {
   UI.modeChanged = () => { G.input.restStick && G.input.restStick(); tips(); };
   let tipsT = 0;
   function tips() { const t = $('tips'); t.style.opacity = 1; tipsT = 14;
-    t.textContent = G.input.mode === 'touch' ? 'Tap the ground to move · Tap an enemy to lock on · Your gun fires by itself · Dodge to dash' : 'Right-click to move · Hold left-click to fire, it locks on by itself · Space dodge · Q swap · T target part · I pack'; }
+    t.textContent = G.input.mode === 'touch' ? 'Left thumb to move · Hold Fire to shoot, it locks on by itself · Tap an enemy to lock on · Dodge to dash' : 'Right-click to move · Hold left-click to fire, it locks on by itself · Space dodge · Q swap · T target part · I pack'; }
   UI.showTips = tips;
 
   /* ---------- per-frame HUD ---------- */

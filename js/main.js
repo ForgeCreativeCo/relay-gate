@@ -105,6 +105,10 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   });
   G.setQuality('high');
   window.addEventListener('resize', () => { engine.resize(); fit(); G.input.restStick(); });
+  /* turned upright mid-run on a phone: pause behind the "turn sideways" screen (the menu stays open when you turn back) */
+  const portrait = matchMedia('(orientation: portrait)');
+  const upright = () => { if (portrait.matches && G.input.mode === 'touch' && G.started && !G.paused) G.UI.openMenu(); };
+  portrait.addEventListener('change', upright);
 
   /* ---------- the loop ---------- */
   let lightT = 0;
@@ -208,8 +212,12 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
 
   function start() {
     G.audio.unlock(); G.audio.startAmbience();
+    /* phones: go fullscreen and lock to landscape where the browser allows it (Android); elsewhere the "turn sideways" screen covers portrait */
+    if (G.input.mode === 'touch') { try { const el = document.documentElement, fs = el.requestFullscreen && el.requestFullscreen({ navigationUI: 'hide' });
+      if (fs) fs.then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {}); } catch (e) {} }
     $('title').hidden = true; $('hud').hidden = false; G.input.restStick(); G.UI.showTips();
     G.started = true; G.paused = false; G.save.now();
+    if (G.input.mode === 'touch' && matchMedia('(orientation: portrait)').matches) G.UI.openMenu();   // started upright: wait behind the "turn sideways" screen
   }
   /* after the title screen, errors go to the message feed instead of disappearing */
   window.addEventListener('error', e => { if (G.started && G.UI) G.UI.feed('Something went wrong: ' + (e.message || 'unknown error'), '#ff6a5a'); });

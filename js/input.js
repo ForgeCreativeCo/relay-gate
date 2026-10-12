@@ -1,4 +1,5 @@
-/* Controls: right-click to move, hold left-click to fire (shots lock on to the enemy under or near the cursor). On touch, tap to move or to lock on, and the gun fires by itself. */
+/* Controls: right-click to move, hold left-click to fire (shots lock on to the enemy under or near the cursor).
+   On touch: a joystick under the left thumb moves, the fire button fires, and tapping an enemy locks on. */
 import { G } from './core.js';
 
 export function makeInput(canvas) {
@@ -20,7 +21,7 @@ export function makeInput(canvas) {
   });
 
   /* Mouse: right button moves (hold to keep steering), left button fires (and clicking an enemy locks on to it).
-     Touch: a tap on an enemy locks on, a tap on the ground moves, and holding keeps steering. Each press is queued as a command for the player. */
+     Each press is queued as a command for the player. */
   let held = null; I.fireHeld = false;
   /* Mouse buttons are read from the pointer events' button mask: Babylon cancels pointerdown, which suppresses mousedown/mouseup,
      and a second button pressed while one is down only shows up as a change in the mask. */
@@ -40,32 +41,51 @@ export function makeInput(canvas) {
   });
   canvas.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') mouseButtons(e); });
   window.addEventListener('pointerup', e => { if (e.pointerType === 'mouse') mouseButtons(e); });
+  /* Touch: a thumb landing on the left side of the screen grabs a floating joystick there; a tap anywhere else is a targeting tap. */
+  const stickEl = $('stick'), knob = $('knob'), STICK_R = 56;
+  let stick = null;
+  const placeStick = (x, y) => { stickEl.style.transform = `translate(${x}px,${y}px)`; };
+  const placeKnob = (dx, dy) => { knob.style.transform = `translate(${dx}px,${dy}px)`; };
   canvas.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse') return;
     I.pointer = { x: e.clientX, y: e.clientY };
-    I.clicks.push({ x: e.clientX, y: e.clientY, kind: 'tap' });
-    held = { id: e.pointerId, x: e.clientX, y: e.clientY, t: 0 };
+    if (!stick && e.clientX < innerWidth * .45) { stick = { id: e.pointerId, ox: e.clientX, oy: e.clientY, dx: 0, dy: 0 }; placeStick(e.clientX, e.clientY); placeKnob(0, 0); stickEl.classList.add('on'); }
+    else I.clicks.push({ x: e.clientX, y: e.clientY, kind: 'tap' });
     try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
   });
-  const up = e => { if (held && held.id === e.pointerId) held = null; };
+  canvas.addEventListener('pointermove', e => {
+    if (!stick || stick.id !== e.pointerId) return;
+    let dx = e.clientX - stick.ox, dy = e.clientY - stick.oy; const d = Math.hypot(dx, dy);
+    /* dragging past the rim pulls the stick along behind your thumb */
+    if (d > STICK_R) { const k = (d - STICK_R) / d; stick.ox += dx * k; stick.oy += dy * k; dx -= dx * k; dy -= dy * k; placeStick(stick.ox, stick.oy); }
+    stick.dx = dx; stick.dy = dy; placeKnob(dx, dy);
+  });
+  const up = e => { if (held && held.id === e.pointerId) held = null; if (stick && stick.id === e.pointerId) I.restStick(); };
   canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
   canvas.addEventListener('mouseleave', () => { if (!held && !I.fireHeld) I.pointer = null; });
   canvas.addEventListener('wheel', e => { e.preventDefault(); G.zoom = Math.min(42, Math.max(18, (G.zoom || 30) + e.deltaY * .02)); }, { passive: false });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
-  window.addEventListener('blur', () => { held = null; buttons = 0; I.fireHeld = false; });
+  window.addEventListener('blur', () => { held = null; buttons = 0; I.fireHeld = false; I.restStick(); });
 
   const tap = (id, a) => { const b = $(id); b.addEventListener('pointerdown', e => { e.preventDefault(); act(a); b.classList.add('on'); });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => b.addEventListener(ev, () => b.classList.remove('on'))); b.addEventListener('contextmenu', e => e.preventDefault()); };
   for (const [id, a] of [['dashBtn', 'dash'], ['swapBtn', 'swap'], ['useBtn', 'interact'], ['partBtn', 'part'], ['cmdBtn', 'command']]) tap(id, a);
+  /* the fire button: held down, it fires, the same as holding left-click */
+  { const b = $('fireBtn'), off = () => { I.fireHeld = false; b.classList.remove('on'); };
+    b.addEventListener('pointerdown', e => { e.preventDefault(); if (G.paused) return; I.fireHeld = true; b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch (_) {} });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => b.addEventListener(ev, off)); b.addEventListener('contextmenu', e => e.preventDefault()); }
 
-  /* Called once a frame: hands over this frame's clicks, plus a steering point while the button is held. */
+  /* Called once a frame: hands over this frame's clicks, a steering point while the right button is held, and the joystick (screen x right, y down, length up to 1). */
   I.update = (dt) => {
     const out = I.frameClicks = I.clicks; I.clicks = [];
     I.steer = null;
     if (held) { held.t += dt; if (held.t > .18) I.steer = { x: held.x, y: held.y }; }
+    I.stick = null;
+    if (stick) { const m = Math.hypot(stick.dx, stick.dy) / STICK_R; if (m > .15) I.stick = { x: stick.dx / STICK_R, y: stick.dy / STICK_R, m: Math.min(1, m) }; }
     return out;
   };
-  I.release = () => { held = null; I.fireHeld = false; I.clicks = []; I.frameClicks = []; I.steer = null; };
-  I.restStick = () => {};
+  I.release = () => { held = null; I.fireHeld = false; I.clicks = []; I.frameClicks = []; I.steer = null; $('fireBtn').classList.remove('on'); I.restStick(); };
+  /* the joystick waits, faded, where a left thumb naturally rests */
+  I.restStick = () => { stick = null; I.stick = null; stickEl.classList.remove('on'); placeKnob(0, 0); placeStick(Math.max(110, innerWidth * .12), innerHeight - Math.max(110, innerHeight * .26)); };
   return I;
 }
