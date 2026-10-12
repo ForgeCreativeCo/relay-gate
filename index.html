@@ -4,6 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d0f0e">
+<script>
+/* Installable from the browser (a PWA): the manifest, the home-screen icon on iPhones, a service worker that lets it start offline once
+   played, and the title screen's Install button. It runs here in the head so it is listening before the browser decides the page can be
+   installed. Left out inside Claude, where the game runs in a frame and saves to your account instead. */
+(function () {
+  if (window.top !== window || window.claude || !('serviceWorker' in navigator) || !(location.protocol === 'https:' || location.hostname === 'localhost')) return;
+  var add = function (tag, attrs) { var el = document.createElement(tag); for (var k in attrs) el.setAttribute(k, attrs[k]); document.head.appendChild(el); };
+  add('link', { rel: 'manifest', href: 'manifest.webmanifest' });
+  add('link', { rel: 'apple-touch-icon', href: 'icons/apple-touch-icon.png' });
+  add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' });
+  add('meta', { name: 'apple-mobile-web-app-status-bar-style', content: 'black' });
+  add('meta', { name: 'apple-mobile-web-app-title', content: 'Relay Gate' });
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  /* The Install button: Chrome, Edge and Android say when the game can be installed, and the button opens their install dialog.
+     Safari on an iPhone or iPad has no dialog, so there it says how. Hidden in the installed game itself. */
+  var offer = null, ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var installed = navigator.standalone || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
+  var sync = function () { var b = document.getElementById('installBtn'); if (b) b.hidden = installed || !(offer || ios); };
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); offer = e; sync(); });
+  window.addEventListener('appinstalled', function () { installed = true; offer = null; sync(); });
+  document.addEventListener('DOMContentLoaded', function () {
+    sync();
+    document.getElementById('installBtn').onclick = function () {
+      if (offer) { offer.prompt(); offer.userChoice.then(function () { offer = null; sync(); }); }
+      else document.getElementById('titleInfo').textContent = 'To install Relay Gate, tap Share in Safari, then Add to Home Screen.';
+    };
+  });
+})();
+</script>
 </head>
 <body style="margin:0">
 <title>Relay Gate</title>
@@ -273,6 +302,7 @@ body[data-mode="touch"] .choice .key{display:none}
     <div class="row">
       <button class="btn primary" id="contBtn" type="button" disabled>Start</button>
       <button class="btn" id="arenaBtn" type="button">Switch arena</button>
+      <button class="btn" id="installBtn" type="button" hidden>Install</button>
     </div>
   </div>
 </section>
@@ -350,20 +380,6 @@ body[data-mode="touch"] .choice .key{display:none}
 })();
 </script>
 <script type="module" src="js/main.js"></script>
-<script>
-/* Installable from the browser (a PWA): the manifest, the home-screen icon on iPhones, and a service worker that lets it start offline once
-   played. Left out inside Claude, where the game runs in a frame and saves to your account instead. */
-(function () {
-  if (window.top !== window || window.claude || !('serviceWorker' in navigator) || !(location.protocol === 'https:' || location.hostname === 'localhost')) return;
-  var add = function (tag, attrs) { var el = document.createElement(tag); for (var k in attrs) el.setAttribute(k, attrs[k]); document.head.appendChild(el); };
-  add('link', { rel: 'manifest', href: 'manifest.webmanifest' });
-  add('link', { rel: 'apple-touch-icon', href: 'icons/apple-touch-icon.png' });
-  add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' });
-  add('meta', { name: 'apple-mobile-web-app-status-bar-style', content: 'black' });
-  add('meta', { name: 'apple-mobile-web-app-title', content: 'Relay Gate' });
-  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
-})();
-</script>
 
 </body>
 </html>

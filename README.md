@@ -18,7 +18,7 @@ You need an internet connection the first time, because Babylon.js and the fonts
 
 ## Installing it
 
-Relay Gate is a PWA: once it is online (GitHub Pages works), you can install it from the browser and it opens fullscreen, like an app, with its own icon. In Chrome or Edge on a computer, use the install button in the address bar. On Android, use **Install app** or **Add to Home screen** in the browser menu. On an iPhone or iPad, use **Share**, then **Add to Home Screen** in Safari. Once you have played it online, it starts without a connection too. Inside Claude none of this applies: the game runs as an artifact there.
+Relay Gate is a PWA: once it is online (GitHub Pages works), you can install it from the browser and it opens fullscreen, like an app, with its own icon. The title screen has an **Install** button wherever the browser can install it (Chrome and Edge on a computer, and Android): it opens the browser's install dialog. On an iPhone or iPad the button explains how: **Share**, then **Add to Home Screen** in Safari. Chrome and Edge also put an install icon at the right of the address bar. Once you have played it online, it starts without a connection too. Inside Claude none of this applies: the game runs as an artifact there.
 
 ## How a run plays
 
