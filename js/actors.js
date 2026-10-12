@@ -240,16 +240,16 @@ export function medicModel() {
   };
   return finishSquad(H);
 }
-/* ---------- the player from a model file: models/operator.glb ----------
+/* ---------- the player from a model file: models/operator.gltf ----------
    The file is one static mesh with no skeleton, so the skeleton is built here: bones sit on the joints squadAnim drives
    (hips, knees, shoulders, elbows) and each vertex is weighted to the bones nearest it. Joint positions were measured off
    the model once it is standing at game scale (feet at y 0, facing +z). If the file fails to load the player keeps operatorModel(). */
 let operatorMesh = null;
-const OP_GLB = { file: 'operator.glb', scale: 1.85, pelY: .66, neck: 1.2, hip: [.2, .66, .14], knee: [.21, .36, .13], ankle: [.22, .06, .08], shoulder: [.33, 1.07, .07], elbow: [.56, .94, .15], hand: [.8, .78, .22] };
-const OP_GLB_POSE = { ready: { pos: V(.14, .28, .4), rx: .55, blade: .3, head: 0 }, aim: { pos: V(.12, .4, .34), rx: 0, blade: .55, head: 0 } };
+const OP_FILE = { file: 'operator.gltf', scale: 1.85, pelY: .66, neck: 1.2, hip: [.2, .66, .14], knee: [.21, .36, .13], ankle: [.22, .06, .08], shoulder: [.33, 1.07, .07], elbow: [.56, .94, .15], hand: [.8, .78, .22] };
+const OP_FILE_POSE = { ready: { pos: V(.14, .28, .4), rx: .55, blade: .3, head: 0 }, aim: { pos: V(.12, .4, .34), rx: 0, blade: .55, head: 0 } };
 export async function loadOperator() {
   try {
-    const r = await B.SceneLoader.ImportMeshAsync('', 'models/', OP_GLB.file, G.scene), m = r.meshes.find(x => x.getTotalVertices() > 0), s = OP_GLB.scale;
+    const r = await B.SceneLoader.ImportMeshAsync('', 'models/', OP_FILE.file, G.scene), m = r.meshes.find(x => x.getTotalVertices() > 0), s = OP_FILE.scale;
     const W = m.computeWorldMatrix(true).clone();
     m.parent = null; m.position.setAll(0); m.rotationQuaternion = null; m.rotation.setAll(0); m.scaling.setAll(1);
     m.bakeTransformIntoVertices(W.multiply(B.Matrix.RotationY(Math.PI / 2)).multiply(B.Matrix.Scaling(s, s, s)));   // the file faces -x once loaded
@@ -257,11 +257,11 @@ export async function loadOperator() {
     r.meshes.forEach(x => { if (x !== m) x.dispose(); }); r.transformNodes.forEach(x => x.dispose());
     if (m.material) m.material.maxSimultaneousLights = 8;
     m.isPickable = false; m.setEnabled(false); operatorMesh = m;
-  } catch (e) { console.warn('models/' + OP_GLB.file + ' did not load, so the player uses the built-in model', e); }
+  } catch (e) { console.warn('models/' + OP_FILE.file + ' did not load, so the player uses the built-in model', e); }
 }
 const segDist = (q, a, b) => { const ab = b.subtract(a), t = clamp(V3.Dot(q.subtract(a), ab) / ab.lengthSquared(), 0, 1); return V3.Distance(q, a.add(ab.scale(t))); };
-export function operatorGlbModel() {
-  const m = operatorMesh, J = OP_GLB, P = a => V(...a), root = tn('operator'), pel = tn('pelvis', root); pel.position.y = J.pelY;
+export function operatorFileModel() {
+  const m = operatorMesh, J = OP_FILE, P = a => V(...a), root = tn('operator'), pel = tn('pelvis', root); pel.position.y = J.pelY;
   const torso = tn('torso', pel), neck = tn('neck', torso); neck.position.y = J.neck - J.pelY;
   const legs = [-1, 1].map(s => { const hip = tn('hip', pel); hip.position.set(s * J.hip[0], 0, J.hip[2]); const knee = tn('knee', hip); knee.position.y = -(J.hip[1] - J.knee[1]); return { hip, knee, s }; });
   const arm = s => {
@@ -292,7 +292,7 @@ export function operatorGlbModel() {
   m.setVerticesData(B.VertexBuffer.MatricesIndicesKind, idx, false); m.setVerticesData(B.VertexBuffer.MatricesWeightsKind, wt, false);
   m.skeleton = skel; m.numBoneInfluencers = 4; m.parent = root; m.setEnabled(true); m.receiveShadows = true; m.alwaysSelectAsActiveMesh = true;   // bind-pose bounds don't follow the limbs
   const rifle = carbine(pel, false); rifle.r.scaling.setAll(1.15);
-  const H = { root, pel, torso, neck, legs, armR, armL, rifle, pelY: J.pelY, pose: OP_GLB_POSE, fixedHead: true, muzzleY: 1.08, muzzleF: 1.1 };
+  const H = { root, pel, torso, neck, legs, armR, armL, rifle, pelY: J.pelY, pose: OP_FILE_POSE, fixedHead: true, muzzleY: 1.08, muzzleF: 1.1 };
   finishSquad(H); return H;
 }
 
@@ -311,7 +311,7 @@ function ringMesh(name, hex, alpha) {
 export class Player extends Actor {
   constructor() {
     super('player', 100);
-    this.H = operatorMesh ? operatorGlbModel() : operatorModel();
+    this.H = operatorMesh ? operatorFileModel() : operatorModel();
     this.root = this.H.root; this.facing = 0; this.dash = 0; this.dashCD = 0; this.down = 0; this.cool = 0; this.lastMove = { x: 0, z: 1 }; this.vel = { x: 0, z: 0 };
     this.lamp = new B.PointLight('lamp', V(0, 2.3, .3), G.scene); this.lamp.parent = this.root; this.lamp.diffuse = B.Color3.FromHexString('#ffe0c2'); this.lamp.intensity = .6;   // a soft, nearly white pool: a coloured lamp is the only light inside shadows, and tinted them blood-red this.lamp.range = 8;
     this.muzzle = new B.PointLight('muzzle', V(.1, this.H.muzzleY, this.H.muzzleF), G.scene); this.muzzle.parent = this.root; this.muzzle.intensity = 0; this.muzzle.range = 9; this.muzzleT = 0;

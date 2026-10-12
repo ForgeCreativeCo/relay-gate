@@ -32,8 +32,8 @@ Inside Claude, progress saves to your account. Run anywhere else, it saves to th
 | `js/geo.js` | Geometry builder (boxes, prisms, cylinders) |
 | `js/fx.js` | Particles (ash, fire, sparks, explosions, smoke) and combat visuals: muzzle flashes, surface-matched impacts, shockwaves, scorch marks, wreck debris |
 | `js/region1.js` | Region 01, Dead City: the map (streets, ruins, props, the relay gate) and the run through it (objectives, encounters, checkpoints, story beats). A new region is a new file exporting the same `REGION` shape |
-| `js/actors.js` | Player, Mara and raiders. The player's model loads from `models/operator.glb` and gets its skeleton here (it falls back to a built-in model if the file can't load) |
-| `models/operator.glb` | The player's model: a reduced copy (23k triangles, 1024 px texture) of the original 43 MB export |
+| `js/actors.js` | Player, Mara and raiders. The player's model loads from `models/operator.gltf` and gets its skeleton here (it falls back to a built-in model if the file can't load) |
+| `models/operator.gltf` | The player's model: a reduced copy (23k triangles, 1024 px texture, data embedded in the one file) of the original 43 MB export |
 | `js/machines.js` | Drones, husks (melee hunters that lie in wait), Hunter Walkers and the Warden boss |
 | `js/combat.js` | Factions, projectiles, damage |
 | `js/loot.js` | Weapon and armour generation, tiers, perks, drops |
