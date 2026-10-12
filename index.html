@@ -90,6 +90,8 @@ button{font-family:var(--f-ui);color:var(--ink)}
 .weapon .alt{font-size:10px;color:var(--dim);letter-spacing:.06em}
 body[data-mode="touch"] .weapon{right:auto;left:50%;transform:translateX(-50%);justify-items:center;bottom:calc(14px + env(safe-area-inset-bottom,0px))}
 body[data-mode="touch"] .weapon .ammo{font-size:22px}
+body[data-mode="touch"] .weapon{pointer-events:auto;cursor:pointer;padding:6px 14px;margin-bottom:-6px;transition:opacity .1s}   /* tap it to swap weapons */
+body[data-mode="touch"] .weapon.on{opacity:.6}
 .prompt{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font-size:13px;font-weight:600;letter-spacing:.04em;padding:7px 12px;background:var(--panel);border:1px solid var(--amber);border-radius:2px;pointer-events:none;white-space:nowrap}
 .prompt kbd{font:600 11px var(--f-ui);color:var(--amber);border:1px solid var(--amber);padding:1px 5px;margin-right:6px;border-radius:2px}
 body[data-mode="touch"] .prompt{display:none}
@@ -102,7 +104,6 @@ body{--sr:env(safe-area-inset-right,0px);--sb:env(safe-area-inset-bottom,0px)}
 .tb.fire{right:calc(22px + var(--sr));bottom:calc(22px + var(--sb));width:96px;height:96px;border:2px solid var(--machine);color:var(--machine);font-size:13px;background:rgba(48,10,6,.55)}
 .tb.fire.on{background:rgba(255,74,61,.38);color:var(--ink)}
 .tb.dash{right:calc(132px + var(--sr));bottom:calc(26px + var(--sb));width:66px;height:66px;border:2px solid var(--amber);color:var(--amber);font-size:10px;background:rgba(40,24,6,.55)}
-.tb.swap{right:calc(44px + var(--sr));bottom:calc(132px + var(--sb));width:52px;height:52px;font-size:9px}
 .tb.use{right:calc(22px + var(--sr));bottom:calc(196px + var(--sb));width:auto;min-width:96px;height:42px;border-radius:2px;border-color:var(--amber);color:var(--amber);padding-inline:10px}
 .tb.part{right:calc(132px + var(--sr));bottom:calc(104px + var(--sb));width:auto;min-width:80px;height:36px;border-radius:2px;border-color:rgba(255,74,61,.6);font-size:9px;padding-inline:8px}
 .tb.cmd{right:calc(16px + var(--sr));top:calc(58px + env(safe-area-inset-top,0px));width:auto;min-width:84px;height:34px;border-radius:2px;font-size:9px;padding-inline:8px}
@@ -257,7 +258,6 @@ body[data-mode="touch"] .choice .key{display:none}
   <div class="stick touchonly" id="stick"><i id="knob"></i></div>
   <button class="tb fire touchonly" id="fireBtn" type="button">Fire</button>
   <button class="tb dash touchonly" id="dashBtn" type="button">Dodge</button>
-  <button class="tb swap touchonly" id="swapBtn" type="button">Swap</button>
   <button class="tb use touchonly" id="useBtn" type="button" hidden>Use</button>
   <button class="tb part touchonly" id="partBtn" type="button" hidden>Aim: Core</button>
   <button class="tb cmd touchonly" id="cmdBtn" type="button" hidden>Mara: Follow</button>
@@ -304,7 +304,7 @@ body[data-mode="touch"] .choice .key{display:none}
     <div class="row"><button class="btn" id="muteBtn" type="button">Sound on</button><label class="vol"><span>Volume</span><input type="range" id="volRange" min="0" max="100" step="5" aria-label="Volume"></label><label class="vol"><span>Ambience</span><input type="range" id="ambRange" min="0" max="100" step="5" aria-label="Ambience volume"></label></div>
     <h3>Controls</h3>
     <div class="row"><button class="btn" id="cAuto" type="button">Auto</button><button class="btn" id="cTouch" type="button">Touch</button><button class="btn" id="cMouse" type="button">Mouse &amp; keys</button></div>
-    <div class="keys"><kbd>Right-click</kbd><span>Walk there (hold to keep steering)</span><kbd>Left-click</kbd><span>Hold to fire · locks on to the nearest threat by itself · point at an enemy or part to aim there instead</span><kbd>S</kbd><span>Stop</span><kbd>T</kbd><span>Target the next part</span><kbd>Space</kbd><span>Dodge toward the cursor</span><kbd>Q</kbd><span>Swap weapon</span><kbd>I</kbd><span>Pack</span><kbd>C</kbd><span>Tell Mara to follow or hold</span><kbd>B</kbd><span>Build machines from scrap (survival)</span><kbd>M</kbd><span>Mute or unmute</span></div>
+    <div class="keys"><kbd>Right-click</kbd><span>Walk there (hold to keep steering)</span><kbd>Left-click</kbd><span>Hold to fire · locks on to the nearest threat by itself · point at an enemy or part to aim there instead</span><kbd>S</kbd><span>Stop</span><kbd>T</kbd><span>Target the next part</span><kbd>Space</kbd><span>Dodge toward the cursor</span><kbd>Wheel / Q</kbd><span>Swap weapon</span><kbd>I</kbd><span>Pack</span><kbd>C</kbd><span>Tell Mara to follow or hold</span><kbd>B</kbd><span>Build machines from scrap (survival)</span><kbd>M</kbd><span>Mute or unmute</span></div>
     <h3>Run</h3>
     <div class="row"><button class="btn" id="endRun" type="button">End run</button><button class="btn danger" id="wipeBtn" type="button">Clear best run</button></div>
     <div class="confirm" id="wipeConfirm"><span class="muted">Clear your best run in this arena?</span><button class="btn danger" id="wipeYes" type="button">Clear it</button><button class="btn" id="wipeNo" type="button">Cancel</button></div>

@@ -93,7 +93,7 @@ Each arena keeps your best run (time, and the level you reached in it) and your 
 
 ## Controls
 
-Right-click to walk somewhere (hold to keep steering) · hold left-click to fire: the gun locks on to the nearest threat in range by itself (point at an enemy, or a part of a walker, to aim there instead; with nothing in range it fires toward the cursor) · guns never need reloading · S stop · T next part · Space dodge toward the cursor · Q swap · I pack · B build machines from scrap · C tell Mara to follow or hold · 1 2 3 pick an upgrade · M mute · Esc menu. On a phone the game plays in landscape: drag your left thumb anywhere on the left side for a joystick, and hold Fire to shoot (it locks on to the nearest threat by itself, or tap an enemy to lock on to it). Dodge and Swap buttons appear on screen, and the scrap meter is the Build button.
+Right-click to walk somewhere (hold to keep steering) · hold left-click to fire: the gun locks on to the nearest threat in range by itself (point at an enemy, or a part of a walker, to aim there instead; with nothing in range it fires toward the cursor) · guns never need reloading · S stop · T next part · Space dodge toward the cursor · scroll wheel (or Q) swap weapons · I pack · B build machines from scrap · C tell Mara to follow or hold · 1 2 3 pick an upgrade · M mute · Esc menu. On a phone the game plays in landscape: drag your left thumb anywhere on the left side for a joystick, and hold Fire to shoot (it locks on to the nearest threat by itself, or tap an enemy to lock on to it). Tap your weapon (bottom centre) to swap between primary and secondary. A Dodge button appears on screen, and the scrap meter is the Build button.
 
 ## Plans
 

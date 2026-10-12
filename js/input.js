@@ -63,13 +63,15 @@ export function makeInput(canvas) {
   const up = e => { if (held && held.id === e.pointerId) held = null; if (stick && stick.id === e.pointerId) I.restStick(); };
   canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
   canvas.addEventListener('mouseleave', () => { if (!held && !I.fireHeld) I.pointer = null; });
-  canvas.addEventListener('wheel', e => { e.preventDefault(); G.zoom = Math.min(42, Math.max(18, (G.zoom || 30) + e.deltaY * .02)); }, { passive: false });
+  /* the scroll wheel swaps weapons: once per flick, however many wheel events a trackpad or a free-spinning wheel sends (it waits for a pause) */
+  let wheelAt = 0;
+  canvas.addEventListener('wheel', e => { e.preventDefault(); if (Math.abs(e.deltaY) < 4) return; const now = performance.now(), fresh = now - wheelAt > 350; wheelAt = now; if (fresh) act('swap'); }, { passive: false });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   window.addEventListener('blur', () => { held = null; buttons = 0; I.fireHeld = false; I.restStick(); });
 
   const tap = (id, a) => { const b = $(id); b.addEventListener('pointerdown', e => { e.preventDefault(); act(a); b.classList.add('on'); });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => b.addEventListener(ev, () => b.classList.remove('on'))); b.addEventListener('contextmenu', e => e.preventDefault()); };
-  for (const [id, a] of [['dashBtn', 'dash'], ['swapBtn', 'swap'], ['useBtn', 'interact'], ['partBtn', 'part'], ['cmdBtn', 'command']]) tap(id, a);
+  for (const [id, a] of [['dashBtn', 'dash'], ['weapon', 'swap'], ['useBtn', 'interact'], ['partBtn', 'part'], ['cmdBtn', 'command']]) tap(id, a);   // on a phone, tap the weapon panel to swap
   /* the fire button: held down, it fires, the same as holding left-click */
   { const b = $('fireBtn'), off = () => { I.fireHeld = false; b.classList.remove('on'); };
     b.addEventListener('pointerdown', e => { e.preventDefault(); if (G.paused) return; I.fireHeld = true; b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch (_) {} });

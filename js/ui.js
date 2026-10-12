@@ -47,7 +47,7 @@ export function makeUI() {
   UI.modeChanged = () => { G.input.restStick && G.input.restStick(); tips(); };
   let tipsT = 0;
   function tips() { const t = $('tips'); t.style.opacity = 1; tipsT = 14;
-    t.textContent = G.input.mode === 'touch' ? 'Left thumb to move · Hold Fire to shoot, it locks on by itself · Tap an enemy to lock on · Dodge to dash' : 'Right-click to move · Hold left-click to fire, it locks on by itself · Space dodge · Q swap · T target part · I pack' + (G.R.assemble ? ' · B build' : ''); }
+    t.textContent = G.input.mode === 'touch' ? 'Left thumb to move · Hold Fire to shoot, it locks on by itself · Tap an enemy to lock on · Dodge to dash · Tap your weapon to swap' : 'Right-click to move · Hold left-click to fire, it locks on by itself · Space dodge · Wheel swap · T target part · I pack' + (G.R.assemble ? ' · B build' : ''); }
   UI.showTips = tips;
 
   /* ---------- per-frame HUD ---------- */
@@ -65,7 +65,7 @@ export function makeUI() {
     if (w) { const s = wstats(w); $('wName').textContent = w.name; $('wName').style.color = TIERS[w.tier].color; $('wAmmo').textContent = ''; $('wAmmo').append(String(Math.round(dps(w))), el('small', null, ' dps'));
       const T = P.target, L = P.lock; $('wLock').textContent = T ? (L ? 'Locked · ' : 'Auto · ') + (T.name || (T.kind === 'drone' ? 'Drone' : 'Target')) + (L && L.part && T.parts ? ' · ' + T.parts[L.part].label : '') : 'No target';
       $('wLock').classList.toggle('on', !!T);
-      const alt = G.inv.equip[G.inv.active === 'primary' ? 'secondary' : 'primary']; $('wAlt').textContent = alt ? (G.input.mode === 'touch' ? 'Swap: ' : 'Q · ') + alt.name : ''; }
+      const alt = G.inv.equip[G.inv.active === 'primary' ? 'secondary' : 'primary']; $('wAlt').textContent = alt ? (G.input.mode === 'touch' ? 'Tap to swap · ' : 'Wheel · ') + alt.name : ''; }
     /* touch extras */
     $('cmdBtn').hidden = !A.joined; if (A.joined) $('cmdBtn').textContent = 'Mara: ' + (A.mode === 'hold' ? 'Hold' : 'Follow');
     const multi = (G.assist && G.assist.parts) || (boss && boss.alive); $('partBtn').hidden = !multi; if (multi) { const L = G.player.lock; $('partBtn').textContent = 'Aim: ' + (L && L.part && L.actor.parts ? L.actor.parts[L.part].label : 'Core'); }
