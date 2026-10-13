@@ -221,4 +221,5 @@ export const SURVIVAL = survival({
   blurb: 'The gate is stuck open and the machines keep coming. Last as long as you can.',
   preparing: 'Preparing the city…', build: buildRegion, gate: GATE, start: { x: 50, z: 130 },
   saveKey: 'relay-gate-survival-v1',
+  music: () => 'city', musicKeys: ['city'],   // the city has music of its own all the way through
 });

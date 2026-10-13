@@ -103,8 +103,11 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
 
   /* the arena's map and run, the world and the cast */
   for (const id of ['regionTag', 'titleTag']) $(id).textContent = REGION.tag;
-  G.settings = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
-  G.audio = makeAudio(); G.audio.apply();
+  G.settings = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, music: .6, mute: false };
+  G.audio = makeAudio(); G.audio.apply(); G.audio.music('title');   // the title's music, as soon as the browser lets sound play
+  /* browsers keep sound off until the first click, tap or key: say so on the title screen until then */
+  const hint = $('soundHint'), hintT = setInterval(() => { const on = !G.audio.ctx || G.audio.ctx.state === 'running' || G.started; hint.hidden = on;
+    if (!on) hint.textContent = (G.input && G.input.mode === 'touch' ? 'Tap' : 'Click') + ' anywhere for sound'; else clearInterval(hintT); }, 400);
   G.progress = freshProgress(); G.inv = newInventory();
   mark('materials'); G.region = REGION.build(M); mark('region'); G.nav = makeNav(); mark('nav'); makeGroundDetail(scene); mark('ground'); scatterDebris(scene, M); mark('world');
   G.CB = makeCombat(M); G.drops = makeDrops(M);
@@ -177,7 +180,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   fit();
   mark('save-start'); let saved = await savedP; mark('save-done');
   const info = $('titleInfo'), cont = $('contBtn');
-  const SETTINGS = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, mute: false };
+  const SETTINGS = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, music: .6, mute: false };
   const describe = () => { info.textContent = `${[REGION.blurb, REGION.titleNote(saved)].filter(Boolean).join(' ')} Your record saves to ${G.save.where}.`; };
   const showError = (what, e) => { console.error(e); info.textContent = `${what}: ${(e && e.message) || e}. Reload the page to try again.`; };
 
@@ -215,7 +218,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   cont.onclick = () => go(start);
 
   function start() {
-    G.audio.unlock(); G.audio.startAmbience();
+    G.audio.unlock(); G.audio.startAmbience(); G.audio.preloadMusic(REGION.musicKeys);
     /* phones: go fullscreen and lock to landscape where the browser allows it (Android); elsewhere the "turn sideways" screen covers portrait */
     if (G.input.mode === 'touch') { try { const el = document.documentElement, fs = el.requestFullscreen && el.requestFullscreen({ navigationUI: 'hide' });
       if (fs) fs.then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {}); } catch (e) {} }

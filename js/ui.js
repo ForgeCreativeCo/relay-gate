@@ -193,7 +193,7 @@ export function makeUI() {
   const pressed = () => { const S = G.settings; $('qHigh').setAttribute('aria-pressed', S.quality === 'high'); $('qLow').setAttribute('aria-pressed', S.quality === 'low');
     $('fpsTog').setAttribute('aria-pressed', !!S.fps); for (const [id, v] of [['cAuto', 'auto'], ['cTouch', 'touch'], ['cMouse', 'mouse']]) $(id).setAttribute('aria-pressed', G.input.setting === v);
     $('saveInfo').textContent = 'Your best run here saves automatically to ' + G.save.where + '.';
-    $('muteBtn').textContent = S.mute ? 'Sound off' : 'Sound on'; $('muteBtn').setAttribute('aria-pressed', !S.mute); $('volRange').value = Math.round((S.volume == null ? .8 : S.volume) * 100); $('ambRange').value = Math.round((S.ambience == null ? .6 : S.ambience) * 100); };
+    $('muteBtn').textContent = S.mute ? 'Sound off' : 'Sound on'; $('muteBtn').setAttribute('aria-pressed', !S.mute); $('volRange').value = Math.round((S.volume == null ? .8 : S.volume) * 100); $('ambRange').value = Math.round((S.ambience == null ? .6 : S.ambience) * 100); $('musRange').value = Math.round((S.music == null ? .6 : S.music) * 100); };
   UI.openMenu = () => { if (!G.started) return; pressed(); $('wipeConfirm').classList.remove('show'); $('menu').hidden = false; G.setPaused(true); };
   UI.closeMenu = () => { $('menu').hidden = true; G.setPaused(false); };
   $('menuBtn').onclick = () => UI.openMenu(); $('resume').onclick = () => UI.closeMenu();
@@ -203,6 +203,8 @@ export function makeUI() {
   $('volRange').onchange = () => G.save.soon();
   $('ambRange').oninput = e => { G.settings.ambience = +e.target.value / 100; G.audio.apply(); };
   $('ambRange').onchange = () => G.save.soon();
+  $('musRange').oninput = e => { G.settings.music = +e.target.value / 100; G.audio.apply(); };
+  $('musRange').onchange = () => G.save.soon();
   $('fpsTog').onclick = () => { G.settings.fps = !G.settings.fps; $('fps').hidden = !G.settings.fps; G.save.soon(); pressed(); };
   $('cAuto').onclick = () => { G.input.setMode('auto', true); G.settings.controls = 'auto'; G.save.soon(); pressed(); };
   $('cTouch').onclick = () => { G.input.setMode('touch', true); G.settings.controls = 'touch'; G.save.soon(); pressed(); };

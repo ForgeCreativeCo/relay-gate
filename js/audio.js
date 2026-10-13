@@ -68,15 +68,27 @@ const AMBIENCE = {
   gain: .3, fade: 6,
   horn: { name: 'horn', url: 'sfx/horn.mp3', from: .7, to: 9.4, gain: .5, first: [25, 50], every: [75, 160], signal: .5, signalLen: 4.5 },   // "Apocalyptic horn"
 };
+/* Music: one track at a time on its own volume, crossfading when the game wants a different one (survival.js decides which: the boss,
+   walkers about, the station's blackouts, the city's own; main.js plays the title's). Each loops over [from, to], the part of the
+   recording worth hearing (the trailer's silent break and every track's tail are left out); gain evens out how loud they were recorded. */
+const MUSIC = {
+  title: { name: 'musCue', url: 'sfx/music-scifi-cue.mp3', from: .2, to: 50.5, gain: .45 },      // "Sci-fi music cue", freesound_community
+  blackout: { name: 'musCue', url: 'sfx/music-scifi-cue.mp3', from: .2, to: 50.5, gain: .45 },   // the same cue, building through a station blackout
+  city: { name: 'musEpic', url: 'sfx/music-epic.mp3', from: 0, to: 185.5, gain: .9 },          // "Epic game music" by Kris Klavenes, freesound_community
+  boss: { name: 'musBoss', url: 'sfx/music-boss.mp3', from: .7, to: 33.2, gain: .4 },          // "Total war: epic action cinematic trailer" by audioatlant, before its break
+  walkers: { name: 'musDrums', url: 'sfx/music-drums.mp3', from: 0, to: 39.3, gain: .3 },     // "Battle warrior fighting drums" by tatamusic
+};
+const MUSIC_FADE = 2;
 const MAX_VOICES = 24, HEAR = 42;   // simultaneous sounds; distance (m) at which machines fall silent
 
 export function makeAudio() {
   const A = { ctx: null, master: null, buffers: {}, voices: 0 };
   const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) { A.unlock = A.shot = A.play = A.apply = A.updateHums = A.silenceHums = A.startAmbience = A.horn = () => {}; return A; }
+  if (!AC) { A.unlock = A.shot = A.play = A.apply = A.updateHums = A.silenceHums = A.startAmbience = A.horn = A.music = () => {}; return A; }
   A.ctx = new AC();
   A.master = A.ctx.createGain(); A.master.connect(A.ctx.destination);
   A.amb = A.ctx.createGain(); A.amb.connect(A.master);   // ambience has its own level under the master volume
+  A.mus = A.ctx.createGain(); A.mus.connect(A.master);   // and so does music
 
   A.load = async (name, url) => {
     try { const res = await fetch(url); if (!res.ok) return; A.buffers[name] = await A.ctx.decodeAudioData(await res.arrayBuffer()); }
@@ -87,7 +99,7 @@ export function makeAudio() {
   ['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, A.unlock, { capture: true, passive: true }));
   /* Volume and mute come from the saved settings. */
   A.apply = () => { const S = G.settings || {}; const v = S.mute ? 0 : (S.volume == null ? .8 : S.volume); A.master.gain.setTargetAtTime(v, A.ctx.currentTime, .02);
-    A.amb.gain.setTargetAtTime(S.ambience == null ? .6 : S.ambience, A.ctx.currentTime, .05); };
+    A.amb.gain.setTargetAtTime(S.ambience == null ? .6 : S.ambience, A.ctx.currentTime, .05); A.mus.gain.setTargetAtTime(S.music == null ? .6 : S.music, A.ctx.currentTime, .05); };
 
   /* Where a sound sits relative to the listener (the camera's focus): quieter with distance, panned by left/right on screen. */
   function place(pos, hear = HEAR) {
@@ -211,6 +223,28 @@ export function makeAudio() {
   let ambLoaded = false;
   A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of BEDS.concat(ACCENTS)) A.load(b.name, b.url); if (!G.R.noHorn || G.R.hornSignals) A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
   A.horn = horn;
+
+  /* ---------- music ---------- */
+  let want = null, cur = null;   // cur: { key, src, g, endAt }
+  function track(key, when) {
+    const T = MUSIC[key], buf = T && A.buffers[T.name]; if (!buf) return null;
+    const dur = Math.min(T.to, buf.duration) - T.from, src = A.ctx.createBufferSource(), g = A.ctx.createGain(); src.buffer = buf;
+    g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(T.gain, when + MUSIC_FADE); g.gain.setValueAtTime(T.gain, when + dur - MUSIC_FADE); g.gain.linearRampToValueAtTime(0, when + dur);
+    src.connect(g); g.connect(A.mus); src.start(when, T.from, dur); src.onended = () => { src.disconnect(); g.disconnect(); };
+    return { key, src, g, endAt: when + dur };
+  }
+  function fadeOut(m) { const t = A.ctx.currentTime; m.g.gain.cancelScheduledValues(t); m.g.gain.setValueAtTime(m.g.gain.value, t); m.g.gain.linearRampToValueAtTime(0, t + MUSIC_FADE); try { m.src.stop(t + MUSIC_FADE + .1); } catch (e) {} }
+  /* ask for a track by its key (null for none); it comes in once its file has loaded */
+  A.music = (key) => { want = key || null; const T = want && MUSIC[want]; if (T && !A.buffers[T.name] && !T.loading) { T.loading = true; for (const k in MUSIC) if (MUSIC[k].name === T.name) MUSIC[k].loading = true; A.load(T.name, T.url); } };
+  A.playing = () => cur && cur.key;   // the track playing now
+  /* load ahead the tracks a run might want, so the first boss isn't silent while its file comes down */
+  A.preloadMusic = (keys) => { for (const k of keys) { const T = MUSIC[k]; if (T && !A.buffers[T.name] && !T.loading) { for (const j in MUSIC) if (MUSIC[j].name === T.name) MUSIC[j].loading = true; A.load(T.name, T.url); } } };
+  setInterval(() => {
+    if (A.ctx.state !== 'running') return;
+    const now = A.ctx.currentTime;
+    if ((cur && cur.key) !== want) { if (cur) fadeOut(cur); cur = want ? track(want, now + .05) : null; return; }   // (if its file isn't in yet, this tries again shortly)
+    if (cur && now > cur.endAt - MUSIC_FADE - .3) cur = track(cur.key, cur.endAt - MUSIC_FADE) || cur;              // loop, crossfading into itself
+  }, 250);
 
   for (const k in BANKS) A.load(k, BANKS[k].url);
   for (const k in CLIPS) A.load(k, CLIPS[k].url);

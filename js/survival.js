@@ -68,7 +68,9 @@ const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(
    indoorAt says which parts of an open arena are walled in (the Foundry's tunnels), so drones keep to the ways through there.
    arrive says where a 'ground', 'air', 'walker' or 'boss' (the big boss) machine comes in (null for nowhere just now); without it they arrive off-screen.
    tick runs every frame; run.time is the clock, and run.gapK scales the time between groups (an arena can bring them faster or slower for a while).
-   stats gives the end card more [number, label] pairs; run.kills counts what went down, by kind. */
+   stats gives the end card more [number, label] pairs; run.kills counts what went down, by kind.
+   music(run) is the arena's own music track for the moment (audio.js MUSIC; null for none), and musicKeys the tracks to load for it.
+   The boss's music, and the drums while walkers are about, play over it. */
 export function survival(arena) {
   const T = Object.assign({}, TUNE, arena.tune), GATE = arena.gate, START = arena.start;
   T.boss = Object.assign({}, TUNE.boss, arena.tune && arena.tune.boss); const BIG = BIGS[T.boss.big];
@@ -185,6 +187,7 @@ export function survival(arena) {
     preparing: arena.preparing,
     hornSignals: true,   // the horn means a wave has arrived, so it never sounds at random here (audio.js)
     medic: true,     // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
+    musicKeys: ['boss', 'walkers', ...(arena.musicKeys || [])],
     indoor: arena.indoor, indoorAt: arena.indoorAt, noHorn: arena.noHorn, ambience: arena.ambience, look: arena.look,
     /* each arena keeps its own record: in its own slot in this browser, and in its own document in your account */
     save: { key: arena.saveKey, doc: arena.saveKey },
@@ -234,6 +237,7 @@ export function survival(arena) {
       const dt = Math.min(.05, Math.max(0, G.t - RUN.last)); RUN.last = G.t;
       if (RUN.over) return;
       if (G.player.down <= 0) RUN.time = G.t - RUN.t0;   // the clock stops when you go down
+      G.audio.music(RUN.big && RUN.big.alive ? 'boss' : RUN.mine.some(a => a.alive && a.kind === 'walker') ? 'walkers' : arena.music ? arena.music(RUN) : null);
       const m = RUN.time / 60;
       if (arena.tick) arena.tick(R, RUN, dt);
       /* machines hunt you wherever you go (their home is what they return to and patrol); wrecks are cleared after a while */
@@ -261,7 +265,7 @@ export function survival(arena) {
 
     /* going down ends the run */
     onDeath() {
-      if (RUN.over) return; RUN.over = true;
+      if (RUN.over) return; RUN.over = true; G.audio.music(null);
       const P = G.progress, t = RUN.time, was = P.best || 0, wasLevel = P.bestLevel, record = t > was; if (record) { P.best = t; P.bestLevel = RUN.level; } G.save.now();
       const n = G.ally.revives || 0;
       G.UI.endCard({ tag: `Survival · ${arena.name}`, name: `You lasted ${clock(t)}`,
