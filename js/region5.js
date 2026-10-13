@@ -202,8 +202,8 @@ const LOOK = {
 };
 /* two recordings running together the whole time: the computers ("Weird technology", ten seconds, turned up) and the machinery behind
    the walls ("Glitch in the lab") */
-const AMBIENCE = [{ name: 'ambLabTech', url: 'sfx/ambience-lab-technology.mp3', from: 0, to: 10.4, gain: 2.1, layer: true },
-  { name: 'ambLabGlitch', url: 'sfx/ambience-lab-glitch.mp3', from: 0, to: 54, gain: .96, layer: true }];
+const AMBIENCE = [{ name: 'ambLabTech', url: 'sfx/ambience-lab-technology.mp3', from: 0, to: 10.4, gain: 1.25, layer: true },
+  { name: 'ambLabGlitch', url: 'sfx/ambience-lab-glitch.mp3', from: 0, to: 54, gain: .58, layer: true }];
 
 /* ---------- Origin as an arena ---------- */
 let lab = null;

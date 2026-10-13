@@ -283,8 +283,8 @@ const LOOK = {
   weatherK: 2.5,   // rain: far more of it than there is ash anywhere else, and each drop gone in half a second
   env: { zenith: [10, 10, 26], horizon: [58, 30, 80], ground: [10, 9, 16], sun: .12, gate: 0 },
 };
-/* there's no recording for it yet: the rain and the hum under it are made in audio.js */
-const AMBIENCE = [{ synth: 'rain', gain: 1 }];
+/* rain, running all the time under the music: the steady first half of "Gentle rain 07" (it thins out after that), turned up, since it's a quiet recording */
+const AMBIENCE = [{ name: 'ambRain', url: 'sfx/ambience-rain.mp3', from: 0, to: 45, gain: 2.5, layer: true }];
 
 /* ---------- a shop, as the machines see it: something of yours to attack. It has no model (the building is the map's) and it can't be
    destroyed: what a blow on its door costs you is the town's sleep ---------- */

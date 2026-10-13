@@ -1,5 +1,5 @@
 /* Sound: sample playback through Web Audio. Files live in sfx/; a missing or undecodable file just stays silent.
-   A few of 1984's sounds aren't recordings: its payphones, its rain and its boss's music are made here, out of oscillators and noise.
+   A few of 1984's sounds aren't recordings: its payphones and its boss's music are made here, out of oscillators and noise.
    Gunfire recordings are bursts, cut into single shots at load so each trigger pull plays one shot in time with the game's fire rate. */
 import { G } from './core.js';
 
@@ -61,7 +61,7 @@ const HUM = { url: 'sfx/drone-hum.mp3', from: 2.4, to: 6, grain: 1, every: .5, g
    A region can bring its own soundscapes instead (G.R.ambience, in the same shape as `beds`); a single one crossfades into itself.
    A bed can carry its own `gain` (a quiet recording turned up). One marked `accent` isn't a bed: it swells up over them now and then,
    `every` so many seconds (the first after `first`), from a random side. One marked `layer` isn't one either: it runs all the time,
-   looping into itself, under or over whatever else there is (Origin's two are its computers and its machinery, and all it has). */
+   looping into itself, under or over whatever else there is (1984's rain; Origin's computers and machinery). */
 const AMBIENCE = {
   beds: [
     { name: 'ambTerror', url: 'sfx/ambience-terror.mp3', from: .5, to: 105 },        // "Terror ambience" (fades out after ~105 s)
@@ -79,7 +79,7 @@ const MUSIC = {
   city: { name: 'musEpic', url: 'sfx/music-epic.mp3', from: 0, to: 185.5, gain: .9 },          // "Epic game music" by Kris Klavenes, freesound_community
   boss: { name: 'musBoss', url: 'sfx/music-boss.mp3', from: .7, to: 33.2, gain: .4 },          // "Total war: epic action cinematic trailer" by audioatlant, before its break
   drums: { name: 'musDrums', url: 'sfx/music-drums.mp3', from: 0, to: 39.3, gain: .3 },     // "Battle warrior fighting drums" by tatamusic
-  eighties: { name: 'mus80s', url: 'sfx/music-80s-beat.mp3', from: 14, to: 225, gain: .85 },   // "80s retro beat 001", freesound_community: 1984's music, without its slow way in and its wind-down
+  eighties: { name: 'mus80s', url: 'sfx/music-80s-beat.mp3', from: 14, to: 225, gain: 1.05 },   // "80s retro beat 001", freesound_community: 1984's music, without its slow way in and its wind-down
   /* Origin's two are both short pieces: each loops the part before its last note dies away */
   originIntro: { name: 'musOriginIntro', url: 'sfx/music-origin-intro.mp3', from: .4, to: 12.8, gain: .25 },   // "Cyberpunk dark logo" by AlexZavesa: under Origin's intro
   origin: { name: 'musOrigin', url: 'sfx/music-origin.mp3', from: .4, to: 13.5, gain: .24 },                    // "Dark cyberpunk logo (main version)" by AlexZavesa: Origin's music
@@ -185,7 +185,7 @@ export function makeAudio() {
 
   /* ---------- ambience ---------- */
   const rnd = ([a, b]) => a + Math.random() * (b - a);
-  const BEDS = (G.R.ambience || AMBIENCE.beds).filter(b => !b.accent && !b.synth && !b.layer), ACCENTS = (G.R.ambience || []).filter(b => b.accent), LAYERS = (G.R.ambience || []).filter(b => b.layer), MADE = (G.R.ambience || []).filter(b => b.synth);
+  const BEDS = (G.R.ambience || AMBIENCE.beds).filter(b => !b.accent && !b.layer), ACCENTS = (G.R.ambience || []).filter(b => b.accent), LAYERS = (G.R.ambience || []).filter(b => b.layer);
   let ambOn = false, bedAt = 0, bedIdx = Math.floor(Math.random() * BEDS.length), firstBed = true, hornAt = 0, accentAt = 0;
   function playBed(bed, when, offset, F = AMBIENCE.fade) {
     const buf = A.buffers[bed.name]; if (!buf) return 0;
@@ -233,18 +233,11 @@ export function makeAudio() {
   setInterval(tickAmbience, 1000);
   /* the long soundscapes (~3-4 MB) are fetched only once the game starts, so they don't compete with loading it; the horn only where it sounds */
   let ambLoaded = false;
-  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of BEDS.concat(ACCENTS, LAYERS)) A.load(b.name, b.url); for (const b of MADE) if (b.synth === 'rain') rain(b.gain || 1); if (!G.R.noHorn || G.R.hornSignals) A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
+  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of BEDS.concat(ACCENTS, LAYERS)) A.load(b.name, b.url); if (!G.R.noHorn || G.R.hornSignals) A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
   A.horn = horn;
 
   /* ---------- sounds made here instead of played from a file ---------- */
   const noiseBuf = (() => { const n = A.ctx.sampleRate * 2, b = A.ctx.createBuffer(1, n, A.ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; return b; })();
-  /* rain on tarmac (noise, with the lows and the hiss taken off) and, under it, the mains hum of neon tubes and television sets */
-  function rain(gain) {
-    const src = A.ctx.createBufferSource(), hp = A.ctx.createBiquadFilter(), lp = A.ctx.createBiquadFilter(), g = A.ctx.createGain();
-    src.buffer = noiseBuf; src.loop = true; hp.type = 'highpass'; hp.frequency.value = 900; lp.type = 'lowpass'; lp.frequency.value = 5200; g.gain.value = .11 * gain;
-    src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(A.amb); src.start();
-    for (const [f, v] of [[60, .05], [120, .03], [180, .012]]) { const o = A.ctx.createOscillator(), og = A.ctx.createGain(); o.frequency.value = f; og.gain.value = v * gain; o.connect(og); og.connect(A.amb); o.start(); }
-  }
   /* a payphone ringing: two bells struck in turn about twenty times a second, for two seconds. pos, and how far it carries */
   A.ring = (pos, hear = 110) => {
     if (A.ctx.state !== 'running') return; const at = place(pos, hear); if (!at) return;
