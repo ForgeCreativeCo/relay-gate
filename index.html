@@ -151,6 +151,18 @@ body{--sr:env(safe-area-inset-right,0px);--sb:env(safe-area-inset-bottom,0px)}
 body:not([data-mode="touch"]) .touchonly{display:none!important}
 
 /* world-anchored bits */
+/* an arena's intro: letterbox bars, Mara's line over the radio, and how to skip */
+.intro{position:fixed;inset:0;z-index:4;pointer-events:none}
+.intro .bar{position:absolute;left:0;right:0;height:9vh;background:#000}
+.intro .bar.top{top:0} .intro .bar.bot{bottom:0}
+.intro .say{position:absolute;left:50%;bottom:calc(9vh + 18px);transform:translateX(-50%);width:min(640px,calc(100% - 32px));display:grid;gap:4px;text-align:center;text-shadow:0 1px 8px rgba(0,0,0,.95)}
+.intro .say b{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--mara)}
+.intro .say p{margin:0;font-size:16px;line-height:1.45;font-weight:500}
+.intro .say p.in{animation:sayIn .5s ease-out}
+@keyframes sayIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.intro .skip{position:absolute;right:16px;bottom:calc(9vh - 26px);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+body.cinema .hud{display:none}
+@media (prefers-reduced-motion:reduce){.intro .say p.in{animation:none}}
 .mark{position:fixed;left:0;top:0;display:grid;justify-items:center;gap:3px;pointer-events:none;will-change:transform;text-shadow:0 1px 5px rgba(0,0,0,.95)}
 .mark i{width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:12px solid currentColor;filter:drop-shadow(0 0 4px currentColor)}
 .mark span{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
@@ -374,6 +386,8 @@ body[data-mode="touch"] .choice .key{display:none}
     <div class="row"><button class="btn primary" id="again" type="button">Run again</button><span class="row" id="otherArenas"></span></div>
   </div>
 </section>
+
+<div class="intro" id="intro" hidden aria-live="polite"><i class="bar top"></i><i class="bar bot"></i><div class="say"><b>Mara</b><p id="introLine"></p></div><span class="skip" id="introSkip" hidden></span></div>
 
 <div class="rotate" id="rotate" role="alert"><i></i><b>Turn your phone sideways</b><p class="muted">Relay Gate plays in landscape. The game is paused until you do.</p></div>
 

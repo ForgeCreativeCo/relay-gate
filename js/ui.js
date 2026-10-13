@@ -257,7 +257,7 @@ export function makeUI() {
     $('again').textContent = card.again; const o = $('otherArenas'); o.textContent = '';
     for (const x of card.others || []) { const b = el('button', 'btn', x.label); b.type = 'button'; b.onclick = x.use; o.append(b); }
     $('end').hidden = false; G.setPaused(true); };
-  $('again').onclick = () => { $('end').hidden = true; G.setPaused(false); G.game.runAgain(); };
+  $('again').onclick = () => { $('end').hidden = true; G.game.runAgain(); G.intro.play(G.R.intro, () => G.setPaused(false)); };   // the intro again, then the run
 
   /* keyboard shortcuts for screens */
   UI.onAction = (a) => {

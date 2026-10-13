@@ -11,7 +11,8 @@ export function makeCuts() {
     /* node: what sinks (it stands at y 0); the rectangle it covers on the ground; how tall it is */
     add(node, x0, z0, x1, z1, h) { const c = { x0, z0, x1, z1, node, h, k: 0 }; list.push(c); return c; },
     update(dt) {
-      const p = G.player.pos, a = G.camera.alpha, cx = Math.cos(a), cz = Math.sin(a), px = -cz, pz = cx;   // toward the camera along the ground, and across
+      /* around you, or (during an arena's intro) around what the camera is looking at; toward the camera along the ground, and across */
+      const p = G.intro && G.intro.playing ? G.camera.target : G.player.pos, a = G.camera.alpha, cx = Math.cos(a), cz = Math.sin(a), px = -cz, pz = cx;
       for (const c of list) {
         let want = 0;
         if (p.x > c.x0 - 10 && p.x < c.x1 + 10 && p.z > c.z0 - 10 && p.z < c.z1 + 10)

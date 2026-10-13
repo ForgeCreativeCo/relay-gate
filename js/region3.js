@@ -356,6 +356,14 @@ export const SURVIVAL = survival({
   preparing: 'Firing up the furnaces…', ambience: AMBIENCE, look: LOOK,
   build: buildRegion, gate: GATE, start: { x: 0, z: -6 },
   saveKey: 'relay-gate-survival-foundry-v1',
+  onIntro: dt => cuts.update(dt),   // walls sink around the shot
+  /* before each run: the hall, a fabricator, a slag channel, a tunnel doorway (intro.js) */
+  intro: [
+    { at: [0, 0, 4], r: 46, a: -2.2, b: .75, hold: 3.2, say: 'This is where they\'re made.' },
+    { at: [-22, 3, 20], r: 15, a: -2.1, b: .8, move: 2.4, hold: 3.8, say: 'Every fabricator in these walls is turning them out. Shoot one down and the line slows while it\'s out.' },
+    { at: [11, 0, 4], r: 20, a: -2.4, b: .75, move: 2.4, hold: 3.4, say: 'When a furnace pours, get out of the channel. Slag doesn\'t care whose side you\'re on.' },
+    { at: [24, 1, 29.5], r: 16, a: -2.25, b: .7, move: 2.4, hold: 4, say: 'There are kill switches behind them, in the tunnels. Too tight for the big ones to follow you in.' },
+  ],
   /* the same pressure as the city; menders come with the groups from the first minute; the Crucible instead of the Warden */
   tune: { gate: null, menders: { from: 1, max: 3, chance: .45 }, boss: { big: 'crucible' } },
   indoorAt: (x, z) => z > HALL[3] || z < HALL[1],   // everything beyond the hall's north and south walls is tunnel

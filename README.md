@@ -24,6 +24,8 @@ The manifest's `id` is `/relay-gate/`. Every project on forgecreativeco.github.i
 
 ## How a run plays
 
+Every run opens with the arena's intro: the camera sweeps over what matters there (the gate and the survivors' camp; the leech conduits and the breaker; the fabricators, the slag and the tunnels) while Mara says what to do about it over the radio, then settles behind you. The first time you see an arena's intro you watch it through; after that any key, click or tap skips it. The shots and Mara's lines are `intro` in each arena's file.
+
 You start with Mara and the starter rifle. Machines arrive from past the edge of the view (and some step out of the gate), sooner and in bigger groups as the clock runs: drones and husks first, Hunter Walkers from two and a half minutes. Going down ends the run and shows how long you lasted, your kills and your best time. Every run starts again from nothing; only your best run is kept.
 
 A horn sounds when a group of machines arrives. Groups come every few seconds once a run is going, so it sounds at most once every twenty seconds (`horn` in the block at the top of `js/survival.js`).
@@ -100,6 +102,7 @@ Each arena keeps your best run (time, and the level you reached in it) and your 
 | `js/combat.js` | Factions, projectiles, damage |
 | `js/loot.js` | Weapon and armour generation, tiers, perks, drops |
 | `js/game.js` | The run engine: plays whatever arena it is given (machines joining and leaving, kills, the Warden's phases, going down, a fresh run) |
+| `js/intro.js` | An arena's intro: the camera sweep, Mara's lines, the letterbox, and skipping once seen |
 | `js/ui.js` | HUD, pack screen (with Scrap all), level-up cards, menu, end card |
 | `js/input.js` | Mouse clicks, the touch joystick and fire button, and keyboard shortcuts |
 | `js/nav.js` | Pathfinding: for click-to-move, and for Mara, husks and walkers finding their way round walls and cover to you |

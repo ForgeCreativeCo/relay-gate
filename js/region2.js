@@ -367,6 +367,13 @@ export const SURVIVAL = survival({
   preparing: 'Powering up the station…', indoor: true, noHorn: true, ambience: AMBIENCE, look: LOOK,
   build: buildRegion, gate: GATE, start: { x: 0, z: 1 },
   saveKey: 'relay-gate-survival-station-v1',
+  onIntro: dt => cuts.update(dt),   // walls sink around the shot
+  /* before each run: the gate room, a conduit, the breaker (intro.js) */
+  intro: [
+    { at: [0, 2, 6], r: 20, a: -2.1, b: .8, hold: 3.4, say: 'This is their front office. Everything the Foundry makes is routed through here.' },
+    { at: [13.5, 1.5, 1], r: 18, a: -2.35, b: .45, move: 2, hold: 4, say: 'When the lights start to stutter, a leech is draining the power. Find it and kill it before they go out.' },
+    { at: [52, 1, 11], r: 20, a: -2.2, b: .6, move: 2.6, hold: 4.2, say: 'If they go anyway, the breaker\'s in the cooling hall. The blast doors seal in the dark, so watch which side you\'re on.' },
+  ],
   /* a smaller space than the city: fewer machines at once */
   tune: { size: [2, 5], cap: [5, 18], walkers: [[7, 1], [11, 2]], gate: null },
   music: () => (dark && dark.on ? 'blackout' : null), musicKeys: ['blackout'],   // music only in a blackout, building until the power comes back

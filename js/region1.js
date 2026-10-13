@@ -294,6 +294,12 @@ export const SURVIVAL = survival({
   blurb: 'The gate is stuck open and the machines keep coming. Keep the survivors\' camp standing when raids march on it from the gate, and shut the gate when you can.',
   preparing: 'Preparing the city…', build: buildRegion, gate: GATE, start: { x: 50, z: 130 },
   saveKey: 'relay-gate-survival-v1',
+  /* before each run: the gate, its console, the camp (intro.js) */
+  intro: [
+    { at: [50, 3, 147], r: 24, a: -2.05, b: .82, hold: 3.6, say: 'The gate\'s jammed open. Everything they send comes through there.' },
+    { at: [58.6, 1, 148.5], r: 14, a: -2.4, b: .85, move: 1.6, hold: 3.6, say: 'There\'s a console by the east pylon. Hold it long enough and the gate shuts for a while. It\'ll fight you for it.' },
+    { at: [50, 1, 80], r: 22, a: -2.1, b: .8, move: 2.6, hold: 4.2, say: 'There are people holed up at the rail yard. When the horn sounds low, a raid\'s going for them. Keep that camp standing.' },
+  ],
   /* the city's own music, and the drums while a raid is on (instead of for walkers) */
   music: () => (city && city.raid.on ? 'drums' : 'city'), musicKeys: ['city'], walkerDrums: false,
   /* things to work at: the gate's console while the gate can be shut, and the rail yard camp once it's been overrun and is clear again */

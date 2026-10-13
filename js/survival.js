@@ -189,12 +189,13 @@ export function survival(arena) {
     hornSignals: true,   // the horn means a wave has arrived, so it never sounds at random here (audio.js)
     medic: true,     // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
     musicKeys: ['boss', 'drums', ...(arena.musicKeys || [])],
+    intro: arena.intro, onIntro: arena.onIntro,   // the camera's sweep and Mara's lines before each run, and what the arena does each frame of it (intro.js)
     indoor: arena.indoor, indoorAt: arena.indoorAt, noHorn: arena.noHorn, ambience: arena.ambience, look: arena.look,
     /* each arena keeps its own record: in its own slot in this browser, and in its own document in your account */
     save: { key: arena.saveKey, doc: arena.saveKey },
     build: arena.build,
     start: START,
-    fresh: () => { const p = G.progress || {}; return { gate: true, best: p.best || 0, bestLevel: p.bestLevel || 0 }; },   // your best run outlives the run
+    fresh: () => { const p = G.progress || {}; return { gate: true, best: p.best || 0, bestLevel: p.bestLevel || 0, seenIntro: !!p.seenIntro }; },   // your best run outlives the run
     gate: GATE,
 
     /* a run starts from nothing: the starter rifle, an empty pack, level 1, the clock at zero */

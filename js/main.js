@@ -12,6 +12,7 @@ import { makeEnvironment, makeGroundDetail, scatterDebris } from './look.js';
 import { makeSave } from './save.js';
 import { makeGame, freshProgress } from './game.js';
 import { makeUI } from './ui.js';
+import { makeIntro } from './intro.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('c'); G.canvas = canvas;
@@ -111,7 +112,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   G.progress = freshProgress(); G.inv = newInventory();
   mark('materials'); G.region = REGION.build(M); mark('region'); G.nav = makeNav(); mark('nav'); makeGroundDetail(scene); mark('ground'); scatterDebris(scene, M); mark('world');
   G.CB = makeCombat(M); G.drops = makeDrops(M);
-  G.input = makeInput(canvas); G.UI = makeUI(); G.game = makeGame();
+  G.input = makeInput(canvas); G.UI = makeUI(); G.game = makeGame(); G.intro = makeIntro();
   G.player = new Player(); G.actors.push(G.player); G.player.pos.set(REGION.start.x, 0, REGION.start.z);
   G.ally = new Ally(REGION.start.x - 1.6, REGION.start.z - 1.4); G.ally.joined = true; G.actors.push(G.ally);   // Mara is in every run
   G.setPaused = (p) => { G.paused = p; G.input.release(); if (p) G.audio.silenceHums(); };
@@ -188,7 +189,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   function prepare(s) {
     G.game.clearAll(); G.drops.clear(); G.CB.clear(); G.FX.clearDebris();
     G.progress = freshProgress(); G.settings = Object.assign({}, SETTINGS);
-    if (s) { const p = s.progress || {}; G.progress.best = p.best || 0; G.progress.bestLevel = p.bestLevel || 0; G.settings = Object.assign({}, SETTINGS, s.settings || {}); }
+    if (s) { const p = s.progress || {}; G.progress.best = p.best || 0; G.progress.bestLevel = p.bestLevel || 0; G.progress.seenIntro = !!p.seenIntro; G.settings = Object.assign({}, SETTINGS, s.settings || {}); }
     G.game.spawnAll(); G.game.applyGate();
     const st = REGION.start; G.player.respawn(st.x, st.z); cam.target.set(st.x, 0, st.z); G.ally.teleportNear(G.player.pos);
     G.setQuality(G.settings.quality); G.audio.apply(); if (G.settings.controls !== 'auto') G.input.setMode(G.settings.controls, true); $('fps').hidden = !G.settings.fps;
@@ -222,8 +223,9 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
     /* phones: go fullscreen and lock to landscape where the browser allows it (Android); elsewhere the "turn sideways" screen covers portrait */
     if (G.input.mode === 'touch') { try { const el = document.documentElement, fs = el.requestFullscreen && el.requestFullscreen({ navigationUI: 'hide' });
       if (fs) fs.then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape')).catch(() => {}); } catch (e) {} }
-    $('title').hidden = true; $('hud').hidden = false; G.input.restStick(); G.UI.showTips();
-    G.started = true; G.paused = false; G.save.now();
+    $('title').hidden = true; $('hud').hidden = false; G.input.restStick();
+    G.started = true; G.paused = true; G.save.now();
+    G.intro.play(REGION.intro, () => { G.setPaused(false); G.UI.showTips(); });   // the arena's intro first, then the run
     if (G.input.mode === 'touch' && matchMedia('(orientation: portrait)').matches) G.UI.openMenu();   // started upright: wait behind the "turn sideways" screen
   }
   /* after the title screen, errors go to the message feed instead of disappearing */
