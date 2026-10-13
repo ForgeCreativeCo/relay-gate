@@ -79,6 +79,8 @@ export function newInventory() {
 }
 
 /* ---------- loot in the world ---------- */
+/* What is dropped lies there for `lasts` seconds and is then gone, so a long run doesn't carpet the ground; it flickers for the last `warn` of them. */
+const DROP = { lasts: 30, warn: 5 };
 export function makeDrops(M) {
   const D = { list: [] };
   const beamMats = {}, gemMats = {};
@@ -90,14 +92,16 @@ export function makeDrops(M) {
     gem.material = gm; gem.position.set(x, .5, z); gem.isPickable = false;
     let beam = null;
     if (!isScrap) { beam = B.MeshBuilder.CreateCylinder('dropBeam', { height: 9, diameterTop: .15, diameterBottom: .55, tessellation: 10, cap: B.Mesh.NO_CAP }, G.scene); beam.position.set(x, 4.5, z); beam.material = bm; beam.isPickable = false; G.glow.addExcludedMesh(beam); }
-    const d = { x, z, entry, gem, beam, t: rand(0, 6), label: isScrap ? `Scrap ×${entry.scrap}` : entry.name, tierLabel: isScrap ? '' : TIERS[entry.tier].label, color: hex, tag: null };
+    const d = { x, z, entry, gem, beam, age: 0, t: rand(0, 6), label: isScrap ? `Scrap ×${entry.scrap}` : entry.name, tierLabel: isScrap ? '' : TIERS[entry.tier].label, color: hex, tag: null };
     D.list.push(d); return d;
   };
   D.scatter = (x, z, entries) => entries.forEach((e, i) => { const a = i / entries.length * Math.PI * 2 + rand(0, 1), r = rand(1.2, 2.6); D.spawn(x + Math.cos(a) * r, z + Math.sin(a) * r, e); });
   D.remove = (d) => { d.gem.dispose(); if (d.beam) d.beam.dispose(); if (d.tag) d.tag.remove(); D.list.splice(D.list.indexOf(d), 1); };
   D.update = (dt, p) => {
     for (const d of [...D.list]) {
-      d.t += dt; d.gem.rotation.y += dt * 2; d.gem.position.y = .5 + Math.sin(d.t * 3) * .1;
+      d.t += dt; d.age += dt; d.gem.rotation.y += dt * 2; d.gem.position.y = .5 + Math.sin(d.t * 3) * .1;
+      if (d.age >= DROP.lasts) { D.remove(d); continue; }
+      if (d.age > DROP.lasts - DROP.warn) { const on = Math.sin(d.age * 14) > -.2; d.gem.visibility = on ? 1 : .15; if (d.beam) d.beam.visibility = on ? 1 : .15; }
       if (dist2(p, d) < 1.5 && G.player.alive) {
         const e = d.entry;
         if (e.scrap != null) { G.inv.scrap += e.scrap; G.UI.feed(`+ Scrap ×${e.scrap}`, '#9aa0a6'); D.remove(d); G.save.soon(); continue; }
