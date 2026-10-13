@@ -149,8 +149,42 @@ The campaign (a level-by-level run through Dead City, with the Rust Dogs raiders
 
 1. **WASD movement on desktop.** Right-click to walk is awkward for dodging round a crowd. Phones already use a joystick.
 2. **Something that carries over between runs** (gear, unlocks or a starting choice), once the core run is fun on its own.
-3. **More arenas.** The wall generator and power zones make indoor arenas quick to lay out.
+3. **The last two arenas: 1984, then Origin.** See below. The wall generator and power zones make indoor arenas quick to lay out.
 4. **Tuning.** Spawn rates, the difficulty ramp, boss timing, upgrade values and the scrap costs are all first guesses.
+
+### The last two arenas
+
+Agreed, not built yet. The arenas tell one story, in order: **Dead City** (the ruins) → **the Relay Station** (the Foundry's front office) → **the Foundry** (where the machines are made) → **1984** (where they're sent) → **Origin** (where Mara made them, so where you unmake them). Each arena has its own verb: hold, restore, destroy, protect, erase.
+
+**Tying in the Foundry.** The relay gates don't just send machines somewhere, they send them back in time. Things to add to the Foundry to set this up:
+
+- **A dispatch gate** in the Foundry, with machines loading into it. A line for Mara's intro: "And that's where they go. Not *where*. *When*."
+- **A time bleed on the Crucible.** When the Crucible is badly hurt, the dispatch gate flickers, and for a moment you glimpse neon and rain through the ring.
+- **Why they go back.** The machines are sent to 1984 to make sure the Foundry gets built. Something from the future is found there and becomes the seed of everything, so stopping the arrivals matters.
+
+**1984** (region 04, second to last). An American strip mall at night in 1984: an arcade, a video rental store, a diner, a gas station, a parking lot full of period cars, wet asphalt, sodium streetlights and buzzing neon in magenta and cyan. It's the only arena that hasn't been destroyed yet. The machines come through time gates.
+
+- **Stop the arrivals.** Small temporary time gates open around town, with lightning, a sphere of light and a scorched ring on the pavement. Shut one down while it's still charging and nothing comes through. Arrive late and you fight what stepped out. The gates open in different places, so you can't camp them.
+- **Keep the town asleep.** Townspeople stay indoors. Machines that break into buildings fill a panic meter, and a full one makes the rest of the run harder (more machines, coming faster). Like the fallen camps in Dead City, it doesn't end the run.
+- **Payphones.** The radio doesn't carry across time, so Mara can only reach you through a ringing payphone. Answer one to get her heal or a supply drop. Payphones ring in different places, so the town pulls you three ways at once: the gates, the buildings and the phones.
+- **The arcade** is the tight space, with cabinets for cover.
+- **Boss: the infiltrator.** A single hunter that tracks you across the map instead of rushing you. Beating it once unlocks Origin.
+- **Sound:** a synth and drum-machine score, CRT hum, and phones ringing in the distance.
+
+**Origin** (region 05, the finale). The research lab where the machine found in 1984 was taken apart, a few years later in the 80s. Clean white corridors, beige terminals, green-phosphor monitors, raised floors with cable runs, clean rooms behind glass and a mainframe hall with tape reels. It's sterile and corporate, the opposite of the Foundry: the machines here aren't made yet, they're being designed. In the central lab, **the find** lies opened up on a rig under lights. Whiteboards and screens show sketches of things you've fought all game: husks, walkers, the Crucible. Prototypes stand half-built on benches.
+
+- **Locked until you beat 1984's boss once.** It shows as a dark slot on the title screen until then. The other four arenas stay open.
+- **A run you can win.** It still plays like survival (levels, upgrades, groups getting stronger), but it ends: wipe every terminal and kill the first machine and the run is won. The score is your clear time.
+- **Wipe the research.** Terminals around the lab hold pieces of the work. Wipe one by channelling at it, like the gate console. Each wipe also removes something from the future, such as an enemy type that stops coming or a boss that can't appear. The world gets weaker as you go, the reverse of every other arena.
+- **The lab fights back.** The prototypes on the benches wake up, crude and unfinished but the first of their kind. Security seals doors, as the Station's blast doors do.
+- **Boss: the first machine.** The find wakes up on its rig. It's the oldest machine and the one that started everything, and it fights with bits of every enemy you've met.
+- **The name.** "Origin" on the title screen. Inside, the lab carries an invented company's branding (logo, signs, ID badges). The company isn't named yet. Placeholders are Meridian Systems or Halvorsen Labs; check that the name doesn't collide with anything real, and don't echo Cyberdyne.
+
+**The twist: Mara built it.** In the 80s, Mara was the young researcher who took the find apart. Everything in the future came from her work. That's why she knows every arena, where the kill switches are and where the breaker is: in a sense she made them.
+
+- **Origin's intro** is where it comes out. The camera sweeps the lab, and her lines change from orders to confession: "That's my desk. That's my handwriting on the board."
+- **During the run,** her old badge photo is on a door, her voice is on a dictaphone log, and her name is on the terminals you're wiping. You're erasing her life's work, and she's the one asking you to.
+- **The ending.** The first machine is dead and the last terminal is wiped. The radio goes quiet. Then a phone rings, the way she reached you in 1984. A young voice answers, one you almost recognise. She never makes the discovery, so she never becomes the Mara who guided you. You saved the world by unmaking the person who saved you. Cut to Dead City with the sky clear and the gate dark.
 
 ### Things to watch
 
