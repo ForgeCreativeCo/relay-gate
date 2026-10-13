@@ -1,5 +1,5 @@
 /* Sound: sample playback through Web Audio. Files live in sfx/; a missing or undecodable file just stays silent.
-   A few of 1984's sounds aren't recordings: its payphones and its boss's music are made here, out of oscillators and noise.
+   One sound isn't a recording: 1984's payphone bell is made here, out of oscillators.
    Gunfire recordings are bursts, cut into single shots at load so each trigger pull plays one shot in time with the game's fire rate. */
 import { G } from './core.js';
 
@@ -83,8 +83,7 @@ const MUSIC = {
   /* Origin's two are both short pieces: each loops the part before its last note dies away */
   originIntro: { name: 'musOriginIntro', url: 'sfx/music-origin-intro.mp3', from: .4, to: 12.8, gain: .25 },   // "Cyberpunk dark logo" by AlexZavesa: under Origin's intro
   origin: { name: 'musOrigin', url: 'sfx/music-origin.mp3', from: .4, to: 13.5, gain: .24 },                    // "Dark cyberpunk logo (main version)" by AlexZavesa: Origin's music
-  /* the Infiltrator's music isn't a recording: a drum machine, a bass line and an arpeggio played here (synthTrack below) */
-  synthBoss: { synth: true, bpm: 128, gain: .55, drive: true },
+  infiltrator: { name: 'musInfiltrator', url: 'sfx/music-infiltrator.mp3', from: 32, to: 210.4, gain: .5 },   // "Lightning tiger god loop", freesound_community: 1984's boss, from where it has finished building
 };
 const MUSIC_FADE = 2;
 const MAX_VOICES = 24, HEAR = 42;   // simultaneous sounds; distance (m) at which machines fall silent
@@ -237,7 +236,6 @@ export function makeAudio() {
   A.horn = horn;
 
   /* ---------- sounds made here instead of played from a file ---------- */
-  const noiseBuf = (() => { const n = A.ctx.sampleRate * 2, b = A.ctx.createBuffer(1, n, A.ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; return b; })();
   /* a payphone ringing: two bells struck in turn about twenty times a second, for two seconds. pos, and how far it carries */
   A.ring = (pos, hear = 110) => {
     if (A.ctx.state !== 'running') return; const at = place(pos, hear); if (!at) return;
@@ -248,42 +246,11 @@ export function makeAudio() {
     let end = out; if (at.pan && A.ctx.createStereoPanner) { const p = A.ctx.createStereoPanner(); p.pan.value = at.pan; out.connect(p); end = p; nodes.push(p); }
     am.connect(out); end.connect(A.master); setTimeout(() => nodes.forEach(n => n.disconnect()), 2300);
   };
-  /* A score played a sixteenth at a time a little ahead of the clock (1984's boss has one): a kick on every beat, a snare on two and four, hats between,
-     a bass line that bounces an octave, an arpeggio over it and a pad underneath, round four chords (A minor, F, C, G). T.drive: busier
-     and brighter, for the boss. Returns what a recorded track does, so the same code fades it in and out. */
-  function synthTrack(key, T, when) {
-    const C = A.ctx, g = C.createGain(), step = 60 / T.bpm / 4, hz = n => 440 * Math.pow(2, (n - 69) / 12);
-    g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(T.gain, when + MUSIC_FADE); g.connect(A.mus);
-    const bassLP = C.createBiquadFilter(); bassLP.type = 'lowpass'; bassLP.frequency.value = T.drive ? 900 : 620; bassLP.Q.value = 4; bassLP.connect(g);
-    const padLP = C.createBiquadFilter(); padLP.type = 'lowpass'; padLP.frequency.value = 1100; padLP.connect(g);
-    const env = (t, len, v, a = .005) => { const e = C.createGain(); e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(v, t + a); e.gain.exponentialRampToValueAtTime(.0008, t + len); return e; };
-    const tone = (type, f, t, len, v, to, a, detune = 0) => { const o = C.createOscillator(), e = env(t, len, v, a); o.type = type; o.frequency.value = f; o.detune.value = detune; o.connect(e); e.connect(to); o.start(t); o.stop(t + len + .02); o.onended = () => { o.disconnect(); e.disconnect(); }; };
-    const hit = (t, len, v, type, f) => { const s = C.createBufferSource(), q = C.createBiquadFilter(), e = env(t, len, v, .002); s.buffer = noiseBuf; q.type = type; q.frequency.value = f; s.connect(q); q.connect(e); e.connect(g); s.start(t, Math.random(), len + .02); s.onended = () => { s.disconnect(); q.disconnect(); e.disconnect(); }; };
-    const kick = t => { const o = C.createOscillator(), e = env(t, .26, .9, .003); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + .13); o.connect(e); e.connect(g); o.start(t); o.stop(t + .3); o.onended = () => { o.disconnect(); e.disconnect(); }; };
-    const ROOTS = [45, 41, 36, 43], THIRD = [3, 4, 4, 4];   // A2, F2, C2, G2, and whether the chord on each is minor or major
-    let n = 0, next = when;
-    const timer = setInterval(() => {
-      if (C.state !== 'running') return;
-      if (next < C.currentTime) next = C.currentTime + .05;   // the tab was in the background: pick up from now
-      while (next < C.currentTime + .3) {
-        const s = n % 16, bar = (n >> 4) % 4, root = ROOTS[bar], third = THIRD[bar], arp = [0, 7, 12, third + 12, 7, 12, third + 12, 19];
-        if (s % 4 === 0 || (T.drive && s === 14)) kick(next);
-        if (s % 8 === 4) { hit(next, .17, .34, 'bandpass', 1900); tone('triangle', 190, next, .09, .25, g); }
-        if (s % 2 === 0 || T.drive) hit(next, s % 4 === 2 ? .07 : .03, s % 4 === 2 ? .11 : .06, 'highpass', 7500);
-        if (s % 2 === 0) tone('sawtooth', hz(root + (s % 4 === 2 ? 12 : 0)), next, step * 1.8, .2, bassLP);
-        if (bar % 2 === 1 || T.drive || (n >> 6) % 2 === 1) tone('square', hz(root + 24 + arp[s % 8]), next, step * 1.1, .035, g);
-        if (s === 0) for (const [i, d] of [[12, -7], [12 + third, 6], [19, -4]]) tone('sawtooth', hz(root + 12 + i), next, step * 16, .035, padLP, .4, d);
-        next += step; n++;
-      }
-    }, 100);
-    return { key, g, endAt: Infinity, src: { stop: () => { clearInterval(timer); setTimeout(() => { g.disconnect(); bassLP.disconnect(); padLP.disconnect(); }, (MUSIC_FADE + .5) * 1000); } } };
-  }
 
   /* ---------- music ---------- */
   let want = null, cur = null;   // cur: { key, src, g, endAt }
   function track(key, when) {
-    const T = MUSIC[key]; if (T && T.synth) return synthTrack(key, T, when);
-    const buf = T && A.buffers[T.name]; if (!buf) return null;
+    const T = MUSIC[key], buf = T && A.buffers[T.name]; if (!buf) return null;
     const dur = Math.min(T.to, buf.duration) - T.from, src = A.ctx.createBufferSource(), g = A.ctx.createGain(); src.buffer = buf;
     g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(T.gain, when + MUSIC_FADE); g.gain.setValueAtTime(T.gain, when + dur - MUSIC_FADE); g.gain.linearRampToValueAtTime(0, when + dur);
     src.connect(g); g.connect(A.mus); src.start(when, T.from, dur); src.onended = () => { src.disconnect(); g.disconnect(); };
@@ -291,10 +258,10 @@ export function makeAudio() {
   }
   function fadeOut(m) { const t = A.ctx.currentTime; m.g.gain.cancelScheduledValues(t); m.g.gain.setValueAtTime(m.g.gain.value, t); m.g.gain.linearRampToValueAtTime(0, t + MUSIC_FADE); try { m.src.stop(t + MUSIC_FADE + .1); } catch (e) {} }
   /* ask for a track by its key (null for none); it comes in once its file has loaded */
-  A.music = (key) => { want = key || null; const T = want && MUSIC[want]; if (T && !T.synth && !A.buffers[T.name] && !T.loading) { T.loading = true; for (const k in MUSIC) if (MUSIC[k].name === T.name) MUSIC[k].loading = true; A.load(T.name, T.url); } };
+  A.music = (key) => { want = key || null; const T = want && MUSIC[want]; if (T && !A.buffers[T.name] && !T.loading) { T.loading = true; for (const k in MUSIC) if (MUSIC[k].name === T.name) MUSIC[k].loading = true; A.load(T.name, T.url); } };
   A.playing = () => cur && cur.key;   // the track playing now
   /* load ahead the tracks a run might want, so the first boss isn't silent while its file comes down */
-  A.preloadMusic = (keys) => { for (const k of keys) { const T = MUSIC[k]; if (T && !T.synth && !A.buffers[T.name] && !T.loading) { for (const j in MUSIC) if (MUSIC[j].name === T.name) MUSIC[j].loading = true; A.load(T.name, T.url); } } };
+  A.preloadMusic = (keys) => { for (const k of keys) { const T = MUSIC[k]; if (T && !A.buffers[T.name] && !T.loading) { for (const j in MUSIC) if (MUSIC[j].name === T.name) MUSIC[j].loading = true; A.load(T.name, T.url); } } };
   setInterval(() => {
     if (A.ctx.state !== 'running') return;
     const now = A.ctx.currentTime;
