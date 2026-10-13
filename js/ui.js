@@ -13,6 +13,7 @@ export function makeUI() {
   const feedEl = $('feed');
   UI.feed = (msg, color) => { const d = el('div', null, msg); if (color) d.style.borderLeftColor = color; feedEl.appendChild(d); while (feedEl.children.length > 5) feedEl.firstChild.remove();
     setTimeout(() => d.classList.add('out'), 3800); setTimeout(() => d.remove(), 4500); };
+  UI.status = (text) => { const o = $('obj2'); o.hidden = !text; if (o.textContent !== text) o.textContent = text || ''; };   // a second line: the arena's objectives
   UI.objective = (text, flash) => { const o = $('obj'); o.textContent = text; if (flash) { o.classList.remove('flash'); void o.offsetWidth; o.classList.add('flash'); } };
   UI.packDot = on => { $('packDot').hidden = !on; };
   let hurtFx = 0; UI.hurt = () => { hurtFx = 1; };

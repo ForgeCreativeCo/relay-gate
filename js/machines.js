@@ -504,7 +504,7 @@ export class Husk extends Actor {
       }
     } else { const dh = dist2(p, this.home);
       if (this.ally) mv = dh > 9 ? top : dh > 3.5 ? 4.5 : 0;   // yours keeps up with you (its home is wherever you are) instead of ambling back
-      else if (dh > 1) mv = 2.2; }
+      else if (dh > 1) mv = this.raid ? 4.6 : 2.2; }   // one sent on a raid marches on its target at a jog; otherwise it ambles back
     if (this.recover > 0) mv *= .3;
     const to = mv > 0 ? chase(this, G.nav, gx, gz, dt) : { x: gx, z: gz };   // round walls and cover when it's running; squarely at you when it strikes
     const dx = to.x - p.x, dz = to.z - p.z, dd = Math.hypot(dx, dz) || 1, ox = p.x, oz = p.z;

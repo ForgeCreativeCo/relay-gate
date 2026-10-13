@@ -71,6 +71,7 @@ button{font-family:var(--f-ui);color:var(--ink)}
 .tl{position:fixed;left:16px;top:calc(12px + env(safe-area-inset-top,0px));display:grid;gap:6px;max-width:min(340px,calc(100% - 150px));pointer-events:none;text-shadow:0 1px 8px rgba(0,0,0,.75)}
 .eyebrow{font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--amber)}
 .obj{font-size:15px;font-weight:600;line-height:1.3;letter-spacing:.02em}
+.obj2{font-size:12px;font-weight:600;line-height:1.3;letter-spacing:.03em;color:var(--dim)}
 .obj.flash{animation:objIn .9s ease-out}
 @keyframes objIn{0%{color:var(--amber);transform:translateX(-6px)}100%{color:var(--ink);transform:none}}
 .bars{display:grid;gap:5px;margin-top:4px}
@@ -265,6 +266,7 @@ body[data-mode="touch"] .choice .key{display:none}
   <div class="tl">
     <div class="eyebrow" id="regionTag">Survival</div>
     <div class="obj" id="obj"></div>
+    <div class="obj2" id="obj2" hidden></div>
     <div class="bars">
       <div class="barrow" id="hpRow"><b>Health</b><div class="bar"><i id="hpFill"></i></div><small id="armorTxt"></small></div>
       <div class="barrow ally" id="allyRow" hidden><b>Mara</b><div class="bar"><i id="allyFill"></i></div><small id="allyTxt"></small></div>

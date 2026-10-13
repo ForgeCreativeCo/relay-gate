@@ -1,7 +1,10 @@
-/* Region 01, Dead City: the map (walkable streets, ruins, props, set pieces, the relay gate) and how it plays as a survival arena. */
-import { B, G, V, MT, R, rnd, C } from './core.js';
+/* Region 01, Dead City: the map (walkable streets, ruins, props, set pieces, the relay gate) and how it plays as a survival arena:
+   two camps of survivors to keep standing, raids marching on them from the gate, and a console that shuts the gate for a while. */
+import { B, G, V, MT, R, rnd, C, dist2 } from './core.js';
 import { Geo, gbox, gprism, gcyl, gmesh, Buckets } from './geo.js';
 import { buildGate } from './gate.js';
+import { Actor } from './actors.js';
+import { rollLoot } from './loot.js';
 import { survival } from './survival.js';
 
 /* Walkable areas, south to north: outpost → Ring Road → Market Square → east street → rail yard → north street → gate plaza. */
@@ -197,6 +200,13 @@ export function buildRegion(M) {
   for (let k = 0; k < 30; k++) rubblePile(R(31, 69), R(118, 156), 1, .5);
   const gate = buildGate(M, GATE);
 
+  /* ---------- the camps' survivors, what burns when a camp is overrun, and the gate's console ---------- */
+  for (const k in CAMPS) buildCamp(M, CAMPS[k]);
+  { const g = at(CONSOLE.x, CONSOLE.z, 'rust'); gbox(g, { x: CONSOLE.x, y: .62, z: CONSOLE.z, w: .9, h: 1.25, d: .6, uv: .6 }); gbox(g, { x: CONSOLE.x, y: 1.3, z: CONSOLE.z - .1, w: 1, h: .12, d: .5, rx: -.4, ao: false });
+    gcyl(g, { r0: .05, h: 2.2, seg: 5, x: CONSOLE.x + .35, y: 1.1, z: CONSOLE.z + .2, ao: false }); ob(CONSOLE.x, CONSOLE.z, .45, .3, 1.25);
+    const lamp = B.MeshBuilder.CreateBox('gateLamp', { width: .5, height: .1, depth: .06 }, scene); lamp.position.set(CONSOLE.x, 1.02, CONSOLE.z - .31); lamp.isPickable = false;
+    CONSOLE.mat = new B.StandardMaterial('gateLamp', scene); CONSOLE.mat.disableLighting = true; CONSOLE.mat.emissiveColor = C('#1fe0ff'); lamp.material = CONSOLE.mat; }
+
   /* ---------- bare trees in the yard and plaza ---------- */
   { const g = Geo(); for (const [x, z] of [[41.5, 96], [65, 66], [32, 120], [68, 120], [32, 154], [68, 154], [-15, 94], [15, 66]]) {
       const h = R(3, 4.8); gcyl(g, { r0: .24, r1: .12, h, seg: 6, x, y: h / 2, z, rz: R(-.1, .1), ao: false, uv: 1 });
@@ -215,11 +225,126 @@ export function buildRegion(M) {
   return { gate };
 }
 
+/* ---------- the camps: survivors round the fire, flames and smoke for when one is overrun ---------- */
+/* The rail yard camp is where the survivors start; the outpost, far to the south, is where they fall back to. at: where the camp stands
+   (what the machines go for), fire: its campfire, seats: where the survivors sit, burn: what goes up in flames when it's overrun. */
+const CAMPS = {
+  yard: { id: 'yard', say: 'the rail yard camp', short: 'Rail yard camp', at: { x: 50, z: 81 }, fire: { x: 50, z: 78 }, seats: [[48.6, 76.8], [51.5, 76.9], [51.7, 78.9]], burn: [[45, 83], [54, 83.5], [46, 74.2]] },
+  outpost: { id: 'outpost', say: 'the outpost', short: 'Outpost', at: { x: 0, z: 1.5 }, fire: { x: 0, z: -1.5 }, seats: [[-1.5, -.6], [1.4, -2.4], [-.3, -3.1]], burn: [[-7, -6], [7.5, -7], [-8, 5]] },
+};
+const CONSOLE = { x: 58.6, z: 148.8 };   // the gate's console, beside its east pylon (you stand on its south side)
+/* Seconds to the first raid and between them; a camp's health; the survivors' fire healing you (a second) and a camp mending itself
+   (a second) while no machine is near; retaking the rail yard camp (seconds, and how far it must be clear of machines); shutting the
+   gate (seconds of work, how long it stays shut, how long before it can be shut again, and how much longer groups take meanwhile);
+   and how much sooner groups come once both camps are lost. */
+const CITY = { raidFirst: 120, raidEvery: 150, campHp: 900, heal: 6, regen: 3, retake: 8, clear: 12, shut: 8, shutFor: 60, cool: 30, shutK: 1.4, lostK: .8 };
+const MOUTH = { x: GATE.x, z: GATE.z - 3 };
+const C_ORANGE = C('#ff6418');
+function buildCamp(M, K) {
+  const S = G.scene; K.people = new B.TransformNode('survivors_' + K.id, S);
+  const coats = [M.coat, M.tarp, M.uniform], box = (n, w, h, d, x, y, z, mat, p, rx = 0) => { const m = B.MeshBuilder.CreateBox(n, { width: w, height: h, depth: d }, S); m.parent = p; m.position.set(x, y, z); m.rotation.x = rx; m.material = mat; m.isPickable = false; m.receiveShadows = true; G.sg.addShadowCaster(m); return m; };
+  K.seats.forEach(([x, z], i) => { const n = new B.TransformNode('survivor', S), coat = coats[i % coats.length]; n.parent = K.people; n.position.set(x, 0, z); n.rotation.y = Math.atan2(K.fire.x - x, K.fire.z - z);   // facing the fire
+    box('seat', .5, .34, .42, 0, .17, -.08, M.wood, n);
+    box('torso', .42, .56, .26, 0, .76, -.02, coat, n, -.18);
+    const head = B.MeshBuilder.CreateSphere('head', { diameter: .25, segments: 8 }, S); head.parent = n; head.position.set(0, 1.17, .06); head.material = M.skin; head.isPickable = false; G.sg.addShadowCaster(head);
+    box('hood', .3, .16, .3, 0, 1.27, .02, coat, n, -.2);
+    for (const s of [-1, 1]) { box('thigh', .15, .14, .46, s * .11, .4, .17, M.trousers, n); box('shin', .13, .42, .13, s * .11, .2, .4, M.trousers, n); box('arm', .11, .44, .11, s * .25, .66, .18, coat, n, -.95); } });
+  /* when it's overrun: flames where the tents were, a light from them, and smoke over it all */
+  K.flames = []; for (const [x, z] of K.burn) for (let k = 0; k < 3; k++) { const f = B.MeshBuilder.CreateCylinder('flame', { height: R(1, 1.8), diameterTop: 0, diameterBottom: R(.5, .9), tessellation: 6 }, S); f.position.set(x + R(-.6, .6), .7, z + R(-.6, .6)); f.material = M.fire; f.isPickable = false; f.setEnabled(false); G.flames.push(f); K.flames.push(f); }
+  K.lights = K.burn.map(([x, z]) => { const s = { pos: V(x, 1.6, z), color: C_ORANGE, range: 11, intensity: 0, flicker: true }; G.lightSources.push(s); return s; });
+  const em = B.MeshBuilder.CreateBox('campSmoke', { size: .1 }, S); em.position.set(K.at.x, 2, K.at.z); em.isVisible = false; em.isPickable = false; K.smoke = G.FX.smokeFrom(em, true);
+}
+function burning(K, on) { K.flames.forEach(f => f.setEnabled(on)); K.lights.forEach(l => { l.intensity = on ? 1.6 : 0; }); if (on) K.smoke.start(); else K.smoke.stop(); }
+
+/* A camp, as the machines see it: something of yours to attack, with a health bar. It has no model of its own (the tents, the fire and
+   the survivors are the map's); when its health runs out it is overrun. */
+class Camp extends Actor {
+  constructor(K, hp) { super('player', CITY.campHp); this.hp = hp; this.kind = 'camp'; this.name = K.short; this.C = K; this.radius = 3; this.height = 1.2; this.barY = 3.2;
+    this.root = new B.TransformNode('camp', G.scene); this.root.position.set(K.at.x, 0, K.at.z); this.home = V(K.at.x, 0, K.at.z);
+    this.raidOnly = true; }   // only machines sent on a raid go for it (combat.js); the rest are after you
+  hitTargets() { return [{ part: 'body', c: this.pos.add(V(0, 1, 0)), r: 2.8 }]; }
+  update() {}
+}
+
 /* ---------- the same city as a survival arena: you start in the gate plaza, with the gate stuck open behind you ---------- */
+let city = null;
+const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+/* the survivors settle in a camp (with this share of its health), or (where null) they're gone */
+function settle(eng, where, k) {
+  if (city.camp) { city.camp.alive = false; eng.remove(city.camp); }
+  city.where = where; for (const id in CAMPS) CAMPS[id].people.setEnabled(id === where);
+  city.camp = where ? eng.add(new Camp(CAMPS[where], Math.round(CITY.campHp * k))) : null;
+  city.raid.camp = city.camp;   // a raid on its way follows them
+}
+/* a camp is overrun: from the rail yard the survivors fall back to the outpost; from the outpost there's nowhere left */
+function overrun(eng) {
+  const K = CAMPS[city.where]; burning(K, true); G.audio.play('boomBig', { pos: V(K.at.x, 1, K.at.z), gain: .8, hear: 120 });
+  if (city.where === 'yard') { city.yardDown = true; settle(eng, 'outpost', 1); eng.say('The rail yard camp is overrun · The survivors are falling back to the outpost', '#ff6a5a'); }
+  else { city.outpostDown = true; settle(eng, null, 0); eng.say('The outpost has fallen · Nothing left to draw the machines off', '#ff6a5a'); }
+}
+function shutGate(run) {
+  city.gate.shut = true; city.gate.until = run.time + CITY.shutFor; run.gateShut = true; G.progress.gate = false; G.game.applyGate(); city.tally.shut++;
+  CONSOLE.mat.emissiveColor = C('#ff3a24'); G.audio.play('powerOff', { pos: V(GATE.x, 2, GATE.z), gain: 1, rate: .7, len: 2.4, fade: .5, hear: 120 });
+  G.UI.feed(`The gate is shut · Nothing comes through it for ${CITY.shutFor} seconds`, '#1fe0ff');
+}
+/* what the survivors leave you for beating off a raid, on top of scrap */
+const rollSupplies = () => rollLoot('walker');
 export const SURVIVAL = survival({
   num: '01', name: 'Dead City',
-  blurb: 'The gate is stuck open and the machines keep coming. Last as long as you can.',
+  blurb: 'The gate is stuck open and the machines keep coming. Keep the survivors\' camp standing when raids march on it from the gate, and shut the gate when you can.',
   preparing: 'Preparing the city…', build: buildRegion, gate: GATE, start: { x: 50, z: 130 },
   saveKey: 'relay-gate-survival-v1',
-  music: () => 'city', musicKeys: ['city'],   // the city has music of its own all the way through
+  /* the city's own music, and the drums while a raid is on (instead of for walkers) */
+  music: () => (city && city.raid.on ? 'drums' : 'city'), musicKeys: ['city'], walkerDrums: false,
+  /* things to work at: the gate's console while the gate can be shut, and the rail yard camp once it's been overrun and is clear again */
+  interactables(L) {
+    if (!city) return; const now = city.now;
+    if (!city.gate.shut && now >= city.gate.coolUntil) L.push({ pos: V(CONSOLE.x, 0, CONSOLE.z - 1), r: 1.7, hold: CITY.shut, label: 'Shut the gate', use: () => shutGate(city.run) });
+    const Y = CAMPS.yard;
+    if (city.yardDown && city.where === 'outpost' && !G.actors.some(a => a.alive && a.faction === 'machine' && dist2(a.pos, Y.at) < CITY.clear))
+      L.push({ pos: V(Y.at.x, 0, Y.at.z), r: 2.6, hold: CITY.retake, label: 'Retake the rail yard camp',
+        use: () => { city.yardDown = false; burning(Y, false); settle(city.eng, 'yard', .7); city.eng.say('The rail yard camp is yours again · The survivors are moving back up', '#1fe0ff'); } });
+  },
+  begin(eng, run) {
+    city = { eng, run, now: 0, where: null, camp: null, yardDown: false, outpostDown: false, raid: { camp: null, on: false, next: CITY.raidFirst, members: [] },
+      gate: { shut: false, until: 0, coolUntil: 0, defended: false }, tally: { raids: 0, shut: 0 } };
+    for (const id in CAMPS) burning(CAMPS[id], false);
+    settle(eng, 'yard', 1); run.gateShut = false; CONSOLE.mat.emissiveColor = C('#1fe0ff'); G.marks = [];
+  },
+  tick(eng, run, dt) {
+    const now = city.now = run.time, raid = city.raid, gate = city.gate, camp = city.camp, P = G.player;
+    city.run = run;
+    /* the camp: overrun when its health runs out; it mends while no raider is near, and its fire heals you while no machine is */
+    if (camp && !camp.alive) overrun(eng);
+    else if (camp) { const near = (r, raiders) => G.actors.some(a => a.alive && a.faction === 'machine' && (!raiders || a.raid) && dist2(a.pos, camp.pos) < r);
+      if (camp.hp < camp.maxHp && !near(15, true)) camp.hp = Math.min(camp.maxHp, camp.hp + CITY.regen * dt);
+      if (P.down <= 0 && P.hp < P.maxHp && dist2(P.pos, camp.C.fire) < 4.5 && !near(10)) P.hp = Math.min(P.maxHp, P.hp + CITY.heal * dt); }
+    /* the gate: working at its console brings machines out of it at you; once shut it stays shut for a while */
+    const work = G.game.working(), atConsole = work && work.label === 'Shut the gate';
+    if (atConsole && !gate.defended) { gate.defended = true; run.send(MOUTH, 3); eng.say('The gate is fighting back', '#ff6a5a'); }
+    if (!atConsole) gate.defended = false;
+    if (gate.shut && now >= gate.until) { gate.shut = false; run.gateShut = false; gate.coolUntil = now + CITY.cool; G.progress.gate = true; G.game.applyGate(); raid.next = Math.max(raid.next, now + 8);
+      CONSOLE.mat.emissiveColor = C('#ffb340'); G.audio.play('powerOn', { pos: V(GATE.x, 2, GATE.z), gain: 1, rate: .8, len: 2, fade: .4, hear: 120 }); eng.say('The gate is open again', '#ff6a5a'); }
+    if (!gate.shut && now >= gate.coolUntil) CONSOLE.mat.emissiveColor = C('#1fe0ff');
+    run.gapK = (gate.shut ? CITY.shutK : 1) * (city.outpostDown ? CITY.lostK : 1);
+    /* raids: out of the gate (never while it's shut) and off towards the camp; beat one off and the survivors leave you supplies */
+    if (city.where && !raid.on && !gate.shut && now >= raid.next) {
+      raid.on = true; raid.camp = city.camp; raid.next = now + CITY.raidEvery; raid.members = run.send(MOUTH, Math.max(3, run.size() + 1), { raid });
+      G.audio.horn(true, .7); eng.say(`A raid is marching on ${CAMPS[city.where].say} from the gate`, '#ff6a5a'); }
+    if (raid.on && !raid.members.some(a => a.alive)) { raid.on = false;
+      if (city.camp) { const K = city.camp.C; city.tally.raids++; G.drops.scatter(K.fire.x + 2, K.fire.z + 1, [{ scrap: 25 }, ...rollSupplies()]); eng.say('Raid beaten off · The survivors have left you supplies by the fire', '#1fe0ff'); } }
+    /* what to head for: the camp while a raid is on, the gate when it's about to open again */
+    G.marks = [];
+    if (raid.on && city.camp) G.marks.push({ pos: city.camp.pos, label: `${city.camp.C.short} · ${Math.ceil(city.camp.hp / city.camp.maxHp * 100)}%`, color: '#ff6a5a' });
+    if (gate.shut && gate.until - now < 10) G.marks.push({ pos: V(GATE.x, 0, GATE.z), h: 4, label: `Gate opens · ${Math.ceil(gate.until - now)}s`, color: '#1fe0ff' });
+  },
+  /* the line under the clock: the camp, the gate, the next raid */
+  status() {
+    if (!city) return ''; const now = city.now, g = city.gate, r = city.raid, c = city.camp;
+    const camp = c ? `${c.C.short} ${Math.ceil(c.hp / c.maxHp * 100)}%` : 'Survivors lost';
+    const gate = g.shut ? `Gate shut ${Math.ceil(g.until - now)}s` : 'Gate open';
+    const next = !c ? '' : r.on ? ' · Raid under way' : g.shut ? ' · No raids while it\'s shut' : ` · Raid in ${clock(Math.max(0, r.next - now))}`;
+    return `${camp} · ${gate}${next}`;
+  },
+  stats: () => [[city.tally.raids, city.tally.raids === 1 ? 'Raid beaten off' : 'Raids beaten off'], [city.tally.shut, city.tally.shut === 1 ? 'Gate shut once' : 'Times the gate was shut']],
 });

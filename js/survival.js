@@ -70,7 +70,8 @@ const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(
    tick runs every frame; run.time is the clock, and run.gapK scales the time between groups (an arena can bring them faster or slower for a while).
    stats gives the end card more [number, label] pairs; run.kills counts what went down, by kind.
    music(run) is the arena's own music track for the moment (audio.js MUSIC; null for none), and musicKeys the tracks to load for it.
-   The boss's music, and the drums while walkers are about, play over it. */
+   The boss's music, and the drums while walkers are about (unless walkerDrums is false), play over it. status(run) is a line for the HUD
+   under the clock (the arena's objectives). */
 export function survival(arena) {
   const T = Object.assign({}, TUNE, arena.tune), GATE = arena.gate, START = arena.start;
   T.boss = Object.assign({}, TUNE.boss, arena.tune && arena.tune.boss); const BIG = BIGS[T.boss.big];
@@ -140,7 +141,7 @@ export function survival(arena) {
      Only one big boss at a time; with nowhere to put it yet, it is tried again shortly. */
   function milestone(R, p) {
     const what = RUN.due[0], boss = what === 'big'; if (boss && RUN.big && RUN.big.alive) return;
-    const gd = dist2(p, GATE), mouth = T.gate && gd > 12 && gd < T.gate[1] ? { x: GATE.x, z: GATE.z - 3 } : null;
+    const gd = dist2(p, GATE), mouth = T.gate && !RUN.gateShut && gd > 12 && gd < T.gate[1] ? { x: GATE.x, z: GATE.z - 3 } : null;
     const c = mouth || (arena.arrive ? arena.arrive(p, boss ? 'boss' : 'walker') : spot(p, boss ? BIG.margin : 1.5)); if (!c) return;
     RUN.due.shift();
     const w = boss ? BIG.make(c.x, c.z) : new Walker(c.x, c.z, { patrolR: 0, leash: 1e9 });
@@ -156,7 +157,7 @@ export function survival(arena) {
   function group(R, p, m) {
     const alive = RUN.mine.filter(a => a.alive), room = Math.floor(ramp(T.cap, m)) - alive.length; if (room <= 0) return false;
     let n = Math.min(room, Math.round(ramp(T.size, m)));
-    const gd = dist2(p, GATE), mouth = T.gate && gd > T.gate[0] && gd < T.gate[1] && Math.random() < T.gate[2] ? { x: GATE.x, z: GATE.z - 3 } : null;
+    const gd = dist2(p, GATE), mouth = T.gate && !RUN.gateShut && gd > T.gate[0] && gd < T.gate[1] && Math.random() < T.gate[2] ? { x: GATE.x, z: GATE.z - 3 } : null;   // nothing comes through a gate that's been shut
     const at = (kind) => mouth || (arena.arrive ? arena.arrive(p, kind) : spot(p, kind === 'air' ? null : kind === 'walker' ? 1.5 : .6));
     const husks = ramp(T.husks, m), add = (a) => enlist(R, a);
     const around = (c, r) => { const x = c.x + rand(-r, r), z = c.z + rand(-r, r); return G.nav.snap(x, z, 3) || c; };
@@ -187,7 +188,7 @@ export function survival(arena) {
     preparing: arena.preparing,
     hornSignals: true,   // the horn means a wave has arrived, so it never sounds at random here (audio.js)
     medic: true,     // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
-    musicKeys: ['boss', 'walkers', ...(arena.musicKeys || [])],
+    musicKeys: ['boss', 'drums', ...(arena.musicKeys || [])],
     indoor: arena.indoor, indoorAt: arena.indoorAt, noHorn: arena.noHorn, ambience: arena.ambience, look: arena.look,
     /* each arena keeps its own record: in its own slot in this browser, and in its own document in your account */
     save: { key: arena.saveKey, doc: arena.saveKey },
@@ -200,6 +201,12 @@ export function survival(arena) {
     spawn(R) {
       G.inv = newInventory(); G.boost = {}; G.player.recalc(); G.ally.recalc(); G.ally.healCD = G.ally.reviveCD = 0; G.ally.revives = 0; G.progress.kills = 0;
       RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, hornAt: 0, squad: [], big: null, bigs: 0, kills: {}, mendSaidAt: 0, rebuilt: 0 };
+      /* for an arena's own events: send n machines (husks and drones in the usual mix) from c, each given the properties in flags */
+      RUN.send = (c, n, flags = {}) => { const m = RUN.time / 60, out = [];
+        for (let i = 0; i < n; i++) { const husk = Math.random() < ramp(T.husks, m) + .1, x = c.x + rand(-2.5, 2.5), z = c.z + rand(-2.5, 2.5), at = husk ? G.nav.snap(x, z, 3) || c : { x, z };
+          const a = enlist(R, husk ? new Husk(at.x, at.z, { leash: 1e9 }) : new Drone(at.x, at.z)); Object.assign(a, flags); out.push(a); }
+        G.FX.puffAt(V(c.x, 2, c.z), 16); return out; };
+      RUN.size = () => Math.round(ramp(T.size, RUN.time / 60));   // how big an ordinary group is just now
       if (arena.begin) arena.begin(R, RUN);
     },
     interactables(R, progress, L) { if (arena.interactables) arena.interactables(L); },   // things to walk up to and use (the Foundry's kill switches)
@@ -237,12 +244,12 @@ export function survival(arena) {
       const dt = Math.min(.05, Math.max(0, G.t - RUN.last)); RUN.last = G.t;
       if (RUN.over) return;
       if (G.player.down <= 0) RUN.time = G.t - RUN.t0;   // the clock stops when you go down
-      G.audio.music(RUN.big && RUN.big.alive ? 'boss' : RUN.mine.some(a => a.alive && a.kind === 'walker') ? 'walkers' : arena.music ? arena.music(RUN) : null);
+      G.audio.music(RUN.big && RUN.big.alive ? 'boss' : arena.walkerDrums !== false && RUN.mine.some(a => a.alive && a.kind === 'walker') ? 'drums' : arena.music ? arena.music(RUN) : null);
       const m = RUN.time / 60;
       if (arena.tick) arena.tick(R, RUN, dt);
       /* machines hunt you wherever you go (their home is what they return to and patrol); wrecks are cleared after a while */
       for (const a of RUN.mine) {
-        if (a.alive) { a.home.x = p.x; a.home.z = p.z; }
+        if (a.alive) { const h = a.raid && a.raid.camp && a.raid.camp.alive ? a.raid.camp.pos : p; a.home.x = h.x; a.home.z = h.z; }   // a raider heads for the camp it was sent at
         else if (!a.deadAt) a.deadAt = G.t;
         else if (G.t - a.deadAt > T.wreck && !(a.mendBy && a.mendBy.alive)) { R.remove(a); a.gone = true; }   // not while a mender is working on it
       }
@@ -259,7 +266,7 @@ export function survival(arena) {
       if (G.t >= RUN.nextAt && G.player.down <= 0) { const came = group(R, p, m);
         if (came && G.t >= RUN.hornAt) { G.audio.horn(true); RUN.hornAt = G.t + T.horn; }
         RUN.nextAt = G.t + (came ? ramp(T.gap, m) * rand(.8, 1.2) * RUN.gapK * (RUN.big && RUN.big.alive ? T.boss.ease : 1) : 1); }
-      if (G.t >= RUN.hudAt) { RUN.hudAt = G.t + .25; G.UI.objective(`Survive · ${clock(RUN.time)} · ${G.progress.kills} down`); G.UI.xp(RUN.level, RUN.xp / need(RUN.level)); G.UI.build(meter()); }
+      if (G.t >= RUN.hudAt) { RUN.hudAt = G.t + .25; G.UI.objective(`Survive · ${clock(RUN.time)} · ${G.progress.kills} down`); G.UI.status(arena.status ? arena.status(RUN) : ''); G.UI.xp(RUN.level, RUN.xp / need(RUN.level)); G.UI.build(meter()); }
       if (RUN.xp >= need(RUN.level) && G.player.down <= 0) levelUp(R);
     },
 

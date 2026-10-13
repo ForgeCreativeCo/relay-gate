@@ -69,14 +69,14 @@ const AMBIENCE = {
   horn: { name: 'horn', url: 'sfx/horn.mp3', from: .7, to: 9.4, gain: .5, first: [25, 50], every: [75, 160], signal: .5, signalLen: 4.5 },   // "Apocalyptic horn"
 };
 /* Music: one track at a time on its own volume, crossfading when the game wants a different one (survival.js decides which: the boss,
-   walkers about, the station's blackouts, the city's own; main.js plays the title's). Each loops over [from, to], the part of the
+   walkers about or a raid on Dead City's camp, the station's blackouts, the city's own; main.js plays the title's). Each loops over [from, to], the part of the
    recording worth hearing (the trailer's silent break and every track's tail are left out); gain evens out how loud they were recorded. */
 const MUSIC = {
   title: { name: 'musCue', url: 'sfx/music-scifi-cue.mp3', from: .2, to: 50.5, gain: .45 },      // "Sci-fi music cue", freesound_community
   blackout: { name: 'musCue', url: 'sfx/music-scifi-cue.mp3', from: .2, to: 50.5, gain: .45 },   // the same cue, building through a station blackout
   city: { name: 'musEpic', url: 'sfx/music-epic.mp3', from: 0, to: 185.5, gain: .9 },          // "Epic game music" by Kris Klavenes, freesound_community
   boss: { name: 'musBoss', url: 'sfx/music-boss.mp3', from: .7, to: 33.2, gain: .4 },          // "Total war: epic action cinematic trailer" by audioatlant, before its break
-  walkers: { name: 'musDrums', url: 'sfx/music-drums.mp3', from: 0, to: 39.3, gain: .3 },     // "Battle warrior fighting drums" by tatamusic
+  drums: { name: 'musDrums', url: 'sfx/music-drums.mp3', from: 0, to: 39.3, gain: .3 },     // "Battle warrior fighting drums" by tatamusic
 };
 const MUSIC_FADE = 2;
 const MAX_VOICES = 24, HEAR = 42;   // simultaneous sounds; distance (m) at which machines fall silent
@@ -187,11 +187,12 @@ export function makeAudio() {
     src.connect(g); g.connect(A.amb); src.start(when, offset, dur); src.onended = () => { src.disconnect(); g.disconnect(); };
     return dur;
   }
-  function horn(signal) {
+  /* rate: below 1 for a lower, longer call (Dead City sounds a raid setting out that way) */
+  function horn(signal, rate = 1) {
     const H = AMBIENCE.horn, buf = A.buffers[H.name]; if (!buf || A.ctx.state !== 'running') return;
     const t = A.ctx.currentTime, src = A.ctx.createBufferSource(), lp = A.ctx.createBiquadFilter(), g = A.ctx.createGain(), dur = signal ? Math.min(H.signalLen, H.to - H.from) : H.to - H.from;
     lp.type = 'lowpass'; lp.frequency.value = signal ? 3800 : 1400 + Math.random() * 1600;   // far away: the highs are gone
-    src.buffer = buf; src.playbackRate.value = .94 + Math.random() * .1;
+    src.buffer = buf; src.playbackRate.value = (.94 + Math.random() * .1) * rate;
     const v = signal ? H.signal : H.gain * (.7 + Math.random() * .3), tail = signal ? 1.6 : .5; g.gain.setValueAtTime(v, t); g.gain.setValueAtTime(v, t + dur - tail); g.gain.linearRampToValueAtTime(0, t + dur);
     let out = g; if (A.ctx.createStereoPanner) { const p = A.ctx.createStereoPanner(); p.pan.value = (Math.random() < .5 ? -1 : 1) * (signal ? .15 : .3 + Math.random() * .4); g.connect(p); out = p; }
     src.connect(lp); lp.connect(g); out.connect(signal ? A.master : A.amb); src.start(t, H.from, dur);

@@ -8,7 +8,7 @@ export function hostile(a, b) {
 }
 export function nearestHostile(self, range, from) {
   const p = from || self.pos; let best = null, bd = range;
-  for (const a of G.actors) { if (!hostile(self, a) || a.untargetable || a.dormant || a.lurk) continue; const d = dist2(p, a.pos); if (d < bd) { bd = d; best = a; } }
+  for (const a of G.actors) { if (!hostile(self, a) || a.untargetable || a.dormant || a.lurk || (a.raidOnly && !self.raid)) continue; const d = dist2(p, a.pos); if (d < bd) { bd = d; best = a; } }   // raidOnly: a camp is only what a raid goes for
   return best;
 }
 
