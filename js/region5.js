@@ -200,7 +200,10 @@ const LOOK = {
   bright: true,
   env: { zenith: [150, 154, 160], horizon: [210, 212, 214], ground: [90, 92, 96], sun: .15, gate: 0 },
 };
-const AMBIENCE = [{ name: 'ambStation', url: 'sfx/ambience-station.mp3', from: 0, to: 101, gain: .6 }];   // the station's unease, quieter: the same people will build that too
+/* two recordings running together the whole time: the computers ("Weird technology", ten seconds, turned up) and the machinery behind
+   the walls ("Glitch in the lab") */
+const AMBIENCE = [{ name: 'ambLabTech', url: 'sfx/ambience-lab-technology.mp3', from: 0, to: 10.4, gain: 2.1, layer: true },
+  { name: 'ambLabGlitch', url: 'sfx/ambience-lab-glitch.mp3', from: 0, to: 54, gain: .96, layer: true }];
 
 /* ---------- Origin as an arena ---------- */
 let lab = null;
@@ -252,7 +255,7 @@ export const SURVIVAL = survival({
     { at: [-25.5, 1.4, 7], r: 13, a: -2.0, b: .95, move: 2, hold: 4.6, say: 'Six terminals hold what I worked out. Wipe every one. Each thing you erase is a thing they never learn to build.' },
     { at: [RIG.x, 1.2, RIG.z], r: 12, a: -2.5, b: .9, move: 2.6, hold: 4.2, say: 'It will get up when it understands what you\'re doing. Kill it. Then there\'s nothing left of me to find.' },
   ],
-  music: () => 'blackout', musicKeys: ['blackout'],
+  music: () => 'origin', musicKeys: ['origin'], introMusic: 'originIntro',
   /* a small place: fewer machines at once, walkers early (while there still are walkers), menders, and a boss the lab brings in itself */
   tune: { size: [2, 5], cap: [5, 16], walkers: [[4, 1], [9, 2]], gate: null, menders: { from: 1.5, max: 2, chance: .35 }, boss: { warden: 1e9, big: 'first' } },
   arrive(p, kind) {

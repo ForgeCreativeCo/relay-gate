@@ -158,6 +158,10 @@ Each arena keeps your best run (time, and the level you reached in it) and your 
 | `sfx/music-scifi-cue.mp3` | Music on the title screen, and in the Relay Station while the power is out ("Sci-fi music cue", freesound_community on Pixabay) |
 | `sfx/music-epic.mp3` | Dead City's music ("Epic game music" by Kris Klavenes, freesound_community on Pixabay) |
 | `sfx/music-80s-beat.mp3` | 1984's music; the part between its slow way in and its wind-down, looped ("80s retro beat 001", freesound_community on Pixabay) |
+| `sfx/music-origin-intro.mp3` | Music under Origin's intro; a 15-second piece, looped ("Cyberpunk dark logo", AlexZavesa on Pixabay) |
+| `sfx/music-origin.mp3` | Origin's music; a 16-second piece, looped ("Dark cyberpunk logo (main version)", AlexZavesa on Pixabay) |
+| `sfx/ambience-lab-technology.mp3` | Origin's ambience, one of two layers that run together: its computers ("Weird technology", freesound_community on Pixabay) |
+| `sfx/ambience-lab-glitch.mp3` | Origin's ambience, the other layer: machinery ("Glitch in the lab", SoundReality on Pixabay) |
 | `sfx/music-boss.mp3` | Music while a Warden or the Crucible is alive; the part before its break, looped ("Total war: epic action cinematic trailer", audioatlant on Pixabay) |
 | `sfx/music-drums.mp3` | Music while Hunter Walkers are about (in Dead City, while a raid is on) ("Battle warrior fighting drums", tatamusic on Pixabay) |
 | `sfx/horn.mp3` | Sounds when a group of machines arrives ("Apocalyptic horn", Alex Jauk on Pixabay) |

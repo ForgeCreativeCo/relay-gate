@@ -76,7 +76,7 @@ const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(
    tick runs every frame; run.time is the clock, and run.gapK scales the time between groups (an arena can bring them faster or slower for a while).
    stats gives the end card more [number, label] pairs; run.kills counts what went down, by kind.
    music(run) is the arena's own music track for the moment (audio.js MUSIC; null for none), and musicKeys the tracks to load for it.
-   The boss's music, and the drums while walkers are about (unless walkerDrums is false), play over it. status(run) is a line for the HUD
+   introMusic is the track under its intro, if not the title's. The boss's music, and the drums while walkers are about (unless walkerDrums is false), play over it. status(run) is a line for the HUD
    under the clock (the arena's objectives). bossMusic is the track for its big boss, if not the usual one.
    noAlly: Mara isn't in this arena (1984, where she can only reach you by payphone), so nobody heals you or gets you back up, and her
    upgrades aren't offered. onKill(R, machine, run) hears of every machine that goes down. With tune.groups false the arena brings the
@@ -212,7 +212,7 @@ export function survival(arena) {
     medic: !arena.noAlly,   // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
     noAlly: !!arena.noAlly,
     musicKeys: [arena.bossMusic || 'boss', ...(arena.walkerDrums !== false ? ['drums'] : []), ...(arena.musicKeys || [])],
-    intro: arena.intro, onIntro: arena.onIntro,   // the camera's sweep and Mara's lines before each run, and what the arena does each frame of it (intro.js)
+    intro: arena.intro, onIntro: arena.onIntro, introMusic: arena.introMusic,   // the camera's sweep and Mara's lines before each run, and what the arena does each frame of it (intro.js)
     indoor: arena.indoor, indoorAt: arena.indoorAt, noHorn: arena.noHorn, ambience: arena.ambience, look: arena.look,
     /* each arena keeps its own record: in its own slot in this browser, and in its own document in your account */
     save: { key: arena.saveKey, doc: arena.saveKey },

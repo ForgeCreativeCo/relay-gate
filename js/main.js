@@ -108,6 +108,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   for (const id of ['regionTag', 'titleTag']) $(id).textContent = REGION.tag;
   G.settings = { quality: 'high', controls: 'auto', fps: false, volume: .8, ambience: .6, music: .6, mute: false };
   G.audio = makeAudio(); G.audio.apply(); G.audio.music('title');   // the title's music, as soon as the browser lets sound play
+  if (REGION.introMusic) G.audio.preloadMusic([REGION.introMusic]);   // an arena's own intro music is wanted the moment Start is pressed
   /* browsers keep sound off until the first click, tap or key: say so on the title screen until then */
   const hint = $('soundHint'), hintT = setInterval(() => { const on = !G.audio.ctx || G.audio.ctx.state === 'running' || G.started; hint.hidden = on;
     if (!on) hint.textContent = (G.input && G.input.mode === 'touch' ? 'Tap' : 'Click') + ' anywhere for sound'; else clearInterval(hintT); }, 400);

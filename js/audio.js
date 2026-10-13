@@ -60,7 +60,8 @@ const HUM = { url: 'sfx/drone-hum.mp3', from: 2.4, to: 6, grain: 1, every: .5, g
    survival sounds it when a wave arrives) it never sounds at random, and the signal is shorter, clearer and at the main volume, not the ambience's.
    A region can bring its own soundscapes instead (G.R.ambience, in the same shape as `beds`); a single one crossfades into itself.
    A bed can carry its own `gain` (a quiet recording turned up). One marked `accent` isn't a bed: it swells up over them now and then,
-   `every` so many seconds (the first after `first`), from a random side. */
+   `every` so many seconds (the first after `first`), from a random side. One marked `layer` isn't one either: it runs all the time,
+   looping into itself, under or over whatever else there is (Origin's two are its computers and its machinery, and all it has). */
 const AMBIENCE = {
   beds: [
     { name: 'ambTerror', url: 'sfx/ambience-terror.mp3', from: .5, to: 105 },        // "Terror ambience" (fades out after ~105 s)
@@ -79,6 +80,9 @@ const MUSIC = {
   boss: { name: 'musBoss', url: 'sfx/music-boss.mp3', from: .7, to: 33.2, gain: .4 },          // "Total war: epic action cinematic trailer" by audioatlant, before its break
   drums: { name: 'musDrums', url: 'sfx/music-drums.mp3', from: 0, to: 39.3, gain: .3 },     // "Battle warrior fighting drums" by tatamusic
   eighties: { name: 'mus80s', url: 'sfx/music-80s-beat.mp3', from: 14, to: 225, gain: .85 },   // "80s retro beat 001", freesound_community: 1984's music, without its slow way in and its wind-down
+  /* Origin's two are both short pieces: each loops the part before its last note dies away */
+  originIntro: { name: 'musOriginIntro', url: 'sfx/music-origin-intro.mp3', from: .4, to: 12.8, gain: .25 },   // "Cyberpunk dark logo" by AlexZavesa: under Origin's intro
+  origin: { name: 'musOrigin', url: 'sfx/music-origin.mp3', from: .4, to: 13.5, gain: .24 },                    // "Dark cyberpunk logo (main version)" by AlexZavesa: Origin's music
   /* the Infiltrator's music isn't a recording: a drum machine, a bass line and an arpeggio played here (synthTrack below) */
   synthBoss: { synth: true, bpm: 128, gain: .55, drive: true },
 };
@@ -181,11 +185,11 @@ export function makeAudio() {
 
   /* ---------- ambience ---------- */
   const rnd = ([a, b]) => a + Math.random() * (b - a);
-  const BEDS = (G.R.ambience || AMBIENCE.beds).filter(b => !b.accent && !b.synth), ACCENTS = (G.R.ambience || []).filter(b => b.accent), MADE = (G.R.ambience || []).filter(b => b.synth);
+  const BEDS = (G.R.ambience || AMBIENCE.beds).filter(b => !b.accent && !b.synth && !b.layer), ACCENTS = (G.R.ambience || []).filter(b => b.accent), LAYERS = (G.R.ambience || []).filter(b => b.layer), MADE = (G.R.ambience || []).filter(b => b.synth);
   let ambOn = false, bedAt = 0, bedIdx = Math.floor(Math.random() * BEDS.length), firstBed = true, hornAt = 0, accentAt = 0;
-  function playBed(bed, when, offset) {
+  function playBed(bed, when, offset, F = AMBIENCE.fade) {
     const buf = A.buffers[bed.name]; if (!buf) return 0;
-    const F = AMBIENCE.fade, dur = Math.min(bed.to, buf.duration) - offset; if (dur < F * 3) return 0;
+    const dur = Math.min(bed.to, buf.duration) - offset; if (dur < F * 3) return 0;
     const src = A.ctx.createBufferSource(), g = A.ctx.createGain(); src.buffer = buf;
     const v = AMBIENCE.gain * (bed.gain || 1); g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(v, when + F); g.gain.setValueAtTime(v, when + dur - F); g.gain.linearRampToValueAtTime(0, when + dur);
     src.connect(g); g.connect(A.amb); src.start(when, offset, dur); src.onended = () => { src.disconnect(); g.disconnect(); };
@@ -217,6 +221,9 @@ export function makeAudio() {
     if (!hornAt) hornAt = now + rnd(AMBIENCE.horn.first);
     if (now >= hornAt) { if (!G.R.noHorn && !G.R.hornSignals) horn(); hornAt = now + rnd(AMBIENCE.horn.every); }   // indoors there's no horn on the wind
     if (ACCENTS.length) { if (!accentAt) accentAt = now + rnd(ACCENTS[0].first); if (now >= accentAt) { const a = ACCENTS[Math.floor(Math.random() * ACCENTS.length)]; accent(a); accentAt = now + rnd(a.every); } }
+    /* layers: each keeps itself going, crossfading into its own start (over a quarter of its length, if it's a short one) */
+    for (const L of LAYERS) { if ((L.at || 0) > now + 2 || !A.buffers[L.name]) continue;
+      const F = Math.min(AMBIENCE.fade, (L.to - L.from) / 4), when = Math.max(now + .05, L.at || 0), dur = playBed(L, when, L.from, F); L.at = when + Math.max(1, dur - F); }
     if (bedAt > now + 2 || !BEDS.length) return;
     const bed = BEDS[bedIdx]; if (!A.buffers[bed.name]) { bedIdx = (bedIdx + 1) % BEDS.length; return; }
     const when = Math.max(now + .05, bedAt), offset = firstBed ? bed.from + Math.random() * (bed.to - bed.from) * .5 : bed.from;   // start somewhere in the middle the first time
@@ -226,7 +233,7 @@ export function makeAudio() {
   setInterval(tickAmbience, 1000);
   /* the long soundscapes (~3-4 MB) are fetched only once the game starts, so they don't compete with loading it; the horn only where it sounds */
   let ambLoaded = false;
-  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of BEDS.concat(ACCENTS)) A.load(b.name, b.url); for (const b of MADE) if (b.synth === 'rain') rain(b.gain || 1); if (!G.R.noHorn || G.R.hornSignals) A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
+  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of BEDS.concat(ACCENTS, LAYERS)) A.load(b.name, b.url); for (const b of MADE) if (b.synth === 'rain') rain(b.gain || 1); if (!G.R.noHorn || G.R.hornSignals) A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
   A.horn = horn;
 
   /* ---------- sounds made here instead of played from a file ---------- */

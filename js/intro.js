@@ -43,7 +43,7 @@ export function makeIntro() {
     /* play it, then call done (straight away if the arena has none) */
     play(shots, done, opts = {}) {
       if (!shots || !shots.length) { done(); return; }
-      if (opts.music !== false) G.audio.music('title');   // the title's music carries it (the run's own takes over once it starts)
+      if (opts.music !== false) G.audio.music(G.R.introMusic || 'title');   // the title's music carries it, or the arena's own for it (the run's takes over once it starts)
       const p = G.player.pos, home = { at: [p.x, 0, p.z], r: G.zoom, a: CAM.a, b: CAM.b, move: 2, hold: .6 };
       const all = [...shots, home], first = all[0];
       run = { shots: all, i: 0, t: 0, done, skippable: !opts.watch && !!G.progress.seenIntro,
