@@ -41,9 +41,10 @@ const TERMINALS = [
   { id: 'repair', name: 'repair routines', x: 6, z: 29.55, ban: 'mender', can: 'regen', gone: 'Menders stop coming, and nothing mends itself', mara: 'Mara: "I taught them to fix each other so I could go home on time."' },
   { id: 'core', name: 'core logic', x: -8, z: 13.55, can: 'whole', tough: .65, gone: 'Everything that comes is weaker', mara: 'Mara: "That one is how they think. It\'s how I thought. Wipe it."' },
 ];
-/* Seconds at a terminal to wipe it; how many wipes before the find gets up, and the warning it gives; how many prototypes each wipe
+/* Seconds at a terminal to wipe it; how many wipes before the find gets up, the warning it gives, and the time on the clock by which it
+   gets up whatever you've wiped (the same eight minutes at which every other arena's big boss arrives); how many prototypes each wipe
    wakes; how many shutters come down, and for how long. */
-const LAB = { wipe: 6, wakeAt: 3, wakeWarn: 5, stir: 2, shutters: 2, lockdown: 18 };
+const LAB = { wipe: 6, wakeAt: 3, wakeWarn: 5, wakeBy: 480, stir: 2, shutters: 2, lockdown: 18 };
 /* security shutters, in four of the doorways: where, how wide, and which way you walk through ('x' or 'z') */
 const SHUTTERS = [{ x: -14, z: 1, w: 4, axis: 'x' }, { x: 14, z: 3, w: 4, axis: 'x' }, { x: 0, z: -9, w: 4, axis: 'z' }, { x: 0, z: 16, w: 4, axis: 'z' }];
 /* where machines arrive: in a flash, as in 1984 (the future sending what it still can, to guard where it began) */
@@ -257,7 +258,7 @@ export const SURVIVAL = survival({
   ],
   music: () => 'origin', musicKeys: ['origin'], introMusic: 'originIntro',
   /* a small place: fewer machines at once, walkers early (while there still are walkers), menders, and a boss the lab brings in itself */
-  tune: { size: [2, 5], cap: [5, 16], walkers: [[4, 1], [9, 2]], gate: null, menders: { from: 1.5, max: 2, chance: .35 }, boss: { warden: 1e9, big: 'first' } },
+  tune: { size: [2, 5], cap: [5, 16], walkers: [[4, 1], [9, 2]], gate: null, menders: { from: 1.5, max: 2, chance: .35 }, boss: { big: 'first' } },
   arrive(p, kind) {
     const nav = kind === 'walker' || kind === 'boss' ? G.nav.wide : G.nav, L = ENTRIES.map(e => nav.snap(e.x, e.z, 2)).filter(s => s && dist2(p, s) > 12); if (!L.length) return null;
     const c = pick(L); flashAt(c); return c;
@@ -291,6 +292,7 @@ export const SURVIVAL = survival({
     for (const t of TERMINALS) if (!t.wiped) { const w = G.game.working(), on = w && w.label.startsWith(`Wipe ${t.name}`), k = on ? (Math.random() < .5 ? .3 : 1) : .8 + .2 * Math.sin(G.t * 3 + t.x); t.mat.emissiveColor.set(on ? k : .22 * k, k, on ? .3 * k : .48 * k); }
     for (const m of MEDS) m.mat.emissiveColor.set(now >= m.readyAt ? .35 : .5, now >= m.readyAt ? 1 : .12, now >= m.readyAt ? .44 : .08);
     /* the find gets up: a few wipes in, after a warning. It comes without whatever has already been wiped */
+    if (!lab.wakeAt && now >= LAB.wakeBy - LAB.wakeWarn) { lab.wakeAt = now + LAB.wakeWarn; R.say('Something on the rig is moving · It has waited long enough', '#ff6a5a'); G.audio.play('engage', { pos: RIG, gain: .9, rate: .7, hear: 120 }); }
     if (lab.wakeAt && !lab.boss) { rigLight.intensity = Math.random() < .3 ? .2 : 1.5; if (Math.random() < dt * 12) G.FX.spark(V(RIG.x + rand(-1.5, 1.5), 1.4, RIG.z + rand(-.8, .8)), 4);
       if (now >= lab.wakeAt && P.down <= 0) { const c = G.nav.wide.snap(RIG.x, RIG.z - 2.6, 4) || { x: RIG.x, z: RIG.z - 2.6 }; prop.setEnabled(false); rigLight.intensity = 1.5; G.FX.explode(V(RIG.x, 1.3, RIG.z), .7); G.FX.debris(V(RIG.x, 1.3, RIG.z), 6, .5, .8);
         lab.boss = run.boss(c.x, c.z); strip(lab.boss); R.say('The first machine is up · It has everything you haven\'t wiped yet', '#ff6a5a'); } }

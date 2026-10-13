@@ -1,7 +1,8 @@
-/* Survival: no route to walk, just machines arriving, sooner and in bigger groups, until you go down.
+/* Survival: no route to walk, just machines arriving, sooner and in bigger groups, until you go down or the arena's big boss does.
+   A run lasts ten minutes at most: the big boss arrives at eight, and destroying it wins the run (see `finale` below).
    survival(arena) turns a map into what game.js plays. Each map's file says how it plays as an arena (SURVIVAL in region1.js, region2.js
    and region3.js, 1984 in region4.js, Origin in region5.js). The title screen picks between them; ?region=2 to 5 in the address opens the
-   station, the Foundry, 1984 or Origin. Every arena but the last goes on until you go down; Origin can be won. */
+   station, the Foundry, 1984 or Origin. Origin is won its own way, by wiping its research (region5.js). */
 import { G, V, rand, dist2, inOpen, boost, angleTo, enclosed } from './core.js';
 import { Drone, Walker, Husk, Mender, MEND } from './machines.js';
 import { Crucible } from './crucible.js';
@@ -19,10 +20,13 @@ const TUNE = {
   husks: [.3, .55],                       // how much of a group is husks rather than drones
   by: 9,
   walkers: [[6, 1], [10, 2], [14, 3]],    // from this minute, this many walkers at once can come with the ordinary groups
-  /* Bosses arrive with your level: a Hunter Walker every `walker` levels and the Warden every `warden` levels, `warn` seconds after you pick
-     your upgrade, or the arena's own big boss instead (`big`, one of BIGS below). Each one after the first has `wardenTough` more health again,
-     and while one is alive groups take `ease` times as long to come. */
-  boss: { walker: 3, warden: 10, warn: 3, wardenTough: .5, ease: 1.6, big: 'warden' },
+  /* A Hunter Walker arrives with every `walker` levels, `warn` seconds after you pick your upgrade. The arena's big boss (`big`, one of BIGS
+     below) is the end of the run, and comes by the clock (`finale`); while it is alive groups take `ease` times as long to come. */
+  boss: { walker: 3, warn: 3, wardenTough: .5, ease: 1.6, big: 'warden' },
+  /* How a run ends, in seconds on the clock: the big boss arrives at `at`, and destroying it wins the run. At `limit` no more groups
+     come: if the boss is still up, the fight goes on with what's already there until one of you is down. `won` is the pause between the
+     boss going down and the card. (Not in an arena that is won some other way: Origin.) */
+  finale: { at: 480, limit: 600, won: 3 },
   walkerGap: 45,                          // seconds between one walker arriving and the next
   tough: .08,                             // extra health per minute, on everything
   near: [26, 34],                         // how far from you they arrive: past the edge of the view
@@ -82,7 +86,7 @@ const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(
    upgrades aren't offered. onKill(R, machine, run) hears of every machine that goes down. With tune.groups false the arena brings the
    groups in itself: run.wave(c, flags) sends an ordinary one from c (a walker with it when one is due) and returns the husks and drones
    in it, each given `flags`; run.gap() is how long to leave before the next, run.room() how many more machines there is room for, and
-   run.sizeAdd makes every group that much bigger.
+   run.sizeAdd makes every group that much bigger; run.closed says the clock has run out and no more should be sent.
    What an arena can take away as a run goes on (Origin, where wiping the research unmakes the machines): run.ban.drone, .husk, .walker or
    .mender stops that kind coming, and run.toughK scales the health of everything that arrives. run.boss(x, z) brings the big boss in
    where and when the arena says, instead of with a level. winnable: the run can be won, with run.win(card); its record is the fastest
@@ -103,13 +107,13 @@ export function survival(arena) {
     while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
     G.audio.play('powerOn', { gain: .4, rate: 1.4, len: 1, fade: .3 });
     /* a boss comes with some levels: the card says so before you pick */
-    const L = RUN.level, due = L % T.boss.warden === 0 ? 'big' : L % T.boss.walker === 0 && !RUN.ban.walker ? 'walker' : null, have = u => RUN.taken[u.id] || 0;
+    const L = RUN.level, due = L % T.boss.walker === 0 && !RUN.ban.walker && !RUN.finale ? 'walker' : null, have = u => RUN.taken[u.id] || 0;   // no more walkers once the big boss is on its way
     G.UI.levelUp(L, picks.map(u => ({ kind: u.kind, name: u.name, text: u.tell(1), have: have(u), max: u.max, total: u.tell(have(u) + 1) })), (i) => {
       const u = picks[i]; RUN.taken[u.id] = have(u) + 1;
       for (const k in u.add) G.boost[k] = boost(k) + u.add[k];
       G.player.recalc(); G.ally.recalc(); R.say(`${u.name} · ${u.tell(have(u))}`, '#1fe0ff'); RUN.hudAt = 0;
-      if (due) { RUN.due.push(due); RUN.dueAt = G.t + T.boss.warn; R.say(due === 'big' ? `Level ${L} · ${BIG.name} is coming` : `Level ${L} · A Hunter Walker is coming`, '#ff6a5a'); }
-    }, due === 'big' ? `${BIG.name} arrives after this pick.` : due === 'walker' ? 'A Hunter Walker arrives after this pick.' : '');
+      if (due) { RUN.due.push(due); RUN.dueAt = G.t + T.boss.warn; R.say(`Level ${L} · A Hunter Walker is coming`, '#ff6a5a'); }
+    }, due === 'walker' ? 'A Hunter Walker arrives after this pick.' : '');
   }
 
   /* Somewhere to arrive, past the edge of the view. Drones fly in over the ruins from anywhere (no margin given). Ground machines
@@ -205,8 +209,8 @@ export function survival(arena) {
   return {
     num: arena.num, name: arena.name, tag: `Survival · ${arena.name}`,
     blurb: arena.blurb,
-    titleNote: s => { const p = (s && s.progress) || {}; if (arena.winnable) return p.fastest ? `Your fastest: ${clock(p.fastest)}.` : '';
-      return p.best ? `Your best run: ${clock(p.best)}${p.bestLevel ? ', level ' + p.bestLevel : ''}.` : ''; },
+    titleNote: s => { const p = (s && s.progress) || {}, won = p.fastest ? `Your fastest win: ${clock(p.fastest)}.` : ''; if (arena.winnable) return won;
+      return won || (p.best ? `Your best run: ${clock(p.best)}${p.bestLevel ? ', level ' + p.bestLevel : ''}. Not won yet.` : ''); },
     preparing: arena.preparing,
     hornSignals: true,   // the horn means a wave has arrived, so it never sounds at random here (audio.js)
     medic: !arena.noAlly,   // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
@@ -250,7 +254,8 @@ export function survival(arena) {
     onKill(R, m) {
       if (!RUN || RUN.over) return; RUN.xp += T.xp[m.kind] || 1; RUN.kills[m.kind] = (RUN.kills[m.kind] || 0) + 1;
       if (arena.onKill) arena.onKill(R, m, RUN);
-      if (m === RUN.big) { G.UI.boss(null); const loot = rollLoot('warden'); if (m.kind === 'crucible') loot.push({ scrap: 40 }); G.drops.scatter(m.pos.x, m.pos.z - 1, loot); R.say(`${BIG.name} is down`, '#1fe0ff'); }
+      if (m === RUN.big) { G.UI.boss(null); const loot = rollLoot('warden'); if (m.kind === 'crucible') loot.push({ scrap: 40 }); G.drops.scatter(m.pos.x, m.pos.z - 1, loot); R.say(`${BIG.name} is down`, '#1fe0ff');
+        if (RUN.finale) { RUN.wonAt = G.t + T.finale.won; G.player.safe = Math.max(G.player.safe || 0, T.finale.won + 1); } }   // that was the end of the run: the card comes once the wreck has finished going up
     },
     /* the big boss calls for help as it weakens */
     onBossPhase(R, b, ph) {
@@ -299,11 +304,18 @@ export function survival(arena) {
       }
       if (RUN.squad.length && !RUN.squadGone && !squadUp().length) { RUN.squadGone = true; R.say('Your squad is gone · Scrap can build again', '#9aa0a6'); }   // once, however many went down together
       if (RUN.squad.length && RUN.squad.every(a => a.gone)) RUN.squad = [];
+      /* the end of the run: the big boss at eight minutes, no more groups after ten, and the run won when the boss goes down */
+      const F = arena.winnable ? null : T.finale;
+      if (F && !RUN.finale && RUN.time >= F.at && G.player.down <= 0) { RUN.finale = true; RUN.due = RUN.due.filter(d => d === 'big'); RUN.due.push('big'); RUN.dueAt = G.t + T.boss.warn; RUN.hudAt = 0;
+        R.say(`${BIG.name} is coming · Destroy it and the run is won`, '#ff6a5a'); }
+      if (F && !RUN.closed && RUN.time >= F.limit) { RUN.closed = true; RUN.hudAt = 0; R.say('Ten minutes · Nothing more is coming · Finish it', '#ffb340'); }
+      if (RUN.wonAt && G.t >= RUN.wonAt && G.player.down <= 0) { const n = G.ally.revives || 0;
+        RUN.win({ name: `${BIG.name} destroyed in ${clock(RUN.time)}`, text: (n ? `Mara got you back up ${n === 1 ? 'once' : n === 2 ? 'twice' : n + ' times'}. ` : '') + 'Every run starts again from the starter rifle at level 1.' }); return; }
       if (RUN.due.length && G.t >= RUN.dueAt && G.player.down <= 0) { milestone(R, p); RUN.dueAt = G.t + 1; }
-      if (T.groups && G.t >= RUN.nextAt && G.player.down <= 0) { const came = group(R, p, m);
+      if (T.groups && !RUN.closed && G.t >= RUN.nextAt && G.player.down <= 0) { const came = group(R, p, m);
         if (came && G.t >= RUN.hornAt) { G.audio.horn(true); RUN.hornAt = G.t + T.horn; }
         RUN.nextAt = G.t + (came ? ramp(T.gap, m) * rand(.8, 1.2) * RUN.gapK * (RUN.big && RUN.big.alive ? T.boss.ease : 1) : 1); }
-      if (G.t >= RUN.hudAt) { RUN.hudAt = G.t + .25; G.UI.objective(`Survive · ${clock(RUN.time)} · ${G.progress.kills} down`); G.UI.status(arena.status ? arena.status(RUN) : ''); G.UI.xp(RUN.level, RUN.xp / need(RUN.level)); G.UI.build(meter()); }
+      if (G.t >= RUN.hudAt) { RUN.hudAt = G.t + .25; G.UI.objective(RUN.finale ? `Destroy ${BIG.name} · ${clock(RUN.time)}${RUN.closed ? ' · overtime' : ''}` : F ? `Survive · ${clock(RUN.time)} · ${BIG.name} at ${clock(F.at)}` : `Survive · ${clock(RUN.time)} · ${G.progress.kills} down`); G.UI.status(arena.status ? arena.status(RUN) : ''); G.UI.xp(RUN.level, RUN.xp / need(RUN.level)); G.UI.build(meter()); }
       if (RUN.xp >= need(RUN.level) && G.player.down <= 0) levelUp(R);
     },
 

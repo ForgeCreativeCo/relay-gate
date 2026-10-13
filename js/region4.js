@@ -382,7 +382,7 @@ export const SURVIVAL = survival({
     now = run.time; town.run = run; const P = G.player, ph = town.phone;
     ambient(dt);
     /* time gates: one opens when the next group is due, if there's room for it; each charges, crackling, and then delivers */
-    if (now >= town.nextAt && P.down <= 0) { const r = rifts.find(q => !q.on); if (r && run.room() > 0) { openRift(R, run, r); town.nextAt = now + run.gap(); } else town.nextAt = now + 1; }
+    if (now >= town.nextAt && P.down <= 0 && !run.closed) { const r = rifts.find(q => !q.on); if (r && run.room() > 0) { openRift(R, run, r); town.nextAt = now + run.gap(); } else town.nextAt = now + 1; }
     for (const r of rifts) { if (!r.on) continue; r.t -= dt; const k = 1 - Math.max(0, r.t) / r.T0, size = .5 + k * 2.4;
       r.ball.scaling.setAll(size * (1 + Math.sin(G.t * 31) * .05)); r.core.scaling.setAll(.2 + k * .5 + Math.random() * .15); r.ring.scaling.setAll(.9 + Math.sin(G.t * 9) * .04);
       r.arcT -= dt; if (r.arcT <= 0) { r.arcT = .07 - k * .03; strike(r, size); }
