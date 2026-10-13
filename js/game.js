@@ -17,7 +17,7 @@ export function makeGame() {
     a.root.getChildMeshes().forEach(m => m.dispose()); a.root.dispose();
     for (const k of ['smokeWreck', 'smokeHead', 'smokeGuns']) if (a[k]) { a[k].stop(); a[k].dispose(false); }
     if (a.ring) { a.ring.material.dispose(); a.ring.dispose(); } if (a.clearMarks) a.clearMarks();
-    for (const k of ['mat', 'matD', 'matL', 'eyeMat', 'beamMat', 'heatMat', 'laneMat', 'coatMat']) if (a[k]) a[k].dispose();
+    for (const k of ['mat', 'matD', 'matL', 'eyeMat', 'beamMat', 'heatMat', 'laneMat', 'coatMat', 'faceMat']) if (a[k]) a[k].dispose();
   }
   /* what an arena's script gets to work with */
   const R = {

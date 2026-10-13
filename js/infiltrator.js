@@ -31,31 +31,40 @@ export class Infiltrator extends Actor {
   build(x, z) {
     const S = G.scene, me = this, MB = B.MeshBuilder;
     this.mat = cloneMat(G.M.mech, 'iMat'); this.matD = cloneMat(G.M.mechDark, 'iMatD'); this.eyeMat = cloneMat(G.M.eye, 'iEye');
-    const coat = this.coatMat = new B.StandardMaterial('iCoat', S); coat.diffuseColor = B.Color3.FromHexString('#1b1a20'); coat.specularColor = new B.Color3(.04, .04, .05); coat.maxSimultaneousLights = 8;
+    const cloth = (n, hex) => { const m = new B.StandardMaterial(n, S); m.diffuseColor = B.Color3.FromHexString(hex); m.specularColor = new B.Color3(.04, .04, .05); m.maxSimultaneousLights = 8; return m; };
+    /* the coat, its lapels and belt a shade lighter so the cut of it shows from above, and a face dull enough that the eye beside it is the bright thing */
+    const coat = this.coatMat = cloth('iCoat', '#1b1a20'), trim = this.matL = cloth('iCoatTrim', '#3a3742'), face = this.faceMat = cloth('iFace', '#5e4a3c');
+    const cone = (top, bottom, h) => MB.CreateCylinder('iPart', { diameterTop: top, diameterBottom: bottom, height: h, tessellation: 10, cap: B.Mesh.NO_CAP, sideOrientation: B.Mesh.DOUBLESIDE }, S);
     const root = this.root = new B.TransformNode('infiltrator', S); root.position.set(x, 0, z); root.scaling.setAll(1.15);
     const node = (n, p, px, py, pz) => { const t = new B.TransformNode(n, S); t.parent = p; t.position.set(px, py, pz); return t; };
     const add = (m, mat, p, part, pos, rot) => { m.parent = p; m.material = mat; if (pos) m.position.set(...pos); if (rot) m.rotation.set(...rot); m.metadata = { actor: me, part: part || 'core' }; return m; };
     const box = (w, h, d) => MB.CreateBox('iPart', { width: w, height: h, depth: d }, S), limb = (r, h) => MB.CreateCapsule('iPart', { radius: r, height: h, tessellation: 8, subdivisions: 1 }, S);
     /* what it wears to pass for a person: a long coat with the collar up, trousers, half a face. All of it burns away when it gets back up */
-    this.skin = []; const wear = (m, mat, p, part, pos, rot) => { this.skin.push(add(m, mat, p, part, pos, rot)); };
+    this.skin = []; const wear = (m, mat, p, part, pos, rot) => { this.skin.push(add(m, mat, p, part, pos, rot)); return m; };
     const pel = this.pel = node('iPel', root, 0, 1, 0), spine = this.spine = node('iSpine', pel, 0, 0, 0);
     add(box(.34, .16, .2), this.matD, pel);
     add(limb(.17, .62), this.mat, spine, 'core', [0, .4, 0]).scaling.set(1.25, 1, .78);
     add(box(.4, .1, .2), this.matD, spine, 'core', [0, .68, 0]);
     for (let k = 0; k < 4; k++) add(box(.3, .025, .23), this.matD, spine, 'core', [0, .26 + k * .09, 0]);   // ribs
-    wear(box(.52, .68, .36), coat, spine, 'core', [0, .4, 0]); wear(box(.62, .13, .38), coat, spine, 'core', [0, .71, -.01]);
+    /* the coat's body: broad at the shoulders, taken in at the waist; lapels crossing the chest, and a belt */
+    wear(cone(.66, .46, .64), coat, spine, 'core', [0, .42, 0]).scaling.z = .62; wear(box(.6, .06, .3), coat, spine, 'core', [0, .74, -.01]);
+    for (const s of [-1, 1]) { wear(MB.CreateSphere('iPart', { diameter: .24, segments: 6 }, S), coat, spine, 'core', [s * .3, .68, 0]).scaling.set(1.1, .8, 1.25); wear(box(.07, .36, .02), trim, spine, 'core', [s * .07, .52, .192], [0, 0, s * .32]); }
+    wear(cone(.48, .48, .06), trim, spine, 'core', [0, .11, 0]).scaling.z = .64;
     const neck = this.neck = node('iNeck', spine, 0, .78, .02);
     add(box(.19, .23, .22), this.mat, neck, 'core', [0, .13, .01]); add(box(.2, .07, .16), this.matD, neck, 'core', [0, .01, .04]);
     for (const s of [-1, 1]) add(box(.05, .035, .03), this.eyeMat, neck, 'core', [s * .05, .16, .125]);
-    wear(box(.105, .22, .03), G.M.skin, neck, 'core', [-.048, .13, .128]);                                   // the half of its face that's left
-    wear(box(.32, .16, .28), coat, neck, 'core', [0, .01, -.03]); wear(box(.21, .06, .24), coat, neck, 'core', [0, .27, 0]);   // collar, and a flat cap
-    wear(box(.52, .78, .04), coat, pel, 'core', [0, -.36, -.18], [.07, 0, 0]);
-    for (const s of [-1, 1]) wear(box(.04, .78, .3), coat, pel, 'core', [s * .26, -.36, -.03], [0, 0, s * -.05]);
+    wear(box(.095, .19, .02), face, neck, 'core', [-.05, .125, .137]);                                       // the half of its face that's left
+    wear(cone(.36, .26, .16), coat, neck, 'core', [0, .02, -.02]).scaling.z = .85;                            // the collar, turned up
+    wear(box(.23, .07, .25), coat, neck, 'core', [0, .275, -.01]); wear(box(.21, .02, .13), coat, neck, 'core', [0, .247, .17], [.12, 0, 0]);   // a flat cap, and its peak
+    wear(cone(.46, .84, .82), coat, pel, 'core', [0, -.37, -.02]).scaling.z = .66;                            // the skirt of the coat, flaring to the knee
+    wear(box(.02, .8, .02), trim, pel, 'core', [0, -.37, .2], [-.11, 0, 0]);                                  // where it closes at the front
     this.arms = []; this.legs = [];
     for (const s of [-1, 1]) {
       const part = s > 0 ? 'arm' : 'core', sh = node('iSh', spine, s * .31, .66, 0), el = node('iEl', sh, 0, -.36, 0);
-      add(limb(.055, .42), this.mat, sh, part, [0, -.17, 0]); add(limb(.05, .4), this.matD, el, part, [0, -.17, 0]); wear(limb(.088, .44), coat, sh, part, [0, -.17, 0]);
-      if (s > 0) { add(MB.CreateCylinder('iGun', { diameter: .12, height: .5, tessellation: 8 }, S), G.M.gun, el, part, [0, -.44, 0]); add(box(.16, .14, .16), this.matD, el, part, [0, -.22, 0]); this.muzzle = node('iMuzzle', el, 0, -.72, 0); this.elR = el; }
+      add(limb(.055, .42), this.mat, sh, part, [0, -.17, 0]); add(limb(.05, .4), this.matD, el, part, [0, -.17, 0]); wear(limb(.088, s > 0 ? .4 : .44), coat, sh, part, [0, s > 0 ? -.15 : -.17, 0]);
+      /* the gun: a heavy barrel where the forearm ends, a collar round it, and a muzzle that glows with its eyes (brighter as it takes aim) */
+      if (s > 0) { add(MB.CreateCylinder('iGun', { diameter: .15, height: .52, tessellation: 8 }, S), G.M.gun, el, part, [0, -.45, 0]); add(MB.CreateCylinder('iGunRing', { diameter: .2, height: .07, tessellation: 8 }, S), this.matD, el, part, [0, -.62, 0]);
+        add(box(.18, .14, .18), this.matD, el, part, [0, -.22, 0]); add(MB.CreateCylinder('iGunGlow', { diameter: .1, height: .03, tessellation: 8 }, S), this.eyeMat, el, part, [0, -.72, 0]); this.muzzle = node('iMuzzle', el, 0, -.74, 0); this.elR = el; }
       else for (const k of [-1, 0, 1]) add(box(.025, .18, .035), G.M.gun, el, part, [k * .04, -.44, .02]);
       this.arms.push({ sh, el, s });
       const hip = node('iHip', pel, s * .11, -.02, 0), knee = node('iKnee', hip, 0, -.46, 0);
