@@ -64,7 +64,8 @@ const BIGS = {
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 /* arena: { num, name, blurb, preparing, build, gate, start, saveKey } and, where it differs from open ground,
-   { look, indoor, noHorn, ambience, tune, arrive(p, kind), begin(R, run), tick(R, run, dt), stats(run) }.
+   { look, indoor, indoorAt(x, z), noHorn, ambience, tune, arrive(p, kind), begin(R, run), tick(R, run, dt), stats(run), interactables(list) }.
+   indoorAt says which parts of an open arena are walled in (the Foundry's tunnels), so drones keep to the ways through there.
    arrive says where a 'ground', 'air', 'walker' or 'boss' (the big boss) machine comes in (null for nowhere just now); without it they arrive off-screen.
    tick runs every frame; run.time is the clock, and run.gapK scales the time between groups (an arena can bring them faster or slower for a while).
    stats gives the end card more [number, label] pairs; run.kills counts what went down, by kind. */
@@ -184,7 +185,7 @@ export function survival(arena) {
     preparing: arena.preparing,
     hornSignals: true,   // the horn means a wave has arrived, so it never sounds at random here (audio.js)
     medic: true,     // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
-    indoor: arena.indoor, noHorn: arena.noHorn, ambience: arena.ambience, look: arena.look,
+    indoor: arena.indoor, indoorAt: arena.indoorAt, noHorn: arena.noHorn, ambience: arena.ambience, look: arena.look,
     /* each arena keeps its own record: in its own slot in this browser, and in its own document in your account */
     save: { key: arena.saveKey, doc: arena.saveKey },
     build: arena.build,
@@ -198,7 +199,7 @@ export function survival(arena) {
       RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, hornAt: 0, squad: [], big: null, bigs: 0, kills: {}, mendSaidAt: 0, rebuilt: 0 };
       if (arena.begin) arena.begin(R, RUN);
     },
-    interactables() {},
+    interactables(R, progress, L) { if (arena.interactables) arena.interactables(L); },   // things to walk up to and use (the Foundry's kill switches)
     assemble: build,   // B, or the scrap meter: build machines of your own (`build` above is the map's)
     onKill(R, m) {
       if (!RUN || RUN.over) return; RUN.xp += T.xp[m.kind] || 1; RUN.kills[m.kind] = (RUN.kills[m.kind] || 0) + 1;

@@ -4,7 +4,7 @@
 const CACHE = 'relay-gate';
 /* fetched as soon as it's installed, so it can start offline straight away; the sound effects are kept as the game loads them */
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
-  ...['actors', 'audio', 'combat', 'core', 'crucible', 'fx', 'game', 'gate', 'geo', 'input', 'look', 'loot', 'machines', 'main', 'nav', 'region1', 'region2', 'region3', 'save', 'survival', 'tex', 'ui'].map(f => `js/${f}.js`),
+  ...['actors', 'audio', 'combat', 'core', 'crucible', 'cuts', 'fx', 'game', 'gate', 'geo', 'input', 'look', 'loot', 'machines', 'main', 'nav', 'region1', 'region2', 'region3', 'save', 'survival', 'tex', 'ui'].map(f => `js/${f}.js`),
   'https://cdn.jsdelivr.net/npm/babylonjs@7.31.0/babylon.js'];
 const PINNED = /^https:\/\/(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
 

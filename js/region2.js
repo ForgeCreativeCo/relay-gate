@@ -8,6 +8,7 @@ import { makeMat } from './tex.js';
 import { makeNav } from './nav.js';
 import { buildGate } from './gate.js';
 import { survival } from './survival.js';
+import { makeCuts } from './cuts.js';
 
 /* Walkable rectangles [x0, z0, x1, z1] (on a half-metre grid) and the power zone each belongs to. North is +z.
    Where two connect they overlap by at least a metre: each one is shrunk by your body's width when deciding where you can stand,
@@ -26,7 +27,7 @@ const ROOMS = {
 const GATE = { x: 0, z: 8.4, y: 4.4 };
 const CONSOLE = { x: 27.2, z: .5 };      // the hall door's lock panel
 const BREAKER = { x: 52.6, z: 12.4 };    // the cooling hall's power
-const CELL = .5, THICK = 2, WALL_H = 4, CUT_H = .7;
+const CELL = .5, THICK = 2, WALL_H = 4;
 const ob = (x, z, hw, hd, h) => { const o = { x, z, hw, hd, h }; G.obstacles.push(o); return o; };
 
 /* ---------- power zones: the materials of a zone's walls, floor and lights dim and brighten together ---------- */
@@ -56,22 +57,9 @@ function applyPower(z, flick = 1) {
 }
 function setPower(name, k, instant) { const z = zones[name]; z.target = k; if (instant) { z.k = k; applyPower(z); } }
 
-/* ---------- pieces that sink while they stand between you and the camera ---------- */
-const cuts = [];   // { x0, z0, x1, z1, node, k }
-function cutPiece(node, x0, z0, x1, z1) { const c = { x0, z0, x1, z1, node, k: 0 }; cuts.push(c); return c; }
-function updateCuts(dt) {
-  const p = G.player.pos, a = G.camera.alpha, cx = Math.cos(a), cz = Math.sin(a), px = -cz, pz = cx;   // toward the camera along the ground, and across
-  for (const c of cuts) {
-    let want = 0;
-    if (p.x > c.x0 - 10 && p.x < c.x1 + 10 && p.z > c.z0 - 10 && p.z < c.z1 + 10)
-      look: for (const off of [-1.4, 0, 1.4]) for (let d = .3; d <= 7; d += .5) {
-        const x = p.x + px * off + cx * d, z = p.z + pz * off + cz * d;
-        if (x > c.x0 - .2 && x < c.x1 + .2 && z > c.z0 - .2 && z < c.z1 + .2) { want = 1; break look; }
-      }
-    c.k += (want - c.k) * damp(want ? 9 : 3, dt);
-    c.node.position.y = -c.k * (WALL_H - CUT_H);
-  }
-}
+/* ---------- pieces that sink while they stand between you and the camera (cuts.js) ---------- */
+const cuts = makeCuts();
+const cutPiece = (node, x0, z0, x1, z1) => cuts.add(node, x0, z0, x1, z1, WALL_H);
 
 /* greedy merge of a labelled grid into rectangles: the longest run along a row, then down as many rows as match */
 function greedy(lab, W, H, emit) {
@@ -276,7 +264,7 @@ const AMBIENCE = [{ name: 'ambStation', url: 'sfx/ambience-station.mp3', from: 0
 
 /* the station's own moving parts, whatever is being played in it: sinking walls, doors, and power fading in and out */
 function runStation(dt) {
-  updateCuts(dt); updateDoors(dt);
+  cuts.update(dt); updateDoors(dt);
   for (const Z of Object.values(zones)) {
     if (Z.k !== Z.target) { Z.k += Math.sign(Z.target - Z.k) * Math.min(Math.abs(Z.target - Z.k), dt * .5); applyPower(Z, Math.random() < .3 ? .2 : 1); }   // power comes back in stutters
     else if (Z.flicker && Z.k > 0) applyPower(Z, Math.random() < .04 ? .25 : 1);

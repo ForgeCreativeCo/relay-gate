@@ -34,6 +34,9 @@ export const G = {
 };
 
 export const boost = k => G.boost[k] || 0;
+/* Is this spot walled in (the whole station, or the Foundry's tunnels)? Drones and menders fly over everything in the open, but where it's
+   enclosed they keep to the ways through, like anyone on foot. */
+export const enclosed = (x, z) => !!(G.R && (G.R.indoor || (G.R.indoorAt && G.R.indoorAt(x, z))));
 
 /* Walkable test: inside any open rectangle (shrunk by margin). */
 export function inOpen(x, z, m = .5) {

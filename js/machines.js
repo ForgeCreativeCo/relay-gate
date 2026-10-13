@@ -1,5 +1,5 @@
 /* Machines: scout drones, husks, menders, Hunter Walkers and the Warden, the gate boss. (The Crucible, the Foundry's boss, is in crucible.js.) */
-import { B, G, V, V3, MT, clamp, damp, lerpAngle, angleTo, dist2, rand, clearShot, collide } from './core.js';
+import { B, G, V, V3, MT, clamp, damp, lerpAngle, angleTo, dist2, rand, clearShot, collide, enclosed } from './core.js';
 import { Geo, gbox, gprism, gcyl, gmesh } from './geo.js';
 import { Actor } from './actors.js';
 import { nearestHostile, hostile } from './combat.js';
@@ -62,18 +62,18 @@ export class Drone extends Actor {
     this.retarget -= dt; if (this.retarget <= 0) { this.retarget = .7; this.target = pickTarget(this, 20); announce(this, .7, [['whir', { gain: .6, rate: 1.1, gap: 1.5, key: 'droneAlert' }]]); }
     const T = this.target && this.target.alive && !this.target.untargetable ? this.target : null;
     let gx, gz;
-    if (T) { this.orbitA += dt * .55 * this.orbitDir; const R0 = G.R.indoor ? 5.5 : 8.5; gx = T.pos.x + Math.cos(this.orbitA) * R0; gz = T.pos.z + Math.sin(this.orbitA) * R0; if (Math.random() < dt * .15) this.orbitDir *= -1; }
+    if (T) { this.orbitA += dt * .55 * this.orbitDir; const R0 = enclosed(T.pos.x, T.pos.z) ? (G.R.indoor ? 5.5 : 2.5) : 8.5; gx = T.pos.x + Math.cos(this.orbitA) * R0; gz = T.pos.z + Math.sin(this.orbitA) * R0; if (Math.random() < dt * .15) this.orbitDir *= -1; }
     else { this.orbitA += dt * .35; gx = this.home.x + Math.cos(this.orbitA) * 4; gz = this.home.z + Math.sin(this.orbitA) * 4; }
     const hx = gx - this.home.x, hz = gz - this.home.z, hd = Math.hypot(hx, hz); if (hd > 20) { gx = this.home.x + hx / hd * 20; gz = this.home.z + hz / hd * 20; }
     const d = Math.hypot(gx - p.x, gz - p.z), sp = Math.min(d * 2, 7);
-    /* outdoors it flies straight there, over everything; indoors it has to go through the doorways like anyone else */
-    const to = G.R.indoor && d > .1 ? chase(this, G.nav, gx, gz, dt, .8) : { x: gx, z: gz }, dx = to.x - p.x, dz = to.z - p.z, dl = Math.hypot(dx, dz) || 1;
+    /* in the open it flies straight there, over everything; where it's walled in (it or where it's going) it goes through the doorways like anyone else */
+    const walled = enclosed(p.x, p.z) || enclosed(gx, gz), to = walled && d > .1 ? chase(this, G.nav, gx, gz, dt, .8) : { x: gx, z: gz }, dx = to.x - p.x, dz = to.z - p.z, dl = Math.hypot(dx, dz) || 1;
     const ox = p.x, oz = p.z;
     if (d > .1) { p.x += dx / dl * sp * dt; p.z += dz / dl * sp * dt; }
     if (this.knock) { p.x += this.knock.x * dt; p.z += this.knock.z * dt; this.knock.scaleInPlace(Math.exp(-dt * 5)); }
     /* outdoors drones fly over the ruins; indoors the walls reach above them. It is held to the same width as anyone on foot: any wider and
        it can't cross from one room into the next (rooms overlap by a metre, and each is shrunk by a body's width) */
-    if (G.R.indoor) { const y = p.y; collide(p, .45, ox, oz); p.y = y; }
+    if (walled) { const y = p.y; collide(p, .45, ox, oz); p.y = y; }
     p.y += (this.alt + Math.sin(G.t * 2 + this.orbitA) * .25 - p.y) * damp(3, dt);
     const face = T ? angleTo(p, T.pos) : Math.atan2(dx, dz);
     this.root.rotation.y = lerpAngle(this.root.rotation.y, face, damp(6, dt)); this.root.rotation.z = -clamp(dx * .05, -.3, .3);
@@ -146,10 +146,10 @@ export class Mender extends Actor {
       const c = near ? near.pos : p, ax = c.x - P.x, az = c.z - P.z, al = Math.hypot(ax, az) || 1, back = near ? 6 : Math.max(0, 13 - al);
       gx = c.x + ax / al * back; gz = c.z + az / al * back; }
     const d = Math.hypot(gx - p.x, gz - p.z), sp = Math.min(d * 2.2, 6.5);
-    const to = G.R.indoor && d > .1 ? chase(this, G.nav, gx, gz, dt, .8) : { x: gx, z: gz }, dx = to.x - p.x, dz = to.z - p.z, dl = Math.hypot(dx, dz) || 1, ox = p.x, oz = p.z;
+    const walled = enclosed(p.x, p.z) || enclosed(gx, gz), to = walled && d > .1 ? chase(this, G.nav, gx, gz, dt, .8) : { x: gx, z: gz }, dx = to.x - p.x, dz = to.z - p.z, dl = Math.hypot(dx, dz) || 1, ox = p.x, oz = p.z;
     if (d > .1) { p.x += dx / dl * sp * dt; p.z += dz / dl * sp * dt; }
     if (this.knock) { p.x += this.knock.x * dt; p.z += this.knock.z * dt; this.knock.scaleInPlace(Math.exp(-dt * 5)); }
-    if (G.R.indoor) { const y = p.y; collide(p, .45, ox, oz); p.y = y; }
+    if (walled) { const y = p.y; collide(p, .45, ox, oz); p.y = y; }
     p.y += (this.alt + Math.sin(G.t * 2.6 + this.ph) * .12 - p.y) * damp(3, dt);
     const face = W ? angleTo(p, W.pos) : d > .3 ? Math.atan2(dx, dz) : this.root.rotation.y;
     this.root.rotation.y = lerpAngle(this.root.rotation.y, face, damp(6, dt)); this.root.rotation.z = -clamp(dx * .04, -.25, .25);

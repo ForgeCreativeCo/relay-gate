@@ -46,9 +46,14 @@ When a run ends, the card shows how long you lasted, the level you reached, mach
 
 **The Relay Station** (region 02): indoors, with every door open. Switch to it on the title screen, or add `?region=2` to the address. The station is four rooms in a loop: the gate room, the service corridor, the cooling hall, and a freight bay that runs south of all three and joins the gate room to the hall through two blast doors wide enough for a walker. Walls between you and the camera sink out of the way. Machines come in through the gate, out of the vents in the corridor's alcoves and from the edges of the hall and the bay. Every minute or so the power fails for about twenty seconds: emergency lights only, the blast doors seal either the cooling hall or the gate room off from the rest, and the machines come faster until it is back.
 
-**The Foundry** (region 03): where the machines are made. Pick it on the title screen, or add `?region=3` to the address. One big roofless casting hall: tall walls to the north and east, a low parapet on the camera's side, and the gate in the middle of the north wall. It plays at the same pressure as the city, with three things of its own:
+**The Foundry** (region 03): where the machines are made. Pick it on the title screen, or add `?region=3` to the address. One big roofless casting hall: tall walls to the north and east, a low parapet on the camera's side, and the gate in the middle of the north wall. Off it are two tight spaces, each under three metres across, where walkers and the Crucible can't follow you; their walls sink while you're in them, as the station's do:
 
-- **Fabricators.** Machines come out of five fabricators built into the walls (and out of the gate). Auto-aim leaves them alone, so you choose when to go for one: point at its glowing core, or tap it on a phone. A destroyed fabricator drops scrap, the groups come more slowly for each one that is down, and it starts up again after 50 seconds.
+- **The assembly line**, a service tunnel behind the north wall, through a doorway at each end. A conveyor of half-built husks runs along it, and crates squeeze the walkway. Husks lie slumped along it and wake as you pass (a fresh one is put down out of sight every 40 seconds or so, up to four).
+- **The slag drains**, a culvert behind the south wall, through three doorways. Each channel empties into its half of it (west or east of the middle doorway): two seconds after a channel pours, that half floods too. Husks lie in wait here as well.
+
+It plays at the same pressure as the city, with three things of its own:
+
+- **Fabricators.** Machines come out of five fabricators built into the walls (and out of the gate). Auto-aim leaves them alone, so you choose when to go for one: point at its glowing core, or tap it on a phone. A destroyed fabricator drops scrap, the groups come more slowly for each one that is down, and it starts up again after 50 seconds. Three of them (both northern ones, and the southern one) have a **kill switch** behind them, in the tunnels: walk up to it and press E (or tap Use) while the fabricator is running, and it shuts down for 100 seconds instead.
 - **Slag channels.** Two channels run the length of the hall from the furnaces in the north wall. About every 26 seconds one of them pours: a warning, then five seconds when anything standing in it burns, machines included (walkers and the Crucible take it in the legs and treads). Drones and menders fly over it, and Mara keeps out of it.
 - **Menders.** Small yellow repair droids that come with the groups from the first minute. A mender settles beside the wreck of a husk or a walker and welds it back together, and the machine gets up on 60% health (worth XP again, but it drops nothing). It holds still while it works.
 
@@ -73,7 +78,8 @@ Each arena keeps your best run (time, and the level you reached in it) and your 
 | `js/fx.js` | Particles (ash, fire, sparks, explosions, smoke) and combat visuals: muzzle flashes, surface-matched impacts, shockwaves, scorch marks, wreck debris |
 | `js/region1.js` | Dead City: the map (streets, ruins, props, the relay gate) and how it plays as an arena. A new arena is a new file exporting `SURVIVAL`, listed in `ARENAS` in `main.js` |
 | `js/region2.js` | The Relay Station: rooms and corridors with generated walls (the ones between you and the camera sink out of the way), doors, power zones that go dark or light up, and how it plays as an arena (where machines come in, the power failures) |
-| `js/region3.js` | The Foundry: the casting hall, the fabricators you can shoot down, the slag channels and their pours, and how it plays as an arena |
+| `js/region3.js` | The Foundry: the casting hall, the assembly line and the slag drains, the fabricators (shot down, or shut off with their kill switches), the slag channels and the drains they flood, the husks lying in the tunnels, and how it plays as an arena |
+| `js/cuts.js` | Walls that sink while they stand between you and the camera, for the station and the Foundry's tunnels |
 | `js/survival.js` | The run: the spawner that brings machines in, the pressure curve, XP and level-ups, bosses on milestones, building machines from scrap, and the end of a run. It turns a map into an arena |
 | `js/gate.js` | The relay gate model, shared by every region that has one |
 | `js/actors.js` | The player and Mara |
