@@ -33,6 +33,22 @@ export function makeGame() {
 
   /* things you can walk up to and use: an arena can offer some (none do yet) */
   GM.interactables = () => { const L = []; if (REG.interactables) REG.interactables(R, G.progress, L); return L; };
+  /* Using one: most work at once. One with `hold` seconds is worked at while you stay beside it (a ring fills on the ground round it);
+     walking away from it, or going down, stops it. Machines keep coming meanwhile, so standing there is the risk. */
+  let work = null, ring = null;
+  GM.use = (it) => { if (!it) return; if (!it.hold) { it.use(); return; } if (!work || work.label !== it.label) work = { label: it.label, hold: it.hold, t: 0 }; };
+  GM.working = () => work;
+  function updateWork(dt) {
+    const it = G.near;
+    if (work && (!it || it.label !== work.label || G.player.down > 0 || !G.started)) work = null;
+    if (!ring) { ring = { back: B.MeshBuilder.CreateDisc('workRing', { radius: 1, tessellation: 40 }, G.scene), fill: B.MeshBuilder.CreateDisc('workFill', { radius: 1, tessellation: 40 }, G.scene) };
+      const m = (a) => { const x = new B.StandardMaterial('work' + a, G.scene); x.disableLighting = true; x.emissiveColor = B.Color3.FromHexString('#ffb340'); x.alpha = a; x.alphaMode = B.Engine.ALPHA_ADD; x.disableDepthWrite = true; return x; };
+      for (const [k, a] of [['back', .12], ['fill', .4]]) { const d = ring[k]; d.rotation.x = Math.PI / 2; d.material = m(a); d.isPickable = false; d.setEnabled(false); G.glow.addExcludedMesh(d); } }
+    ring.back.setEnabled(!!work); ring.fill.setEnabled(!!work); if (!work) return;
+    work.t += dt; const k = Math.min(1, work.t / work.hold), r = 1.4;
+    ring.back.position.set(it.pos.x, .1, it.pos.z); ring.back.scaling.set(r, r, 1); ring.fill.position.set(it.pos.x, .11, it.pos.z); ring.fill.scaling.set(r * k, r * k, 1);
+    if (k >= 1) { work = null; ring.back.setEnabled(false); ring.fill.setEnabled(false); it.use(); }
+  }
 
   /* ---------- kills ---------- */
   GM.onMachineDown = (m) => {
@@ -56,6 +72,7 @@ export function makeGame() {
   GM.applyGate = () => { const g = G.region.gate, on = !!G.progress.gate; g.source.intensity = on ? 1.8 : .45; g.on = on; };
 
   /* ---------- per frame ---------- */
-  GM.update = () => REG.update(R, G.player.pos);
+  let lastT = 0;
+  GM.update = () => { const dt = Math.min(.05, Math.max(0, G.t - lastT)); lastT = G.t; updateWork(dt); REG.update(R, G.player.pos); };
   return GM;
 }

@@ -1,14 +1,17 @@
 /* Region 02, The Relay Station: indoors. The map (rooms, corridors, doors, power) and how it plays as a survival arena.
    Walls are generated around the walkable rectangles. The ones on the camera's side sink into the floor while you're behind them,
    so a room never hides who's in it. Each room belongs to a power zone that can be dark, flickering or lit.
-   The rooms: the gate room, a service corridor with two alcoves, the cooling hall, and the freight bay that runs south of all three. */
-import { B, G, V, C, R, damp, dist2 } from './core.js';
+   The rooms: the gate room, a service corridor with two alcoves, the cooling hall, and the freight bay that runs south of all three.
+   It's the Foundry's front office: the leeches that drain its power are Foundry-made. */
+import { B, G, V, C, R, damp, dist2, rand } from './core.js';
 import { Geo, gbox, gcyl, gmesh } from './geo.js';
 import { makeMat } from './tex.js';
 import { makeNav } from './nav.js';
 import { buildGate } from './gate.js';
 import { survival } from './survival.js';
 import { makeCuts } from './cuts.js';
+import { Actor } from './actors.js';
+import { cloneMat } from './machines.js';
 
 /* Walkable rectangles [x0, z0, x1, z1] (on a half-metre grid) and the power zone each belongs to. North is +z.
    Where two connect they overlap by at least a metre: each one is shrunk by your body's width when deciding where you can stand,
@@ -25,8 +28,21 @@ const ROOMS = {
   linkE: { r: [37.5, -14, 43.5, -11], zone: 'bay' },   // the bay to the cooling hall
 };
 const GATE = { x: 0, z: 8.4, y: 4.4 };
-const CONSOLE = { x: 27.2, z: .5 };      // the hall door's lock panel
+const CONSOLE = { x: 27.2, z: .5 };      // the hall door's lock panel (you stand here to use it)
+const GPANEL = { x: 8.1, z: 3.4 };       // the gate room's panel for the door out to the corridor
 const BREAKER = { x: 52.6, z: 12.4 };    // the cooling hall's power
+/* The conduits a power leech clamps onto: a spot on the face of a wall, which way the wall faces, and the zone it's in. Always the same
+   six, so you learn where to look, and all on walls that never sink (north and east faces). */
+const CONDUITS = [
+  { x: 9, z: 6, nx: -1, nz: 0, zone: 'gate', say: 'the gate room' },
+  { x: 13.5, z: 1.5, nx: 0, nz: -1, zone: 'corridor', say: 'the corridor' },
+  { x: 54, z: -7.5, nx: -1, nz: 0, zone: 'hall', say: 'the cooling hall' },
+  { x: 38.5, z: 14, nx: 0, nz: -1, zone: 'hall', say: 'the cooling hall' },
+  { x: 17, z: -13, nx: 0, nz: -1, zone: 'bay', say: 'the freight bay' },
+  { x: 44, z: -17, nx: -1, nz: 0, zone: 'bay', say: 'the freight bay' },
+];
+/* the corridor's two vents, by their place in ENTRIES (where husks climb out) */
+const VENTS = [{ x: 15.75, z: 3.4, entry: 1, say: 'north' }, { x: 22.75, z: -3.4, entry: 2, say: 'south' }];
 const CELL = .5, THICK = 2, WALL_H = 4;
 const ob = (x, z, hw, hd, h) => { const o = { x, z, hw, hd, h }; G.obstacles.push(o); return o; };
 
@@ -246,6 +262,20 @@ export function buildRegion(M) {
   door(M, 'south', 0, -10.5, 'z', 6, 'bay');
   door(M, 'east', 40.5, -12.5, 'z', 6, 'bay');
 
+  /* ---------- the power conduits a leech can clamp onto: a junction box on the wall with a pipe up from the floor ---------- */
+  for (const c of CONDUITS) { const Z = zones[c.zone], along = c.nz !== 0;
+    gbox(Z.g.trim, { x: c.x + c.nx * .18, y: 2.2, z: c.z + c.nz * .18, w: along ? 1.1 : .36, h: 1, d: along ? .36 : 1.1, ao: false });
+    gbox(Z.g.led, { x: c.x + c.nx * .37, y: 2.45, z: c.z + c.nz * .37, w: along ? .6 : .02, h: .08, d: along ? .02 : .6, ao: false });
+    gcyl(Z.g.trim, { r0: .09, h: 1.7, seg: 6, x: c.x + c.nx * .12, y: .85, z: c.z + c.nz * .12, ao: false }); }
+  /* ---------- the gate room's door panel, beside the door out to the corridor ---------- */
+  gbox(zones.gate.g.trim, { x: GPANEL.x + .45, y: .7, z: GPANEL.z, w: .5, h: 1.4, d: 1.1, ao: false }); ob(GPANEL.x + .45, GPANEL.z, .25, .55, 1.4);
+  gbox(zones.gate.g.led, { x: GPANEL.x + .19, y: 1.25, z: GPANEL.z, w: .02, h: .3, d: .8, ao: false });
+  /* ---------- the corridor's vents: grates in the alcove floors, and the plates welded over them ---------- */
+  for (const v of VENTS) { gbox(zones.corridor.g.trim, { x: v.x, y: .02, z: v.z, w: 1.8, h: .04, d: 1.4, ao: false });
+    for (let k = -3; k <= 3; k++) gbox(zones.corridor.g.wall, { x: v.x + k * .24, y: .05, z: v.z, w: .08, h: .03, d: 1.3, ao: false, tint: .4 });
+    v.mat = makeMat(G.scene, 'weld_' + v.say, '#4a4642', { tex: M.crate.albedoTexture, emissive: '#000000' });
+    v.plate = B.MeshBuilder.CreateBox('weldPlate', { width: 2, height: .06, depth: 1.6 }, G.scene); v.plate.position.set(v.x, .06, v.z); v.plate.material = v.mat; v.plate.isPickable = false; v.plate.receiveShadows = true; v.plate.setEnabled(false); }
+
   /* ---------- finish: one mesh per zone per material ---------- */
   for (const Z of Object.values(zones)) for (const [part, g] of Object.entries(Z.g))
     gmesh(part + '_' + Z.name, g, Z[part], { freeze: true, shadow: part === 'wall' || part === 'trim' });
@@ -277,13 +307,63 @@ function runStation(dt) {
    lights only, the blast doors seal one end of the station off from the rest, and machines come faster until it is back. */
 const ENTRIES = [{ x: GATE.x, z: GATE.z - 3 }, { x: 15.75, z: 4 }, { x: 22.75, z: -4 }, { x: 52.5, z: 9 }, { x: 52.5, z: -10.8 }, { x: 31.5, z: 12.6 }, { x: 31.6, z: -11 },
   { x: -4.5, z: -24 }, { x: 20, z: -31 }, { x: 42.5, z: -28 }, { x: 28, z: -14.4 }];
-/* what a power failure seals: the two doors into the cooling hall, or the two out of the gate room */
-const SEALS = [{ doors: ['hall', 'east'], say: 'the cooling hall' }, { doors: ['west', 'south'], say: 'the gate room' }];
-const DARK = { first: 50, every: 65, lasts: 22, rush: .6 };   // seconds to the first power failure, between failures, and how long one lasts; while it's dark the time between groups is multiplied by rush
-let dark = null;
+/* What a power failure seals: the two doors into the cooling hall, or the two out of the gate room. `panel` is where to force one of
+   them open again from (the hall door from the corridor, the corridor door from inside the gate room), and `door` which one it opens. */
+const SEALS = [{ doors: ['hall', 'east'], say: 'the cooling hall', panel: CONSOLE, door: 'hall', label: 'Force the cooling hall door' },
+  { doors: ['west', 'south'], say: 'the gate room', panel: GPANEL, door: 'west', label: 'Force the corridor door' }];
+/* Seconds to the first power failure, between failures, and how long one lasts (unless the breaker is thrown); while it's dark the time
+   between groups is multiplied by rush. A leech turns up `warn` seconds before each failure: destroy it and that failure doesn't happen. */
+const DARK = { first: 50, every: 65, lasts: 35, rush: .6, warn: 15 };
+/* how long the breaker, a door panel and a vent take to work, and how long a welded vent stays shut */
+const WORK = { breaker: 3, panel: 3, weld: 4, welded: 90 };
+let dark = null, tally = null, now = 0;   // now: the run's clock, as of the last frame
+
+/* ---------- the power leech: a Foundry-made parasite that clamps onto a conduit and drains it until the power fails ---------- */
+class Leech extends Actor {
+  constructor(c, hp) {
+    super('machine', hp); this.kind = 'leech'; this.name = 'Power leech'; this.c = c; this.radius = .8; this.height = 2.2; this.barY = 3.3; this.flash = 0;
+    const S = G.scene, root = this.root = new B.TransformNode('leech', S); root.position.set(c.x + c.nx * .9, 0, c.z + c.nz * .9); root.rotation.y = Math.atan2(c.nx, c.nz);
+    this.home = V(root.position.x, 0, root.position.z);
+    this.mat = cloneMat(G.M.mechDark, 'leechMat'); this.eyeMat = new B.StandardMaterial('leechGlow', S); this.eyeMat.disableLighting = true; this.eyeMat.emissiveColor = C('#ff3a5a');
+    const tag = m => { m.metadata = { actor: this, part: 'core' }; m.isPickable = true; m.receiveShadows = true; return m; };
+    const g = Geo(), e = Geo();   // local +z faces out from the wall; the wall face is at z -0.9
+    gbox(g, { x: 0, y: 2.2, z: -.35, w: .8, h: .7, d: .6, ao: false });
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) gbox(g, { x: sx * .5, y: 2.2 + sy * .42, z: -.7, w: .12, h: .12, d: .5, ry: sx * .5, rx: sy * .4, ao: false });   // clamps
+    gcyl(g, { r0: .06, h: 1.7, seg: 6, x: .25, y: 1.05, z: -.55, rz: .12, ao: false });   // a feed down to the conduit
+    gcyl(e, { r0: .22, h: .12, seg: 10, x: 0, y: 2.2, z: -.02, rx: Math.PI / 2, ao: false }); gbox(e, { x: 0, y: 2.6, z: -.35, w: .5, h: .05, d: .5, ao: false });
+    tag(gmesh('leech', g, this.mat, { parent: root })); tag(gmesh('leechGlow', e, this.eyeMat, { parent: root, shadow: false }));
+    this.core = new B.TransformNode('leechCore', S); this.core.parent = root; this.core.position.set(0, 2.2, -.3);
+    this.meshes = root.getChildMeshes();
+  }
+  hitTargets() { return [{ part: 'core', c: this.core.getAbsolutePosition(), r: .85 }]; }
+  takeDamage(d) { this.flash = 1; return d; }
+  die(src) { const c = this.core.getAbsolutePosition().clone(); this.meshes.forEach(m => { m.isPickable = false; });
+    if (src !== 'drained') { G.FX.explode(c, .5); G.FX.spark(c, 30); G.FX.debris(c, 4, .4, .6); G.audio.play('boomSmall', { pos: c, gain: .8 }); G.game.onMachineDown(this, src); }
+    this.root.setEnabled(false); }
+  update(dt) {
+    if (!this.alive) return;
+    this.flash = Math.max(0, this.flash - dt * 6); this.mat.emissiveColor.set(this.flash * .3, this.flash * .3, this.flash * .3);
+    const k = .6 + .4 * Math.sin(G.t * (5 + (dark && dark.leechT ? 10 * (1 - dark.leechT / DARK.warn) : 0)));   // it pulses faster as the power runs down
+    this.eyeMat.emissiveColor.set(1 * k, .23 * k, .35 * k);
+    if (Math.random() < dt * 6) G.FX.spark(V(this.c.x + this.c.nx * .3 + rand(-.3, .3), 2.2 + rand(-.3, .3), this.c.z + this.c.nz * .3 + rand(-.3, .3)), 2);
+  }
+}
+
+/* the power comes back: lights, doors, and the groups back to their usual pace */
+function restore(R, run, how) {
+  dark.on = false; dark.at = run.time + DARK.every; run.gapK = 1;
+  for (const n in zones) setPower(n, 1); for (const id of dark.seal.doors) setDoor(id, true);
+  G.audio.play('powerOn', { pos: G.player.pos, gain: .5, len: 1.6, fade: .4 }); R.say(how, '#1fe0ff');
+}
+/* a leech appears on a conduit: one you're not standing next to, and not the last one used */
+function spawnLeech(R, run) {
+  const P = G.player.pos, L = CONDUITS.filter(c => c !== dark.lastConduit && dist2(P, c) > 10), c = (L.length ? L : CONDUITS)[Math.floor(Math.random() * (L.length || CONDUITS.length))];
+  dark.lastConduit = c; dark.leech = R.add(new Leech(c, Math.round(140 * (1 + .08 * run.time / 60)))); dark.leechT = DARK.warn;
+  G.audio.play('powerOff', { pos: c, gain: .7, rate: 1.6, len: 1.2, fade: .3, hear: 90 }); R.say(`Something is draining the power in ${c.say} · Destroy the leech before the lights go`, '#ff6a5a');
+}
 export const SURVIVAL = survival({
   num: '02', name: 'The Relay Station',
-  blurb: 'The station\'s gate is stuck open, there are husks in the vents, and the power keeps failing. Last as long as you can.',
+  blurb: 'The Foundry\'s front office. Its gate is stuck open, there are husks in the vents, and leeches keep draining the power. Kill them before the lights go, or throw the breaker to get them back.',
   preparing: 'Powering up the station…', indoor: true, noHorn: true, ambience: AMBIENCE, look: LOOK,
   build: buildRegion, gate: GATE, start: { x: 0, z: 1 },
   saveKey: 'relay-gate-survival-station-v1',
@@ -292,23 +372,52 @@ export const SURVIVAL = survival({
   /* an entry out of your reach, picked at random; a walker or the Warden needs one with room for it (not the corridor's vents) */
   arrive(p, kind) {
     if (kind === 'walker' || kind === 'boss') { const nav = kind === 'boss' ? G.nav.huge : G.nav.wide, fit = ENTRIES.map(e => nav.snap(e.x, e.z, 2)).filter(s => s && dist2(p, s) > 14); return fit.length ? fit[Math.floor(Math.random() * fit.length)] : null; }
-    const far = ENTRIES.filter(e => dist2(p, e) > 12), e = far.length ? far[Math.floor(Math.random() * far.length)] : ENTRIES.slice().sort((a, b) => dist2(p, b) - dist2(p, a))[0];
+    const open = ENTRIES.filter((e, i) => !VENTS.some(v => v.entry === i && v.shutUntil > now)), far = open.filter(e => dist2(p, e) > 12);   // not out of a welded vent
+    const e = far.length ? far[Math.floor(Math.random() * far.length)] : open.slice().sort((a, b) => dist2(p, b) - dist2(p, a))[0];
     return G.nav.snap(e.x, e.z, 3) || e;
+  },
+  /* Things to work at: the breaker in a blackout, the panel that forces the sealed door open, and the vents. Each takes a few seconds
+     of standing at it (game.js). */
+  interactables(L) {
+    if (!dark) return;
+    if (dark.on) { L.push({ pos: V(BREAKER.x, 0, BREAKER.z), r: 1.8, hold: WORK.breaker, label: 'Throw the breaker', use: () => { tally.breaker++; dark.thrown = true; } });
+      const s = dark.seal; if (doors[s.door] && !doors[s.door].open) L.push({ pos: V(s.panel.x, 0, s.panel.z), r: 1.6, hold: WORK.panel, label: s.label, use: () => { setDoor(s.door, true); G.UI.feed('Door forced open', '#1fe0ff'); } }); }
+    for (const v of VENTS) if (!(v.shutUntil > now)) L.push({ pos: V(v.x, 0, v.z), r: 1.7, hold: WORK.weld, label: `Weld the ${v.say} vent shut`,
+      use: () => { v.shutUntil = now + WORK.welded; v.heat = 1; v.plate.setEnabled(true); G.FX.spark(V(v.x, .3, v.z), 40); G.audio.play('powerOn', { pos: V(v.x, 0, v.z), gain: .5, rate: 1.6, len: .8, fade: .3 });
+        G.UI.feed(`The ${v.say} vent is welded shut · Nothing comes out of it for ${WORK.welded} seconds`, '#1fe0ff'); } });
   },
   begin() {
     for (const id in doors) setDoor(id, true, true);
     for (const n in zones) setPower(n, 1, true);
-    dark = { on: false, at: DARK.first, seal: null };
+    dark = { on: false, at: DARK.first, seal: null, leech: null, wreck: null, lastConduit: null };
+    tally = { averted: 0, breaker: 0 }; now = 0; G.marks = [];
+    for (const v of VENTS) { v.shutUntil = 0; v.heat = 0; v.plate.setEnabled(false); }
   },
   tick(R, run, dt) {
-    runStation(dt);
-    if (run.time < dark.at) return;
-    dark.on = !dark.on; dark.at = run.time + (dark.on ? DARK.lasts : DARK.every);
-    for (const n in zones) setPower(n, dark.on ? 0 : 1);
-    run.gapK = dark.on ? DARK.rush : 1;
-    if (dark.on) { dark.seal = SEALS[Math.floor(Math.random() * SEALS.length)]; for (const id of dark.seal.doors) setDoor(id, false);
-      run.nextAt = Math.min(run.nextAt, G.t + 2); G.audio.play('powerOff', { pos: G.player.pos, gain: .6, rate: .8, len: 2, fade: .5 }); R.say(`Power failure · Blast doors have sealed ${dark.seal.say}`, '#ff6a5a'); }
-    else { for (const id of dark.seal.doors) setDoor(id, true);
-      G.audio.play('powerOn', { pos: G.player.pos, gain: .5, len: 1.6, fade: .4 }); R.say('Power restored · The doors are opening', '#1fe0ff'); }
+    runStation(dt); now = run.time;
+    /* a leech turns up a little before each failure; while it drains, the lights in its part of the station stutter */
+    const L = dark.leech;
+    if (!dark.on && !L && run.time >= dark.at - DARK.warn) spawnLeech(R, run);
+    if (L && L.alive) { dark.leechT = Math.max(0, dark.at - run.time); const Z = zones[L.c.zone]; if (Math.random() < .2) applyPower(Z, .3 + Math.random() * .4); }
+    if (L && !L.alive) { dark.leech = null; dark.wreck = { a: L, at: G.t + 3 }; dark.at = run.time + DARK.every; tally.averted++; R.say('Leech destroyed · The power holds', '#1fe0ff'); }
+    if (dark.wreck && G.t >= dark.wreck.at) { R.remove(dark.wreck.a); dark.wreck = null; }
+    /* the power fails when the leech has drained it (it drops off, spent); it comes back on its own, or when the breaker is thrown */
+    if (!dark.on && run.time >= dark.at) {
+      if (dark.leech) { dark.leech.hp = 0; dark.leech.alive = false; dark.leech.die('drained'); R.remove(dark.leech); dark.leech = null; }
+      dark.on = true; dark.thrown = false; dark.at = run.time + DARK.lasts; run.gapK = DARK.rush;
+      for (const n in zones) setPower(n, 0);
+      dark.seal = SEALS[Math.floor(Math.random() * SEALS.length)]; for (const id of dark.seal.doors) setDoor(id, false);
+      run.nextAt = Math.min(run.nextAt, G.t + 2); G.audio.play('powerOff', { pos: G.player.pos, gain: .6, rate: .8, len: 2, fade: .5 }); R.say(`Power failure · Blast doors have sealed ${dark.seal.say} · The breaker is in the cooling hall`, '#ff6a5a');
+    }
+    else if (dark.on && dark.thrown) restore(R, run, 'Breaker thrown · Power restored, the doors are opening');
+    else if (dark.on && run.time >= dark.at) restore(R, run, 'Power restored · The doors are opening');
+    /* welded vents cool, and burst open again in time */
+    for (const v of VENTS) { if (v.heat > 0) { v.heat = Math.max(0, v.heat - dt / 8); v.mat.emissiveColor.set(v.heat * .9, v.heat * .35, v.heat * .08); }
+      if (v.plate.isEnabled() && !(v.shutUntil > now)) { v.plate.setEnabled(false); G.FX.dustAt(V(v.x, .2, v.z), 40); G.audio.play('boomSmall', { pos: V(v.x, 0, v.z), gain: .5, rate: 1.3 }); R.say(`The ${v.say} vent has burst open`, '#ff6a5a'); } }
+    /* what to head for: the leech while it drains, the breaker while it's dark */
+    G.marks = [];
+    if (dark.leech) G.marks.push({ pos: dark.leech.core.getAbsolutePosition(), h: .8, label: `Leech · ${Math.ceil(dark.leechT)}s`, color: '#ff4a3d' });
+    if (dark.on) G.marks.push({ pos: V(BREAKER.x, 0, BREAKER.z), label: 'Breaker', color: '#ffb340' });
   },
+  stats: () => [[tally.averted, tally.averted === 1 ? 'Blackout stopped' : 'Blackouts stopped'], [tally.breaker, tally.breaker === 1 ? 'Breaker thrown' : 'Breakers thrown']],
 });

@@ -31,7 +31,7 @@ const TUNE = {
   horn: 20,                               // the horn sounds when a group arrives, but not more often than this many seconds
   /* Menders weld wrecks back into machines. An arena that has them says from which minute they come, how many at once, and the chance a group brings one. */
   menders: null,                          // e.g. { from: 1, max: 3, chance: .45 }
-  xp: { drone: 2, husk: 3, mender: 3, walker: 12, warden: 40, crucible: 60, fabricator: 10 },   // what each kill is worth (Mara's count too)
+  xp: { drone: 2, husk: 3, mender: 3, walker: 12, warden: 40, crucible: 60, fabricator: 10, leech: 8 },   // what each kill is worth (Mara's count too)
   level: [8, 6, 1.2],                     // XP for the next level: the first number, plus the second per level so far, plus the third times that count squared
 };
 

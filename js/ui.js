@@ -28,6 +28,18 @@ export function makeUI() {
   UI.number = (p, v, crit) => { const n = nums.find(q => q.life <= 0) || nums[0]; n.p.copyFrom(p); n.p.x += (Math.random() - .5) * .7; n.p.y += .3; n.life = .8; n.e.textContent = v; n.e.className = 'dmg' + (crit === 'heal' ? ' heal' : crit ? ' crit' : ''); };   // crit can also be 'heal', for health you get back
 
   /* ---------- enemy health: a slim bar just above each enemy (a wider one for walkers) ---------- */
+  /* objective markers: an arena puts { pos, label, color } in G.marks (the station's leech, its breaker in a blackout). On screen, a chevron
+     over the spot; off it, an arrow at the edge of the screen pointing the way, with how far it is. */
+  const marks = []; for (let k = 0; k < 3; k++) { const m = el('div', 'mark'), i = el('i'), s = el('span'); m.append(i, s); m.hidden = true; document.body.append(m); marks.push({ m, i, s }); }
+  function drawMarks() {
+    const L = (G.started && G.marks) || [], W = innerWidth, H = innerHeight, pad = 48, padX = 90;   // wider at the sides, so the label fits
+    marks.forEach((k, n) => { const it = L[n]; if (!it) { k.m.hidden = true; return; } k.m.hidden = false; k.m.style.color = it.color || 'var(--amber)';
+      const s = UI.project(it.pos.add ? it.pos.add(V(0, it.h || 2.5, 0)) : V(it.pos.x, it.h || 2.5, it.pos.z)), d = Math.round(Math.hypot(it.pos.x - G.player.pos.x, it.pos.z - G.player.pos.z));
+      const on = s.ok && s.x > padX && s.x < W - padX && s.y > pad && s.y < H - pad; k.s.textContent = on ? it.label : `${it.label} · ${d} m`;
+      if (on) { k.i.style.transform = ''; place(k.m, s.x, s.y); return; }
+      const cx = W / 2, cy = H / 2, dx = (s.ok ? s.x : cx) - cx, dy = (s.ok ? s.y : cy + 1) - cy, f = Math.min((cx - padX) / Math.abs(dx || 1e-6), (cy - pad) / Math.abs(dy || 1e-6));
+      k.i.style.transform = `rotate(${Math.atan2(dy, dx) - Math.PI / 2}rad)`; place(k.m, cx + dx * f, cy + dy * f, '-50%', '-50%'); });
+  }
   const minis = []; for (let k = 0; k < 12; k++) { const m = el('div', 'mini'); const i = el('i'); m.append(i); m.hidden = true; document.body.append(m); minis.push({ m, i }); }
 
   /* ---------- boss bar ---------- */
@@ -69,9 +81,11 @@ export function makeUI() {
     /* touch extras */
     $('cmdBtn').hidden = !A.joined; if (A.joined) $('cmdBtn').textContent = 'Mara: ' + (A.mode === 'hold' ? 'Hold' : 'Follow');
     const multi = (G.assist && G.assist.parts) || (boss && boss.alive); $('partBtn').hidden = !multi; if (multi) { const L = G.player.lock; $('partBtn').textContent = 'Aim: ' + (L && L.part && L.actor.parts ? L.actor.parts[L.part].label : 'Core'); }
+    drawMarks();
     /* interaction prompt */
     const it = G.near; $('prompt').hidden = !it; $('useBtn').hidden = !it;
-    if (it) { $('prompt').textContent = ''; $('prompt').append(el('kbd', null, 'E'), it.label); $('useBtn').textContent = it.label; }
+    if (it) { const w = G.game.working(), on = w && w.label === it.label, more = on ? ` · ${Math.floor(w.t / w.hold * 100)}%` : it.hold ? ` · stay ${it.hold}s` : '';   // one that takes a while says so, then how far along it is
+      $('prompt').textContent = ''; $('prompt').append(el('kbd', null, 'E'), it.label + more); $('useBtn').textContent = it.label + more; }
     /* numbers */
     for (const n of nums) { if (n.life <= 0) continue; n.life -= dt; n.p.y += dt * 1.6; const s = UI.project(n.p); if (n.life <= 0 || !s.ok) { n.e.hidden = true; continue; }
       n.e.hidden = false; n.e.style.opacity = Math.min(1, n.life * 2.5).toFixed(2); place(n.e, s.x, s.y, '-50%', '-50%'); }

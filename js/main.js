@@ -115,7 +115,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   G.input.on(a => {
     const P = G.player;
     if (a === 'dash') P.tryDash(); else if (a === 'stop') P.stop(); else if (a === 'swap') P.swap();
-    else if (a === 'interact') { if (G.near) G.near.use(); } else if (a === 'command') G.ally.toggleMode();
+    else if (a === 'interact') G.game.use(G.near); else if (a === 'command') G.ally.toggleMode();
     else if (a === 'build') G.game.build();
     else G.UI.onAction(a);
   });
@@ -138,7 +138,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
     /* nearest thing you can use */
     G.near = null; let nd = 1e9; for (const it of G.game.interactables()) { const d = dist2(p, it.pos); if (d < it.r && d < nd) { nd = d; G.near = it; } }
     /* clicked on something usable: use it once you arrive */
-    if (P.pendingUse && G.near && G.near.label === P.pendingUse) { P.pendingUse = null; P.path = null; P.goal = null; G.near.use(); }
+    if (P.pendingUse && G.near && G.near.label === P.pendingUse) { P.pendingUse = null; P.path = null; P.goal = null; G.game.use(G.near); }
     /* gate */
     const g = G.region.gate, on = g.on; g.discA.rotation.z += dt * (on ? .6 : .12); g.discB.rotation.z -= dt * (on ? .9 : .2);
     const pulse = 1 + Math.sin(G.t * 2.2) * .03; g.discA.scaling.set(pulse, pulse, 1);

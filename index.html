@@ -150,6 +150,9 @@ body{--sr:env(safe-area-inset-right,0px);--sb:env(safe-area-inset-bottom,0px)}
 body:not([data-mode="touch"]) .touchonly{display:none!important}
 
 /* world-anchored bits */
+.mark{position:fixed;left:0;top:0;display:grid;justify-items:center;gap:3px;pointer-events:none;will-change:transform;text-shadow:0 1px 5px rgba(0,0,0,.95)}
+.mark i{width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:12px solid currentColor;filter:drop-shadow(0 0 4px currentColor)}
+.mark span{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
 .mini{position:fixed;left:0;top:0;width:44px;height:3px;background:rgba(0,0,0,.5);pointer-events:none;will-change:transform}
 .mini i{display:block;height:100%;transform-origin:left;background:var(--machine)}
 .mini.ally i{background:var(--gate)}
