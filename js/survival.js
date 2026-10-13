@@ -80,7 +80,8 @@ const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(
    tick runs every frame; run.time is the clock, and run.gapK scales the time between groups (an arena can bring them faster or slower for a while).
    stats gives the end card more [number, label] pairs; run.kills counts what went down, by kind.
    music(run) is the arena's own music track for the moment (audio.js MUSIC; null for none), and musicKeys the tracks to load for it.
-   introMusic is the track under its intro, if not the title's. The boss's music, and the drums while walkers are about (unless walkerDrums is false), play over it. status(run) is a line for the HUD
+   introMusic is the track under its intro, if not the title's. outro(run) gives the shots of its ending, played when its big boss
+   goes down and before the card (run.big is the wreck; it can set the scene for them, and onIntro runs through it as it does the intro). The boss's music, and the drums while walkers are about (unless walkerDrums is false), play over it. status(run) is a line for the HUD
    under the clock (the arena's objectives). bossMusic is the track for its big boss, if not the usual one.
    noAlly: Mara isn't in this arena (1984, where she can only reach you by payphone), so nobody heals you or gets you back up, and her
    upgrades aren't offered. onKill(R, machine, run) hears of every machine that goes down. With tune.groups false the arena brings the
@@ -216,13 +217,15 @@ export function survival(arena) {
     medic: !arena.noAlly,   // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
     noAlly: !!arena.noAlly,
     musicKeys: [arena.bossMusic || 'boss', ...(arena.walkerDrums !== false ? ['drums'] : []), ...(arena.musicKeys || [])],
-    intro: arena.intro, onIntro: arena.onIntro, introMusic: arena.introMusic,   // the camera's sweep and Mara's lines before each run, and what the arena does each frame of it (intro.js)
+    intro: arena.intro, introMusic: arena.introMusic,
+    /* each frame of an intro or an ending: what the arena does, and in an ending the boss's wreck keeps cooling though the world has stopped */
+    onIntro(dt) { if (arena.onIntro) arena.onIntro(dt); if (RUN && RUN.wreck && !RUN.wreck.alive) RUN.wreck.update(dt); },   // the camera's sweep and Mara's lines before each run, and what the arena does each frame of it (intro.js)
     indoor: arena.indoor, indoorAt: arena.indoorAt, noHorn: arena.noHorn, ambience: arena.ambience, look: arena.look,
     /* each arena keeps its own record: in its own slot in this browser, and in its own document in your account */
     save: { key: arena.saveKey, doc: arena.saveKey },
     build: arena.build,
     start: START,
-    fresh: () => { const p = G.progress || {}; return { gate: true, best: p.best || 0, bestLevel: p.bestLevel || 0, seenIntro: !!p.seenIntro, beatBoss: !!p.beatBoss, fastest: p.fastest || 0 }; },   // your best run outlives the run (and so does having beaten the big boss here, and your fastest win)
+    fresh: () => { const p = G.progress || {}; return { gate: true, best: p.best || 0, bestLevel: p.bestLevel || 0, seenIntro: !!p.seenIntro, seenOutro: !!p.seenOutro, beatBoss: !!p.beatBoss, fastest: p.fastest || 0 }; },   // your best run outlives the run (and so does having beaten the big boss here, and your fastest win)
     gate: GATE,
 
     /* a run starts from nothing: the starter rifle, an empty pack, level 1, the clock at zero */
@@ -310,7 +313,14 @@ export function survival(arena) {
         R.say(`${BIG.name} is coming · Destroy it and the run is won`, '#ff6a5a'); }
       if (F && !RUN.closed && RUN.time >= F.limit) { RUN.closed = true; RUN.hudAt = 0; R.say('Ten minutes · Nothing more is coming · Finish it', '#ffb340'); }
       if (RUN.wonAt && G.t >= RUN.wonAt && G.player.down <= 0) { const n = G.ally.revives || 0;
-        RUN.win({ name: `${BIG.name} destroyed in ${clock(RUN.time)}`, text: (n ? `Mara got you back up ${n === 1 ? 'once' : n === 2 ? 'twice' : n + ' times'}. ` : '') + 'Every run starts again from the starter rifle at level 1.' }); return; }
+        const card = { name: `${BIG.name} destroyed in ${clock(RUN.time)}`, text: (n ? `Mara got you back up ${n === 1 ? 'once' : n === 2 ? 'twice' : n + ' times'}. ` : '') + 'Every run starts again from the starter rifle at level 1.' };
+        /* the arena's ending first, if it has one: the world stops, the camera leaves you, and the card comes after. It's watched through the
+           first time and can be skipped after that; the arena's own music carries on under it (the title's, where it has none) */
+        const shots = arena.outro && arena.outro(RUN); RUN.wonAt = 0;
+        if (shots) { G.setPaused(true); G.marks = []; G.UI.boss(null); G.CB.clear(); RUN.wreck = RUN.big;   // (no shots left hanging in the air; the wreck goes on cooling: see onIntro below)
+          G.intro.play(shots, () => { G.progress.seenOutro = true; RUN.win(card); }, { watch: !G.progress.seenOutro, stay: true, music: !(arena.music && arena.music(RUN)) }); }
+        else RUN.win(card);
+        return; }
       if (RUN.due.length && G.t >= RUN.dueAt && G.player.down <= 0) { milestone(R, p); RUN.dueAt = G.t + 1; }
       if (T.groups && !RUN.closed && G.t >= RUN.nextAt && G.player.down <= 0) { const came = group(R, p, m);
         if (came && G.t >= RUN.hornAt) { G.audio.horn(true); RUN.hornAt = G.t + T.horn; }

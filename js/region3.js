@@ -316,14 +316,15 @@ function makeDispatch(M, MAT, g) {
   for (let k = 1; k < n; k++) { const i = frame.createInstance('dispatchFrame' + k); i.position.set(D.x0 + k * D.gap, .77, D.z); i.isPickable = false; frames.push(i); }
   return { frames, field, seen, light, L, bleedT: 0, nextAt: 0, said: false };
 }
-/* each frame, in a run or in the intro: the husks ride in and are gone in a spark; with `hurt` (the Crucible nearly done) the gate bleeds */
-function runDispatch(dt, hurt) {
+/* each frame, in a run or in the intro: the husks ride in and are gone in a spark; with `hurt` (the Crucible nearly done) the gate bleeds.
+   In the ending the conveyor has stopped (`stop`), and the bleed comes and then stays (`hold`) */
+function runDispatch(dt, hurt, hold, stop) {
   const D = DISPATCH, d = dispatch;
-  for (const f of d.frames) { f.position.x += D.speed * dt; const k = Math.min(1, (D.x - f.position.x) / .8); f.scaling.setAll(Math.max(.01, k));
+  if (!stop) for (const f of d.frames) { f.position.x += D.speed * dt; const k = Math.min(1, (D.x - f.position.x) / .8); f.scaling.setAll(Math.max(.01, k));
     if (f.position.x >= D.x) { f.position.x -= d.frames.length * D.gap; G.FX.spark(V(D.x - .2, 1.3, D.z), 6); } }
   d.bleedT -= dt;
   if (hurt && d.bleedT <= -d.nextAt) { d.bleedT = rand(...D.bleed); d.nextAt = rand(...D.every); G.audio.play('whir', { pos: V(D.x, D.y, D.z), gain: .7, rate: 2.6, len: .8, fade: .3, hear: 90 }); }
-  const on = d.bleedT > 0, k = on ? (Math.random() < .25 ? .3 : 1) : 0;
+  const on = hold || d.bleedT > 0, k = hold ? 1 : on ? (Math.random() < .25 ? .3 : 1) : 0;
   d.seen.alpha += (k * .95 - d.seen.alpha) * Math.min(1, dt * 18); d.field.alpha = .26 * (1 - d.seen.alpha * .8) * (.9 + Math.sin(G.t * 5) * .1);
   d.light.color.set(on ? 1 : .64, on ? .22 : .53, on ? .78 : 1); d.light.intensity = on ? 1.6 : .9;
   return on;
@@ -408,7 +409,15 @@ export const SURVIVAL = survival({
   preparing: 'Firing up the furnaces…', ambience: AMBIENCE, look: LOOK,
   build: buildRegion, gate: GATE, start: { x: 0, z: -6 },
   saveKey: 'relay-gate-survival-foundry-v1',
-  onIntro: dt => { cuts.update(dt); runDispatch(dt, false); },   // walls sink around the shot, and the dispatch gate keeps taking husks
+  /* walls sink around the shot, and the dispatch gate keeps taking husks; in the ending it has stopped, it bleeds, and then it holds */
+  onIntro: dt => { cuts.update(dt); const o = dispatch.outro; if (o) dispatch.outroT += dt; runDispatch(dt, o, o && dispatch.outroT > 11.4, o); },
+  /* when the Crucible goes down: its wreck, the dispatch gate with its conveyor stalled, and the ring showing where it leads (1984) */
+  outro(run) { const w = run.big.pos, D = DISPATCH; dispatch.outro = true; dispatch.outroT = 0;
+    return [
+      { at: [w.x, 2, w.z], r: 24, a: -2.2, b: .8, hold: 3.2 },
+      { at: [30, 2.5, D.z], r: 20, a: -2.55, b: .95, move: 2.8, hold: 5, say: 'We stopped them being made. But the ones already sent are still out there. Still back there.' },
+      { at: [D.x, D.y, D.z], r: 9, a: -Math.PI, b: 1.45, move: 2.6, hold: 4.6, say: 'Go. I can\'t follow you where that leads.' },
+    ]; },
   /* before each run: the hall, a fabricator, a slag channel, a tunnel doorway, the dispatch gate (intro.js) */
   intro: [
     { at: [0, 0, 4], r: 46, a: -2.2, b: .75, hold: 3.2, say: 'This is where they\'re made.' },
@@ -440,7 +449,7 @@ export const SURVIVAL = survival({
     slag = { next: SLAG.first, i: Math.floor(Math.random() * 2), on: null, stage: 'idle', t: 0, drainAt: 1e9, drainEnd: 0, drain: null };
     for (const ch of channels) { ch.heat = ch.drain.heat = 0; ch.stream.setEnabled(false); ch.drain.stream.setEnabled(false); showHeat(ch, 0); showHeat(ch.drain, 0); }
     lurkers = []; lurkAt = LURK.every; for (let k = 0; k < 3; k++) lurk(R, 0, true);
-    dispatch.bleedT = 0; dispatch.nextAt = 0; dispatch.said = false;
+    dispatch.bleedT = 0; dispatch.nextAt = 0; dispatch.said = false; dispatch.outro = false;
   },
   tick(R, run, dt) {
     now = run.time; const min = run.time / 60;

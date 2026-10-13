@@ -300,6 +300,13 @@ export const SURVIVAL = survival({
     { at: [58.6, 1, 148.5], r: 14, a: -2.4, b: .85, move: 1.6, hold: 3.6, say: 'There\'s a console by the east pylon. Hold it long enough and the gate shuts for a while. It\'ll fight you for it.' },
     { at: [50, 1, 80], r: 22, a: -2.1, b: .8, move: 2.6, hold: 4.2, say: 'There are people holed up at the rail yard. When the horn sounds low, a raid\'s going for them. Keep that camp standing.' },
   ],
+  /* when the Warden goes down: its wreck, then the gate it came through, which is the way on (to the Relay Station) */
+  outro(run) { const w = run.big.pos; G.M.gateDisc.alpha = .5;   // the gate shows open, whatever the console last did to it
+    return [
+      { at: [w.x, 2, w.z], r: 22, a: -2.2, b: .8, hold: 3.2 },
+      { at: [GATE.x, 4, GATE.z - 2], r: 26, a: -2.05, b: .85, move: 2.6, hold: 5, say: 'It came through there. So can we. Whatever\'s on the other side is where they\'re sent from.' },
+      { at: [GATE.x, GATE.y, GATE.z], r: 9, a: -Math.PI / 2, b: 1.45, move: 3, hold: 1.8 },
+    ]; },
   /* the city's own music, and the drums while a raid is on (instead of for walkers) */
   music: () => (city && city.raid.on ? 'drums' : 'city'), musicKeys: ['city'], walkerDrums: false,
   /* things to work at: the gate's console while the gate can be shut, and the rail yard camp once it's been overrun and is clear again */

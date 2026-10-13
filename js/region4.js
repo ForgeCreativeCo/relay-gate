@@ -333,7 +333,11 @@ function ambient(dt) {
   if (buzz) buzz.level = Math.random() < .5 ? .25 : 1;
   crt.emissiveColor.copyFrom(crt.base).scaleInPlace(.7 + .3 * Math.sin(G.t * 9) * Math.sin(G.t * 23.7));
   screens.forEach((s, i) => s.m.emissiveColor.copyFrom(s.base).scaleInPlace(.75 + .25 * Math.sin(G.t * (5 + i * 2.3) + i)));
-  const k = town ? (town.awake ? 1 : town.panic / 100) : 0;
+  /* in the ending the town wakes, and the payphone by the road rings twice */
+  if (town && town.outro) { const t0 = town.outroT, t = town.outroT += dt, p = PHONES[4], ringing = t > 12 && t < 18, on = ringing && G.t % .5 < .25;
+    for (const at of [12.3, 15.2]) if (t0 < at && t >= at) G.audio.ring(p.pos, 400);
+    p.mat.emissiveColor.copyFrom(p.base).scaleInPlace(on ? 1 : ringing ? .2 : .5); }
+  const k = town ? (town.awake || town.outro ? 1 : town.panic / 100) : 0;
   wins.forEach((w, i) => w.m.emissiveColor.copyFrom(w.base).scaleInPlace(Math.max(0, Math.min(1, k * 3 - i * .85)) * (.85 + .15 * Math.sin(G.t * 2 + i * 2))));
 }
 export const SURVIVAL = survival({
@@ -344,6 +348,14 @@ export const SURVIVAL = survival({
   saveKey: 'relay-gate-survival-1984-v1',
   noAlly: true,   // the radio doesn't carry across time: Mara is on the far end of a payphone
   onIntro: dt => ambient(dt),
+  /* when the Infiltrator goes down: its wreck, the town waking round it, and a payphone. It is what gets found here, and taken to Origin */
+  outro(run) { const w = run.big.pos; town.outro = true; town.outroT = 0; rifts.forEach(shut);
+    return [
+      { at: [w.x, .6, w.z], r: 9, a: -2.3, b: 1, hold: 3.6 },
+      { at: [0, 3, 24], r: 54, a: -2.2, b: .78, move: 3.2, hold: 5.2, who: '', say: 'By morning there are men in grey suits in the parking lot, and a van with no markings.' },
+      { at: [6, 1.2, -24], r: 12, a: -2.3, b: .95, move: 3, hold: 3, who: '', say: 'A payphone rings.' },
+      { at: [6, 1.2, -24], r: 9, a: -2.25, b: 1, move: 1.2, hold: 5.5, say: 'They took it. I know where. I know exactly where.' },
+    ]; },
   /* before each run: the payphone by the road, the strip, a time gate's spot, the shops (intro.js) */
   intro: [
     { at: [6, 1.2, -24], r: 13, a: -2.3, b: .95, hold: 4.2, say: 'It\'s me. The radio won\'t carry that far back, so I\'m using what they have. When a phone rings, pick it up.' },

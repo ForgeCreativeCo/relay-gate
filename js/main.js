@@ -198,7 +198,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   function prepare(s) {
     G.game.clearAll(); G.drops.clear(); G.CB.clear(); G.FX.clearDebris();
     G.progress = freshProgress(); G.settings = Object.assign({}, SETTINGS);
-    if (s) { const p = s.progress || {}; G.progress.best = p.best || 0; G.progress.bestLevel = p.bestLevel || 0; G.progress.seenIntro = !!p.seenIntro; G.progress.beatBoss = !!p.beatBoss; G.progress.fastest = p.fastest || 0; G.settings = Object.assign({}, SETTINGS, s.settings || {}); }
+    if (s) { const p = s.progress || {}; G.progress.best = p.best || 0; G.progress.bestLevel = p.bestLevel || 0; G.progress.seenIntro = !!p.seenIntro; G.progress.seenOutro = !!p.seenOutro; G.progress.beatBoss = !!p.beatBoss; G.progress.fastest = p.fastest || 0; G.settings = Object.assign({}, SETTINGS, s.settings || {}); }
     G.game.spawnAll(); G.game.applyGate();
     const st = REGION.start; G.player.respawn(st.x, st.z); cam.target.set(st.x, 0, st.z); G.ally.teleportNear(G.player.pos);
     G.setQuality(G.settings.quality); G.audio.apply(); if (G.settings.controls !== 'auto') G.input.setMode(G.settings.controls, true); $('fps').hidden = !G.settings.fps;

@@ -4,8 +4,9 @@
    { at: [x, y, z] where the camera looks, r: how far back it sits, a / b: its angle round and down (the game's own if left out),
      move: seconds to get there from the last shot, hold: seconds to stay, say: Mara's line while it does,
      who: whose line it is, if not hers ('' for nobody's: a line of narration) }.
-   The last shot always returns to you, at the game's own camera. The same thing plays an arena's ending (Origin's), with
-   opts { watch: true } so it can't be skipped and { music: false } so nothing plays under it. */
+   The last shot always returns to you, at the game's own camera. The same thing plays an arena's ending, with opts { watch: true }
+   so it can't be skipped, { music: false } so the music is left as it is, and { stay: true } so it ends on its own last shot instead
+   of coming back to you. A shot with nothing to say clears the line. */
 import { B, G, V, damp } from './core.js';
 
 const $ = id => document.getElementById(id);
@@ -38,14 +39,14 @@ export function makeIntro() {
       run.from = { at: s.at, r: s.r, a, b }; run.i++; run.t = 0; say(run.shots[run.i]);
     }
   });
-  function say(s) { if (s.say) { who.textContent = s.who == null ? 'Mara' : s.who; line.textContent = s.say; line.classList.remove('in'); void line.offsetWidth; line.classList.add('in'); } }
+  function say(s) { who.textContent = !s.say ? '' : s.who == null ? 'Mara' : s.who; line.textContent = s.say || ''; if (s.say) { line.classList.remove('in'); void line.offsetWidth; line.classList.add('in'); } }
   return {
     /* play it, then call done (straight away if the arena has none) */
     play(shots, done, opts = {}) {
       if (!shots || !shots.length) { done(); return; }
       if (opts.music !== false) G.audio.music(G.R.introMusic || 'title');   // the title's music carries it, or the arena's own for it (the run's takes over once it starts)
       const p = G.player.pos, home = { at: [p.x, 0, p.z], r: G.zoom, a: CAM.a, b: CAM.b, move: 2, hold: .6 };
-      const all = [...shots, home], first = all[0];
+      const all = opts.stay ? shots : [...shots, home], first = all[0];
       run = { shots: all, i: 0, t: 0, done, skippable: !opts.watch && !!G.progress.seenIntro,
         from: { at: first.at, r: first.r, a: first.a == null ? CAM.a : first.a, b: first.b == null ? CAM.b : first.b } };
       skip.hidden = !run.skippable; skip.textContent = G.input.mode === 'touch' ? 'Tap to skip' : 'Press any key to skip';

@@ -161,7 +161,7 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
 .intro .say p.in{animation:sayIn .5s ease-out}
 @keyframes sayIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .intro .skip{position:absolute;right:16px;bottom:calc(9vh - 26px);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
-body.cinema .hud{display:none}
+body.cinema .hud,body.cinema .tag,body.cinema .mini,body.cinema .dmg,body.cinema .mark{display:none}   /* an ending plays over a run that has left loot labels and health bars about */
 @media (prefers-reduced-motion:reduce){.intro .say p.in{animation:none}}
 .mark{position:fixed;left:0;top:0;display:grid;justify-items:center;gap:3px;pointer-events:none;will-change:transform;text-shadow:0 1px 5px rgba(0,0,0,.95)}
 .mark i{width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:12px solid currentColor;filter:drop-shadow(0 0 4px currentColor)}

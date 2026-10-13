@@ -251,7 +251,7 @@ export const SURVIVAL = survival({
   /* before each run: the lobby, the find, her desk, a terminal, the rig again (intro.js). This is where it comes out */
   intro: [
     { at: [-2, 2, -21], r: 16, a: -2.1, b: .85, hold: 4.4, say: 'I can reach you here. What they found is a relay, and it never stopped listening. I know this building.' },
-    { at: [RIG.x, 1.2, RIG.z], r: 17, a: -2.3, b: .8, move: 2.6, hold: 4.4, say: 'That\'s it, on the rig. What came through in 1984. A few years on a table and everything else was copied from it.' },
+    { at: [RIG.x, 1.2, RIG.z], r: 17, a: -2.3, b: .8, move: 2.6, hold: 4.4, say: 'That\'s it, on the rig. What you put down in 1984. A few years on a table and everything else was copied from it.' },
     { at: [-21, 1, -4], r: 15, a: -2.35, b: .85, move: 2.6, hold: 4.6, say: 'That\'s my desk. That\'s my handwriting on the board. I was the one who took it apart.' },
     { at: [-25.5, 1.4, 7], r: 13, a: -2.0, b: .95, move: 2, hold: 4.6, say: 'Six terminals hold what I worked out. Wipe every one. Each thing you erase is a thing they never learn to build.' },
     { at: [RIG.x, 1.2, RIG.z], r: 12, a: -2.5, b: .9, move: 2.6, hold: 4.2, say: 'It will get up when it understands what you\'re doing. Kill it. Then there\'s nothing left of me to find.' },

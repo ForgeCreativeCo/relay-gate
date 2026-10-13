@@ -322,7 +322,14 @@ export const SURVIVAL = survival({
   preparing: 'Powering up the station…', indoor: true, noHorn: true, ambience: AMBIENCE, look: LOOK,
   build: buildRegion, gate: GATE, start: { x: 0, z: 1 },
   saveKey: 'relay-gate-survival-station-v1',
-  onIntro: dt => cuts.update(dt),   // walls sink around the shot
+  onIntro: dt => runStation(dt),   // walls sink around the shot (and, in the ending, the power comes back and the doors open)
+  /* when the Warden goes down: its wreck as the lights come back, a conduit, and the gate, which is the way on (to the Foundry) */
+  outro(run) { const w = run.big.pos; if (dark && dark.on) { dark.on = false; for (const id of dark.seal.doors) setDoor(id, true); } for (const n in zones) setPower(n, 1); G.M.gateDisc.alpha = .5;
+    return [
+      { at: [w.x, 2, w.z], r: 18, a: -2.2, b: .8, hold: 3.2 },
+      { at: [13.5, 2, 1], r: 16, a: -2.35, b: .5, move: 2.6, hold: 5, say: 'This place doesn\'t build anything. It routes. Follow the power and it all goes one way.' },
+      { at: [GATE.x, 4, GATE.z - .4], r: 14, a: -1.75, b: 1.2, move: 2.8, hold: 4.2, say: 'The Foundry. That\'s where they\'re made.' },
+    ]; },
   /* before each run: the gate room, a conduit, the breaker (intro.js) */
   intro: [
     { at: [0, 2, 6], r: 20, a: -2.1, b: .8, hold: 3.4, say: 'This is their front office. Everything the Foundry makes is routed through here.' },
