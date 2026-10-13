@@ -2,7 +2,7 @@
    survival(arena) turns a map into what game.js plays. Each map's file says how it plays as an arena (SURVIVAL in region1.js, region2.js
    and region3.js, 1984 in region4.js, Origin in region5.js). The title screen picks between them; ?region=2 to 5 in the address opens the
    station, the Foundry, 1984 or Origin. Every arena but the last goes on until you go down; Origin can be won. */
-import { G, V, rand, dist2, inOpen, boost, angleTo } from './core.js';
+import { G, V, rand, dist2, inOpen, boost, angleTo, enclosed } from './core.js';
 import { Drone, Walker, Husk, Mender, MEND } from './machines.js';
 import { Crucible } from './crucible.js';
 import { Infiltrator } from './infiltrator.js';
@@ -177,7 +177,8 @@ export function survival(arena) {
     const alive = RUN.mine.filter(a => a.alive), room = Math.floor(ramp(T.cap, m)) - alive.length; if (room <= 0) return false;
     let n = Math.min(room, Math.round(ramp(T.size, m)) + (RUN.sizeAdd || 0));
     const gd = GATE ? dist2(p, GATE) : 1e9, mouth = !from && T.gate && !RUN.gateShut && gd > T.gate[0] && gd < T.gate[1] && Math.random() < T.gate[2] ? { x: GATE.x, z: GATE.z - 3 } : null;   // nothing comes through a gate that's been shut
-    const at = (kind) => from ? (kind === 'walker' ? G.nav.wide.snap(from.x, from.z, 3) : from) : mouth || (arena.arrive ? arena.arrive(p, kind) : spot(p, kind === 'air' ? null : kind === 'walker' ? 1.5 : .6));
+    const at = (kind) => from ? (kind === 'walker' ? (enclosed(from.x, from.z) ? null : G.nav.wide.snap(from.x, from.z, 3)) : from) :   // no walker out of a wave that starts indoors (1984's arcade): it couldn't get out
+      mouth || (arena.arrive ? arena.arrive(p, kind) : spot(p, kind === 'air' ? null : kind === 'walker' ? 1.5 : .6));
     const husks = ramp(T.husks, m), add = (a, plain) => { enlist(R, a); if (plain) { if (flags) Object.assign(a, flags); if (out) out.push(a); } return a; };
     const around = (c, r) => { const x = c.x + rand(-r, r), z = c.z + rand(-r, r); return G.nav.snap(x, z, 3) || c; };
     /* a walker, when one is due */

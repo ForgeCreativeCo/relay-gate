@@ -358,7 +358,8 @@ export const SURVIVAL = survival({
   indoorAt: (x, z) => x > -40 && x < -22 && z > 20 && z < 32,   // the arcade: drones use its doors
   /* a walker or the Infiltrator that a level has earned arrives the way everything does here, in a flash, somewhere away from you */
   arrive(p, kind) {
-    const nav = kind === 'walker' ? G.nav.wide : G.nav, L = SPOTS.map(s => nav.snap(s.x, s.z, 2)).filter(s => s && dist2(p, s) > 18); if (!L.length) return null;
+    /* a walker never in the arcade: there's room for it to stand in there, but both doors are too narrow for it to leave by */
+    const nav = kind === 'walker' ? G.nav.wide : G.nav, L = SPOTS.filter(s => kind !== 'walker' || !SURVIVAL.indoorAt(s.x, s.z)).map(s => nav.snap(s.x, s.z, 2)).filter(s => s && dist2(p, s) > 18); if (!L.length) return null;
     const c = pick(L); arrival(c, 1.3); return c;
   },
   /* the first Infiltrator you bring down opens Origin, on the title screen */

@@ -322,6 +322,8 @@ export class Player extends Actor {
     if (this.scanT <= 0 || !ok(this.auto)) {
       this.scanT = .2; let best = ok(this.auto) ? this.auto : null, bd = best ? dist2(p, best.pos) - 2 : 1e9;   // stick with the current target unless something is clearly closer
       for (const a of G.actors) { if (a === best || !ok(a)) continue; const d = dist2(p, a.pos) - (a === this.focus ? 2 : 0); if (d < bd) { bd = d; best = a; } }
+      /* On touch, with nothing after you in range: the nearest thing that's only shot at on purpose (a fabricator), since there's no cursor to point at it with */
+      if (!best && G.input.mode === 'touch') for (const a of G.actors) { if (!a.lastResort || !a.alive || a.untargetable || !hostile(this, a)) continue; const d = dist2(p, a.pos); if (d < bd && d <= R && clearShot(p, a.pos)) { bd = d; best = a; } }
       this.auto = best;
     }
     return this.auto;

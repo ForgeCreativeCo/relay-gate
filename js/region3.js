@@ -64,6 +64,7 @@ class Fabricator extends Actor {
   constructor(F, hp) {
     super('machine', hp); this.kind = 'fabricator'; this.name = 'Fabricator'; this.F = F; F.actor = this;
     this.lurk = true;   // never picked by auto-aim (or by Mara, unless you shoot it first): you choose when to go for one
+    this.lastResort = true;   // except on a phone, where there's no cursor to point with: there auto-aim takes one when nothing else is in range (actors.js)
     this.radius = 1.2; this.height = 3; this.flash = 0; this.busy = 0;
     const S = G.scene, H = this.H = F.low ? 2.3 : 3.6; this.barY = H + 1.6;
     const root = this.root = new B.TransformNode('fabricator', S); root.position.set(F.cx, 0, F.cz); root.rotation.y = Math.atan2(F.nx, F.nz);
