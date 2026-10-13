@@ -1,5 +1,5 @@
 /* Sound: sample playback through Web Audio. Files live in sfx/; a missing or undecodable file just stays silent.
-   1984 has no recordings of its own yet: its payphones, its rain and its score are made here, out of oscillators and noise.
+   A few of 1984's sounds aren't recordings: its payphones, its rain and its boss's music are made here, out of oscillators and noise.
    Gunfire recordings are bursts, cut into single shots at load so each trigger pull plays one shot in time with the game's fire rate. */
 import { G } from './core.js';
 
@@ -78,8 +78,8 @@ const MUSIC = {
   city: { name: 'musEpic', url: 'sfx/music-epic.mp3', from: 0, to: 185.5, gain: .9 },          // "Epic game music" by Kris Klavenes, freesound_community
   boss: { name: 'musBoss', url: 'sfx/music-boss.mp3', from: .7, to: 33.2, gain: .4 },          // "Total war: epic action cinematic trailer" by audioatlant, before its break
   drums: { name: 'musDrums', url: 'sfx/music-drums.mp3', from: 0, to: 39.3, gain: .3 },     // "Battle warrior fighting drums" by tatamusic
-  /* 1984's score isn't a recording: a drum machine, a bass line and an arpeggio played here (synthTrack below), slower in the lot, faster for its boss */
-  synth: { synth: true, bpm: 104, gain: .5 },
+  eighties: { name: 'mus80s', url: 'sfx/music-80s-beat.mp3', from: 14, to: 225, gain: .85 },   // "80s retro beat 001", freesound_community: 1984's music, without its slow way in and its wind-down
+  /* the Infiltrator's music isn't a recording: a drum machine, a bass line and an arpeggio played here (synthTrack below) */
   synthBoss: { synth: true, bpm: 128, gain: .55, drive: true },
 };
 const MUSIC_FADE = 2;
@@ -248,7 +248,7 @@ export function makeAudio() {
     let end = out; if (at.pan && A.ctx.createStereoPanner) { const p = A.ctx.createStereoPanner(); p.pan.value = at.pan; out.connect(p); end = p; nodes.push(p); }
     am.connect(out); end.connect(A.master); setTimeout(() => nodes.forEach(n => n.disconnect()), 2300);
   };
-  /* 1984's score, played a sixteenth at a time a little ahead of the clock: a kick on every beat, a snare on two and four, hats between,
+  /* A score played a sixteenth at a time a little ahead of the clock (1984's boss has one): a kick on every beat, a snare on two and four, hats between,
      a bass line that bounces an octave, an arpeggio over it and a pad underneath, round four chords (A minor, F, C, G). T.drive: busier
      and brighter, for the boss. Returns what a recorded track does, so the same code fades it in and out. */
   function synthTrack(key, T, when) {

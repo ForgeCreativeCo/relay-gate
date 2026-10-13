@@ -351,8 +351,8 @@ export const SURVIVAL = survival({
     { at: [-14, 1, 4], r: 20, a: -2.4, b: .8, move: 2.2, hold: 4, say: 'They come through in a ball of lightning. Get to it while it\'s still charging and nothing steps out.' },
     { at: [30, 2, 16], r: 22, a: -2.15, b: .78, move: 2.6, hold: 4.2, say: 'People live here. Keep the machines off the buildings. If the town wakes up, they\'ll send more.' },
   ],
-  /* its own score, made in audio.js (a faster one for the Infiltrator); no drums for walkers, the score carries on */
-  music: () => 'synth', bossMusic: 'synthBoss', walkerDrums: false,
+  /* its own music (and, for the Infiltrator, a faster score made in audio.js); no drums for walkers, the music carries on */
+  music: () => 'eighties', musicKeys: ['eighties'], bossMusic: 'synthBoss', walkerDrums: false,
   /* the same pressure as the city, but every group comes through a time gate that the map opens */
   tune: { gate: null, groups: false, walkers: [[7, 1], [11, 2], [15, 3]], boss: { big: 'infiltrator' } },
   indoorAt: (x, z) => x > -40 && x < -22 && z > 20 && z < 32,   // the arcade: drones use its doors
