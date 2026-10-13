@@ -57,7 +57,9 @@ const HUM = { url: 'sfx/drone-hum.mp3', from: 2.4, to: 6, grain: 1, every: .5, g
 /* Background ambience: two long soundscapes that alternate, each crossfading into the next, under everything else.
    Now and then a horn sounds somewhere far off: filtered, quieter, and from a random side. Where the horn is a signal instead (G.R.hornSignals:
    survival sounds it when a wave arrives) it never sounds at random, and the signal is shorter, clearer and at the main volume, not the ambience's.
-   A region can bring its own soundscapes instead (G.R.ambience, in the same shape as `beds`); a single one crossfades into itself. */
+   A region can bring its own soundscapes instead (G.R.ambience, in the same shape as `beds`); a single one crossfades into itself.
+   A bed can carry its own `gain` (a quiet recording turned up). One marked `accent` isn't a bed: it swells up over them now and then,
+   `every` so many seconds (the first after `first`), from a random side. */
 const AMBIENCE = {
   beds: [
     { name: 'ambTerror', url: 'sfx/ambience-terror.mp3', from: .5, to: 105 },        // "Terror ambience" (fades out after ~105 s)
@@ -163,13 +165,13 @@ export function makeAudio() {
 
   /* ---------- ambience ---------- */
   const rnd = ([a, b]) => a + Math.random() * (b - a);
-  const BEDS = G.R.ambience || AMBIENCE.beds;
-  let ambOn = false, bedAt = 0, bedIdx = Math.floor(Math.random() * BEDS.length), firstBed = true, hornAt = 0;
+  const BEDS = (G.R.ambience || AMBIENCE.beds).filter(b => !b.accent), ACCENTS = (G.R.ambience || []).filter(b => b.accent);
+  let ambOn = false, bedAt = 0, bedIdx = Math.floor(Math.random() * BEDS.length), firstBed = true, hornAt = 0, accentAt = 0;
   function playBed(bed, when, offset) {
     const buf = A.buffers[bed.name]; if (!buf) return 0;
     const F = AMBIENCE.fade, dur = Math.min(bed.to, buf.duration) - offset; if (dur < F * 3) return 0;
     const src = A.ctx.createBufferSource(), g = A.ctx.createGain(); src.buffer = buf;
-    g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(AMBIENCE.gain, when + F); g.gain.setValueAtTime(AMBIENCE.gain, when + dur - F); g.gain.linearRampToValueAtTime(0, when + dur);
+    const v = AMBIENCE.gain * (bed.gain || 1); g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(v, when + F); g.gain.setValueAtTime(v, when + dur - F); g.gain.linearRampToValueAtTime(0, when + dur);
     src.connect(g); g.connect(A.amb); src.start(when, offset, dur); src.onended = () => { src.disconnect(); g.disconnect(); };
     return dur;
   }
@@ -183,12 +185,21 @@ export function makeAudio() {
     src.connect(lp); lp.connect(g); out.connect(signal ? A.master : A.amb); src.start(t, H.from, dur);
     src.onended = () => { src.disconnect(); lp.disconnect(); g.disconnect(); if (out !== g) out.disconnect(); };
   }
-  /* Keeps the beds queued a little ahead and times the horn. Runs once a second; does nothing until audio is unlocked. */
+  /* an accent swelling up over the beds, a little to one side */
+  function accent(a) {
+    const buf = A.buffers[a.name]; if (!buf) return;
+    const t = A.ctx.currentTime, dur = Math.min(a.to, buf.duration) - a.from, v = AMBIENCE.gain * (a.gain || 1), src = A.ctx.createBufferSource(), g = A.ctx.createGain(); src.buffer = buf;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .4); g.gain.setValueAtTime(v, t + dur - 1.5); g.gain.linearRampToValueAtTime(0, t + dur);
+    let out = g; if (A.ctx.createStereoPanner) { const p = A.ctx.createStereoPanner(); p.pan.value = (Math.random() * 2 - 1) * .5; g.connect(p); out = p; }
+    src.connect(g); out.connect(A.amb); src.start(t, a.from, dur); src.onended = () => { src.disconnect(); g.disconnect(); if (out !== g) out.disconnect(); };
+  }
+  /* Keeps the beds queued a little ahead and times the horn (and any accents). Runs once a second; does nothing until audio is unlocked. */
   function tickAmbience() {
     if (!ambOn || A.ctx.state !== 'running') return;
     const now = A.ctx.currentTime;
     if (!hornAt) hornAt = now + rnd(AMBIENCE.horn.first);
     if (now >= hornAt) { if (!G.R.noHorn && !G.R.hornSignals) horn(); hornAt = now + rnd(AMBIENCE.horn.every); }   // indoors there's no horn on the wind
+    if (ACCENTS.length) { if (!accentAt) accentAt = now + rnd(ACCENTS[0].first); if (now >= accentAt) { const a = ACCENTS[Math.floor(Math.random() * ACCENTS.length)]; accent(a); accentAt = now + rnd(a.every); } }
     if (bedAt > now + 2) return;
     const bed = BEDS[bedIdx]; if (!A.buffers[bed.name]) { bedIdx = (bedIdx + 1) % BEDS.length; return; }
     const when = Math.max(now + .05, bedAt), offset = firstBed ? bed.from + Math.random() * (bed.to - bed.from) * .5 : bed.from;   // start somewhere in the middle the first time
@@ -198,7 +209,7 @@ export function makeAudio() {
   setInterval(tickAmbience, 1000);
   /* the long soundscapes (~3-4 MB) are fetched only once the game starts, so they don't compete with loading it; the horn only where it sounds */
   let ambLoaded = false;
-  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of BEDS) A.load(b.name, b.url); if (!G.R.noHorn || G.R.hornSignals) A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
+  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of BEDS.concat(ACCENTS)) A.load(b.name, b.url); if (!G.R.noHorn || G.R.hornSignals) A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
   A.horn = horn;
 
   for (const k in BANKS) A.load(k, BANKS[k].url);

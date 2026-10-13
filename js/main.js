@@ -25,16 +25,20 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   try { engine = new B.Engine(canvas, true, { stencil: true, antialias: true, powerPreference: 'high-performance' }, true); }
   catch (e) { fail('This browser has WebGL turned off, so the game cannot run here.'); return; }
   const scene = new B.Scene(engine); G.engine = engine; G.scene = scene;
-  /* the arena: Dead City, or the Relay Station if the address asks for it (?region=2). Its look is applied before anything is lit.
-     Inside Claude the address never reaches the page, so with nothing in it the title screen's last choice is used, kept in this browser
-     (under the key it had when it chose between the campaign and survival: 'station' still means the station, anything else the city). */
+  /* the arena: Dead City, the Relay Station or the Foundry, picked on the title screen or by the address (?region=2, ?region=3).
+     Its look is applied before anything is lit. Inside Claude the address never reaches the page, so with nothing in it the title screen's
+     last choice is used, kept in this browser (under the key it had when it chose between the campaign and survival: 'station' still means
+     the station, 'foundry' the Foundry, anything else the city). */
+  const ARENAS = [{ id: 'city', num: '01', label: 'Dead City', go: 'Play Dead City' }, { id: 'station', num: '02', label: 'Relay Station', go: 'Play the Relay Station' },
+    { id: 'foundry', num: '03', label: 'The Foundry', go: 'Play the Foundry' }];
   const query = new URLSearchParams(location.search), ARENA_KEY = 'relay-gate-mode';
   let kept = ''; try { kept = localStorage.getItem(ARENA_KEY) || ''; } catch (e) {}
-  const station = query.has('region') ? query.get('region').padStart(2, '0') === '02' : kept === 'station';
-  const REGION = (await import(station ? './region2.js' : './region1.js')).SURVIVAL;
+  const asked = query.has('region') && ARENAS.find(a => a.num === query.get('region').padStart(2, '0'));
+  const HERE = asked || ARENAS.find(a => a.id === kept) || ARENAS[0];
+  const REGION = (await import(`./region${+HERE.num}.js`)).SURVIVAL;
   /* switch arena: remember it and load again (through the address when the choice can't be kept, or the address is what chose) */
-  const play = (which) => { let ok = false; try { localStorage.setItem(ARENA_KEY, which); ok = localStorage.getItem(ARENA_KEY) === which; } catch (e) {}
-    if (ok && !location.search) location.reload(); else location.search = which === 'station' ? '?region=2' : ''; };
+  const play = (which) => { let ok = false; try { localStorage.setItem(ARENA_KEY, which.id); ok = localStorage.getItem(ARENA_KEY) === which.id; } catch (e) {}
+    if (ok && !location.search) location.reload(); else location.search = which.num === '01' ? '' : `?region=${+which.num}`; };
   Object.assign(LOOK, REGION.look || {}); G.R = REGION;
   /* ask for the account save straight away, in parallel with building the region */
   G.save = makeSave(REGION.save); const savedP = G.save.load();
@@ -163,6 +167,12 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   engine.runRenderLoop(() => { const raw = engine.getDeltaTime(), dt = Math.min(raw / 1000, .05); governRes(raw); if (G.started && !G.paused) step(dt); scene.render(); });
   if (location.hash === '#debug') window.__G = G;
 
+  /* the arenas: one button each, this one pressed; picking another loads it */
+  const pick = $('arenaPick');
+  for (const a of ARENAS) { const b = document.createElement('button'); b.className = 'btn'; b.type = 'button'; b.textContent = a.label; b.setAttribute('aria-pressed', String(a === HERE));
+    b.onclick = () => { if (a !== HERE) play(a); }; pick.append(b); }
+  G.otherArenas = ARENAS.filter(a => a !== HERE).map(a => ({ label: a.go, use: () => play(a) }));   // the end of a run offers them too
+
   /* ---------- title screen ---------- */
   fit();
   mark('save-start'); let saved = await savedP; mark('save-done');
@@ -203,10 +213,6 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
     setTimeout(() => { try { fn(); } catch (e) { showError('Couldn\'t start', e); cont.textContent = label; cont.disabled = false; } }, 30);
   };
   cont.onclick = () => go(start);
-  /* the other arena */
-  const arena = $('arenaBtn'); arena.textContent = station ? 'Switch to Dead City' : 'Switch to the Relay Station';
-  arena.onclick = () => play(station ? 'city' : 'station');
-  G.otherArena = { label: arena.textContent, use: arena.onclick };   // the end of a run offers it too
 
   function start() {
     G.audio.unlock(); G.audio.startAmbience();

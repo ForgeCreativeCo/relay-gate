@@ -39,8 +39,8 @@ export function makeUI() {
   const tagFor = (d) => { if (d.tag) return d.tag; const t = el('div', 'tag'); if (d.tierLabel) { const b = el('b', null, d.tierLabel); b.style.color = d.color; t.append(b); } const s = el('span', null, d.label); if (!d.tierLabel) s.style.color = d.color; t.append(s); document.body.append(t); d.tag = t; return t; };
 
   /* ---------- touch buttons that depend on context ---------- */
-  const partOrder = ['head', 'guns', 'missiles', 'legs', 'core'];
-  /* T, or the touch button: step the lock through a walker's parts */
+  const partOrder = ['head', 'guns', 'cannons', 'missiles', 'mortar', 'hangar', 'legs', 'treads', 'core'];
+  /* T, or the touch button: step the lock through a walker's (or a boss's) parts */
   UI.cyclePart = () => { const P = G.player, t = (P.lock && P.lock.actor) || P.target, a = t && t.parts ? t : (boss && boss.alive ? boss : null); if (!a) return;
     const list = partOrder.filter(k => k === 'core' || (a.parts[k] && a.parts[k].hp > 0)), cur = P.lock && P.lock.actor === a && P.lock.part || 'core';
     const next = list[(list.indexOf(cur) + 1) % list.length]; P.lock = { actor: a, part: next === 'core' ? null : next }; };
@@ -82,7 +82,7 @@ export function makeUI() {
       const d = Math.hypot(a.pos.x - pp.x, a.pos.z - pp.z); if (d > 26) continue;
       /* walkers always show theirs; everything else once it's been hurt */
       if (!a.parts && a.hp >= a.maxHp) continue;
-      const m = minis[mi++], s = UI.project(a.pos.add(V(0, a.parts ? 4.9 * a.s : a.kind === 'drone' ? .8 : a.kind === 'husk' ? 1.75 : 2.15, 0))); if (!s.ok) { m.m.hidden = true; continue; }
+      const m = minis[mi++], s = UI.project(a.pos.add(V(0, a.barY || (a.parts ? 4.9 * a.s : a.kind === 'drone' || a.kind === 'mender' ? .8 : a.kind === 'husk' ? 1.75 : 2.15), 0))); if (!s.ok) { m.m.hidden = true; continue; }
       m.m.hidden = false; m.m.classList.toggle('big', !!a.parts); m.m.classList.toggle('ally', a.faction === 'player');
       m.i.style.transform = `scaleX(${Math.max(0, a.hp / a.maxHp).toFixed(3)})`; place(m.m, s.x, Math.max(s.y, 8));   // kept on screen when the enemy is near the top edge
     }
@@ -230,14 +230,15 @@ export function makeUI() {
 
   /* ---------- end card ---------- */
   /* card: { tag, name, record, isRecord, text, stats: [number, label] pairs, taken: [{ kind, text }], again: the button's label,
-     other: { label, use } for a second button (the other arena) } */
+     others: [{ label, use }] for more buttons (the other arenas) } */
   UI.endCard = (card) => {
     $('endTag').textContent = card.tag; $('endName').textContent = card.name; $('endText').textContent = card.text;
     const rec = $('endRecord'); rec.hidden = !card.record; rec.textContent = card.record || ''; rec.classList.toggle('new', !!card.isRecord);
     const st = $('endStats'); st.textContent = ''; for (const [v, label] of card.stats) { const d = el('div'); d.append(el('b', null, String(v)), el('span', null, label)); st.append(d); }
     const tk = $('endTaken'), any = !!(card.taken && card.taken.length); $('endTakenHead').hidden = tk.hidden = !any; tk.textContent = '';
     for (const t of card.taken || []) { const s = el('span', t.kind); s.append(el('i'), t.text); tk.append(s); }
-    $('again').textContent = card.again; const o = $('otherArena'); o.hidden = !card.other; if (card.other) { o.textContent = card.other.label; o.onclick = card.other.use; }
+    $('again').textContent = card.again; const o = $('otherArenas'); o.textContent = '';
+    for (const x of card.others || []) { const b = el('button', 'btn', x.label); b.type = 'button'; b.onclick = x.use; o.append(b); }
     $('end').hidden = false; G.setPaused(true); };
   $('again').onclick = () => { $('end').hidden = true; G.setPaused(false); G.game.runAgain(); };
 

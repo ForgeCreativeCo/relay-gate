@@ -17,7 +17,7 @@ export function makeGame() {
     a.root.getChildMeshes().forEach(m => m.dispose()); a.root.dispose();
     for (const k of ['smokeWreck', 'smokeHead', 'smokeGuns']) if (a[k]) { a[k].stop(); a[k].dispose(false); }
     if (a.ring) { a.ring.material.dispose(); a.ring.dispose(); } if (a.clearMarks) a.clearMarks();
-    for (const k of ['mat', 'matD', 'matL', 'eyeMat', 'beamMat']) if (a[k]) a[k].dispose();
+    for (const k of ['mat', 'matD', 'matL', 'eyeMat', 'beamMat', 'heatMat', 'laneMat']) if (a[k]) a[k].dispose();
   }
   /* what an arena's script gets to work with */
   const R = {
@@ -37,10 +37,12 @@ export function makeGame() {
   /* ---------- kills ---------- */
   GM.onMachineDown = (m) => {
     G.progress.kills++; if (REG.onKill) REG.onKill(R, m);
-    if (m.kind === 'walker') G.drops.scatter(m.pos.x, m.pos.z, rollLoot('walker'));
+    if (m.kind === 'walker' && !m.rebuilt) G.drops.scatter(m.pos.x, m.pos.z, rollLoot('walker'));   // a walker a mender put back together has nothing left worth salvaging
   };
   GM.build = () => { if (REG.assemble && G.started && !G.paused) REG.assemble(R); };   // spend scrap on machines of your own
   GM.onBossPhase = (b, ph) => REG.onBossPhase(R, b, ph);
+  GM.rebuild = (mender, wreck) => { if (REG.rebuild) REG.rebuild(R, mender, wreck); };   // a mender has welded a wreck back together
+  GM.reinforce = (boss, kinds) => { if (REG.reinforce) REG.reinforce(R, boss, kinds); };   // a boss launches machines of its own (the Crucible's hangar)
 
   /* ---------- going down: unless Mara gets to you, that's the end of the run ---------- */
   GM.onPlayerDown = () => {};

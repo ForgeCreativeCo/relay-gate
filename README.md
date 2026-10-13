@@ -30,7 +30,7 @@ A horn sounds when a group of machines arrives. Groups come every few seconds on
 
 Kills give XP (Mara's count too): 2 for a drone, 3 for a husk, 12 for a walker. Each level stops the game and offers three upgrades, picked at random from fourteen; choose one with a click, a tap or the 1, 2 and 3 keys. Each card says whose it is (weapon, you or Mara), how many times you have taken it, what it comes to with this pick, and whether a boss arrives after it. They cover your gun (damage, fire rate, critical hits, range, healing on kills), you (health, regeneration, armour, speed, dodge) and Mara (her damage, her health and how soon she gets back up), and they last for the run. The XP values, the cost of each level and the upgrades themselves are at the top of `js/survival.js`.
 
-Bosses come with your level. Every third level a Hunter Walker arrives a few seconds after you pick your upgrade, and every tenth level it is the Warden instead, with its health bar, its phases and the drones and husks it calls in. They step out of the gate when it is in reach. While a Warden is alive the ordinary groups come more slowly; when it goes down it drops its machine-forged loot. Each Warden after the first is tougher. Walkers also start turning up with the ordinary groups from six minutes in.
+Bosses come with your level. Every third level a Hunter Walker arrives a few seconds after you pick your upgrade, and every tenth level it is the arena's big boss instead, with its health bar, its phases and the machines it calls in: the Warden in Dead City and the Relay Station, the Crucible in the Foundry. They step out of the gate when it is in reach. While a big boss is alive the ordinary groups come more slowly; when it goes down it drops its machine-forged loot. Each one after the first is tougher. Walkers also start turning up with the ordinary groups from six minutes in.
 
 Mara is the medic. When you are under 70% health and within five metres of her she patches you up for 25 health, once every ten seconds. When you go down she comes for you: she has twelve seconds to reach you, and two and a half seconds beside you gets you back up on half health, with a moment before anything can hurt you. She can do that once a minute (her line on the HUD counts it down). If she is down herself, or has used her revive too recently, going down ends the run. She still shoots, and you can still get her up by standing next to her. Two of the level-up upgrades are for her medic work: bigger heals, and healing and reviving more often. Her numbers are in `MEDIC` in `js/actors.js`.
 
@@ -38,7 +38,7 @@ Loot drops from kills: weapons and armour go in the pack (24 slots), and scrap p
 
 Scrap builds a squad of your own: three drones and two husks, together, for 100 scrap. The scrap meter under your level fills as you pick scrap up and scrap loot. When it's full, press B, or click or tap the meter, and the squad is built around you at once. They glow cyan where the enemy's glow red, stay near you, fight whatever comes, and draw fire: the drones from the air, the husks up close. You can't build again until every one of them has been destroyed (the meter counts what's left); scrap keeps adding up in the meantime. No walkers. Their kills count for XP. The cost, the squad and its toughness are `build` in the block at the top of `js/survival.js`.
 
-When a run ends, the card shows how long you lasted, the level you reached, machines, walkers and Wardens destroyed, how often Mara got you back up, and every upgrade you took. From the card you can run again or switch to the other arena. **End run** in the menu ends a run on the spot.
+When a run ends, the card shows how long you lasted, the level you reached, machines, walkers and big bosses destroyed (and, in the Foundry, fabricators shut down and machines the menders rebuilt), how often Mara got you back up, and every upgrade you took. From the card you can run again or switch to either of the other arenas. **End run** in the menu ends a run on the spot.
 
 ## The arenas
 
@@ -46,7 +46,15 @@ When a run ends, the card shows how long you lasted, the level you reached, mach
 
 **The Relay Station** (region 02): indoors, with every door open. Switch to it on the title screen, or add `?region=2` to the address. The station is four rooms in a loop: the gate room, the service corridor, the cooling hall, and a freight bay that runs south of all three and joins the gate room to the hall through two blast doors wide enough for a walker. Walls between you and the camera sink out of the way. Machines come in through the gate, out of the vents in the corridor's alcoves and from the edges of the hall and the bay. Every minute or so the power fails for about twenty seconds: emergency lights only, the blast doors seal either the cooling hall or the gate room off from the rest, and the machines come faster until it is back.
 
-The numbers that set the pressure (time between groups, group size, how many machines at once, when walkers start) are in one block at the top of `js/survival.js`. An arena can replace any of them: the station's, and the timing of its power failures, are at the bottom of `js/region2.js`.
+**The Foundry** (region 03): where the machines are made. Pick it on the title screen, or add `?region=3` to the address. One big roofless casting hall: tall walls to the north and east, a low parapet on the camera's side, and the gate in the middle of the north wall. It plays at the same pressure as the city, with three things of its own:
+
+- **Fabricators.** Machines come out of five fabricators built into the walls (and out of the gate). Auto-aim leaves them alone, so you choose when to go for one: point at its glowing core, or tap it on a phone. A destroyed fabricator drops scrap, the groups come more slowly for each one that is down, and it starts up again after 50 seconds.
+- **Slag channels.** Two channels run the length of the hall from the furnaces in the north wall. About every 26 seconds one of them pours: a warning, then five seconds when anything standing in it burns, machines included (walkers and the Crucible take it in the legs and treads). Drones and menders fly over it, and Mara keeps out of it.
+- **Menders.** Small yellow repair droids that come with the groups from the first minute. A mender settles beside the wreck of a husk or a walker and welds it back together, and the machine gets up on 60% health (worth XP again, but it drops nothing). It holds still while it works.
+
+The big boss here is **the Crucible**, a tracked forge far bigger than the Warden. Its parts are its cannons, its slag mortar, its hangar and its treads. It shells you with its twin cannons and lobs slag that leaves burning pools. Once it is hurt, its hangar launches drones and menders, and it vents its furnace at anything that gets close. In its last phase it rams: a red lane lights up on the ground first.
+
+The numbers that set the pressure (time between groups, group size, how many machines at once, when walkers start) are in one block at the top of `js/survival.js`. An arena can replace any of them: the station's, and the timing of its power failures, are at the bottom of `js/region2.js`; the Foundry's (fabricators, slag, menders) are in `js/region3.js`, and the Crucible's at the top of `js/crucible.js`.
 
 ## Saving
 
@@ -63,12 +71,14 @@ Each arena keeps your best run (time, and the level you reached in it) and your 
 | `js/look.js` | Generated reflection sky, the ground detail layer (grime, scorch, oil, cracks, road paint, puddles; each region says where) and scattered debris |
 | `js/geo.js` | Geometry builder (boxes, prisms, cylinders) |
 | `js/fx.js` | Particles (ash, fire, sparks, explosions, smoke) and combat visuals: muzzle flashes, surface-matched impacts, shockwaves, scorch marks, wreck debris |
-| `js/region1.js` | Dead City: the map (streets, ruins, props, the relay gate) and how it plays as an arena. A new arena is a new file exporting `SURVIVAL`, picked in `main.js` |
+| `js/region1.js` | Dead City: the map (streets, ruins, props, the relay gate) and how it plays as an arena. A new arena is a new file exporting `SURVIVAL`, listed in `ARENAS` in `main.js` |
 | `js/region2.js` | The Relay Station: rooms and corridors with generated walls (the ones between you and the camera sink out of the way), doors, power zones that go dark or light up, and how it plays as an arena (where machines come in, the power failures) |
+| `js/region3.js` | The Foundry: the casting hall, the fabricators you can shoot down, the slag channels and their pours, and how it plays as an arena |
 | `js/survival.js` | The run: the spawner that brings machines in, the pressure curve, XP and level-ups, bosses on milestones, building machines from scrap, and the end of a run. It turns a map into an arena |
 | `js/gate.js` | The relay gate model, shared by every region that has one |
 | `js/actors.js` | The player and Mara |
-| `js/machines.js` | Drones, husks (melee hunters that lie in wait), Hunter Walkers and the Warden boss |
+| `js/machines.js` | Drones, husks (melee hunters that lie in wait), menders (repair droids that rebuild wrecks), Hunter Walkers and the Warden boss |
+| `js/crucible.js` | The Crucible, the Foundry's boss: treads, turret, mortar, hangar, vent and ram |
 | `js/combat.js` | Factions, projectiles, damage |
 | `js/loot.js` | Weapon and armour generation, tiers, perks, drops |
 | `js/game.js` | The run engine: plays whatever arena it is given (machines joining and leaving, kills, the Warden's phases, going down, a fresh run) |
@@ -97,6 +107,8 @@ Each arena keeps your best run (time, and the level you reached in it) and your 
 | `sfx/ambience-terror.mp3` | Dead City background ambience ("Terror ambience", freesound_community on Pixabay) |
 | `sfx/ambience-station.mp3` | Relay Station background ambience ("Drone, unsettling feeling, creepy ambient background", Fronbondi_Skegs on Pixabay) |
 | `sfx/ambience-wasteland.mp3` | Dead City background ambience ("A post-apocalyptic ambient soundscape", Fronbondi_Skegs on Pixabay) |
+| `sfx/ambience-foundry.mp3` | Foundry background ambience; only the first 3 min 40 s is used, the rest is near silence ("Metalurgists at the foundary", freesound_community on Pixabay) |
+| `sfx/ambience-foundry-stinger.mp3` | Swells up over the Foundry ambience every minute or two ("Carbon foundry stinger", kaazoom on Pixabay) |
 | `sfx/horn.mp3` | Sounds when a group of machines arrives ("Apocalyptic horn", Alex Jauk on Pixabay) |
 | `sfx/player-step.mp3` | Player footsteps ("Step", Pixabay) |
 

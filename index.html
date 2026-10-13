@@ -182,6 +182,9 @@ body:not([data-mode="touch"]) .touchonly{display:none!important}
 .titlebox .sub{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--amber);font-weight:600}
 .titlebox .row{justify-content:center}
 .titlebox .muted{max-width:42ch}
+.arenas{display:grid;gap:8px;justify-items:center}
+.arenas:has(#arenaPick:empty){visibility:hidden}
+.arenas>span{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim);font-weight:600}
 
 .packgrid{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px}
 @media (max-width:640px){.packgrid{grid-template-columns:minmax(0,1fr)}}
@@ -301,9 +304,9 @@ body[data-mode="touch"] .choice .key{display:none}
     <p class="muted" id="titleInfo">Checking for your save…</p>
     <div class="row">
       <button class="btn primary" id="contBtn" type="button" disabled>Start</button>
-      <button class="btn" id="arenaBtn" type="button">Switch arena</button>
       <button class="btn" id="installBtn" type="button" hidden>Install</button>
     </div>
+    <div class="arenas"><span>Arena</span><div class="row" id="arenaPick" role="group" aria-label="Arena"></div></div>
   </div>
 </section>
 
@@ -362,7 +365,7 @@ body[data-mode="touch"] .choice .key{display:none}
     <div class="endstats" id="endStats"></div>
     <h3 id="endTakenHead" hidden>Upgrades taken</h3>
     <div class="taken" id="endTaken" hidden></div>
-    <div class="row"><button class="btn primary" id="again" type="button">Run again</button><button class="btn" id="otherArena" type="button" hidden></button></div>
+    <div class="row"><button class="btn primary" id="again" type="button">Run again</button><span class="row" id="otherArenas"></span></div>
   </div>
 </section>
 

@@ -1,4 +1,4 @@
-/* Machines: scout drones, husks, Hunter Walkers and the Warden, the gate boss. */
+/* Machines: scout drones, husks, menders, Hunter Walkers and the Warden, the gate boss. (The Crucible, the Foundry's boss, is in crucible.js.) */
 import { B, G, V, V3, MT, clamp, damp, lerpAngle, angleTo, dist2, rand, clearShot, collide } from './core.js';
 import { Geo, gbox, gprism, gcyl, gmesh } from './geo.js';
 import { Actor } from './actors.js';
@@ -8,9 +8,9 @@ import { rollLoot } from './loot.js';
 
 /* Per-machine material copies (so each can flash when hit). They must share the original's textures: cloned DynamicTextures come out blank and never report ready, which leaves the material uncompiled and the machine invisible. */
 const TEX_SLOTS = ['albedoTexture', 'metallicTexture', 'diffuseTexture', 'bumpTexture', 'specularTexture', 'emissiveTexture', 'ambientTexture', 'opacityTexture', 'reflectionTexture', 'lightmapTexture'];
-const cloneMat = (m, n) => { const c = m.clone(n); for (const k of TEX_SLOTS) if (m[k] && c[k] !== m[k]) { const t = c[k]; c[k] = m[k]; if (t) t.dispose(); } c.maxSimultaneousLights = 8; return c; };
+export const cloneMat = (m, n) => { const c = m.clone(n); for (const k of TEX_SLOTS) if (m[k] && c[k] !== m[k]) { const t = c[k]; c[k] = m[k]; if (t) t.dispose(); } c.maxSimultaneousLights = 8; return c; };
 /* A machine locking on to you or Mara announces it once per engagement; it re-arms after it has lost you for a few seconds. */
-function announce(self, dt, sounds) {
+export function announce(self, dt, sounds) {
   const onUs = self.target && self.target.faction === 'player';
   if (onUs && !self.engaged) { self.engaged = true; for (const [sound, opts] of sounds) G.audio.play(sound, Object.assign({ pos: self.pos }, opts)); }
   if (onUs) self.lostT = 0; else if (self.engaged && (self.lostT = (self.lostT || 0) + dt) > 6) self.engaged = false;
@@ -20,7 +20,7 @@ function announce(self, dt, sounds) {
 const ALLY = { color: B.Color3.FromHexString('#1fe0ff'), droneDmg: 10, huskDmg: 2.5 };
 const allyEye = () => { if (!G.M.allyEye) { G.M.allyEye = cloneMat(G.M.eye, 'allyEye'); G.M.allyEye.emissiveColor = ALLY.color.clone(); } return G.M.allyEye; };
 function enlistAlly(self) { self.ally = true; self.faction = 'player'; if (self.mat.albedoColor) self.mat.albedoColor = B.Color3.Lerp(self.mat.albedoColor, ALLY.color, .3); }
-function pickTarget(self, range) {
+export function pickTarget(self, range) {
   const a = self.lastAttacker;
   if (a && !a.untargetable && hostile(self, a) && dist2(a.pos, self.pos) < range * 1.4 && G.t - self.lastHurt < 6) return a;
   return nearestHostile(self, range);
@@ -86,6 +86,84 @@ export class Drone extends Actor {
       const body = this.ally && T.hitTargets()[0], tgt = body ? body.c.add(V(rand(-.25, .25), rand(-.15, .15), rand(-.25, .25))) : ground;
       G.CB.fire({ from, dir: tgt.subtract(from).normalize(), speed: 30, dmg: this.ally ? ALLY.droneDmg : 5, owner: this, kind: this.ally ? 'ally' : 'bolt', life: 1.4 }); G.audio.shot('drone', p);
     }
+  }
+}
+
+/* ---------- mender ---------- */
+/* A small repair droid that hovers low on one ducted fan, with two welding arms and no gun. It looks for the wreck of a husk or a Hunter
+   Walker, settles beside it and welds it back together, and the machine gets up again on part of its health. It holds still while it
+   works: that's when to shoot it. With nothing to mend it hangs back behind whichever machine is nearest you. */
+export const MEND = { husk: 4, walker: 7, hp: .6, look: 30 };   // seconds a rebuild takes, the share of health a rebuilt machine comes back with, how far a mender looks for wrecks
+const torchMat = () => { if (!G.M.torch) { const m = G.M.torch = new B.StandardMaterial('torch', G.scene); m.disableLighting = true; m.emissiveColor = B.Color3.FromHexString('#ffd9a0'); } return G.M.torch; };
+export class Mender extends Actor {
+  constructor(x, z) {
+    super('machine', 45); this.kind = 'mender'; this.name = 'Mender'; this.radius = .6;
+    const S = G.scene; this.root = new B.TransformNode('mender', S); this.root.position.set(x, 1.9, z);
+    this.home = V(x, 0, z); this.alt = rand(1.75, 2.05); this.ph = rand(0, 6.28); this.job = null; this.weld = 0; this.retarget = rand(0, .4); this.fallV = 0; this.flash = 0; this.sparkT = 0;
+    this.mat = cloneMat(G.M.mech, 'menderMat'); if (this.mat.albedoColor) this.mat.albedoColor = B.Color3.Lerp(this.mat.albedoColor, B.Color3.FromHexString('#c9a13a'), .45);   // hazard yellow: it reads as something other than a drone
+    const part = (m, mat, shadow = true) => { m.material = mat; m.metadata = { actor: this, part: 'core' }; m.isPickable = true; m.receiveShadows = true; if (shadow) G.sg.addShadowCaster(m); return m; };
+    const body = part(B.MeshBuilder.CreateBox('mBody', { width: .62, height: .3, depth: .8 }, S), this.mat); body.parent = this.root;
+    const cap = part(B.MeshBuilder.CreateSphere('mCap', { diameter: .5, segments: 8, slice: .5 }, S), G.M.mechDark); cap.parent = this.root; cap.position.set(0, .14, -.08);
+    const fan = part(B.MeshBuilder.CreateTorus('mFan', { diameter: .7, thickness: .1, tessellation: 12 }, S), G.M.mechDark); fan.parent = this.root; fan.position.y = -.2;
+    this.rotor = part(B.MeshBuilder.CreateBox('mRotor', { width: .6, height: .02, depth: .07 }, S), G.M.gun, false); this.rotor.parent = this.root; this.rotor.position.y = -.2;
+    const eye = part(B.MeshBuilder.CreateBox('mEye', { width: .3, height: .06, depth: .04 }, S), G.M.eye, false); eye.parent = this.root; eye.position.set(0, .06, .41);
+    this.arms = [-1, 1].map(s => {
+      const sh = new B.TransformNode('mArm', S); sh.parent = this.root; sh.position.set(s * .36, -.02, .22);
+      const a = part(B.MeshBuilder.CreateCylinder('mArmA', { diameter: .07, height: .5, tessellation: 6 }, S), G.M.gun); a.parent = sh; a.rotation.x = Math.PI / 2 - .5; a.position.set(0, -.11, .22);
+      const t = part(B.MeshBuilder.CreateCylinder('mTip', { diameterTop: .03, diameterBottom: .09, height: .2, tessellation: 6 }, S), G.M.mechDark, false); t.parent = sh; t.rotation.x = Math.PI / 2 + .6; t.position.set(0, -.3, .45);
+      const g = part(B.MeshBuilder.CreateSphere('mGlow', { diameter: .07, segments: 4 }, S), torchMat(), false); g.parent = sh; g.position.set(0, -.37, .52);
+      return { sh, s };
+    });
+    this.arc = B.MeshBuilder.CreateSphere('mArc', { diameter: .35, segments: 6 }, S); this.arc.parent = this.root; this.arc.material = torchMat(); this.arc.isPickable = false; this.arc.setEnabled(false);
+    this.meshes = this.root.getChildMeshes().filter(m => m !== this.arc);
+  }
+  hitTargets() { return [{ part: 'core', c: this.pos.clone(), r: .75 }]; }
+  takeDamage(d, part, src, point) { this.flash = 1;
+    if (point) { const dx = this.pos.x - point.x, dz = this.pos.z - point.z, l = Math.hypot(dx, dz) || 1, k = Math.min(2.5, .5 + d * .1); this.knock = this.knock || V(0, 0, 0); this.knock.x += dx / l * k; this.knock.z += dz / l * k; }
+    return d; }
+  die(src) { this.meshes.forEach(m => { m.isPickable = false; }); this.dying = true; this.letGo(); G.game.onMachineDown(this, src); }
+  letGo() { if (this.job && this.job.mendBy === this) this.job.mendBy = null; this.job = null; this.weld = 0; this.arc.setEnabled(false); }
+  /* a wreck it can put back together: a husk's, or a walker's once it has blown, that no other mender is working on */
+  canMend(w) { return !!w && !w.alive && !w.gone && !w.ally && !w.boss && w.faction === 'machine' && (w.kind === 'husk' || (w.kind === 'walker' && w.boomed)) && (!w.mendBy || w.mendBy === this || !w.mendBy.alive); }
+  update(dt) {
+    const p = this.pos;
+    this.rotor.rotation.y += dt * (this.dying ? 10 : 45);
+    this.flash = Math.max(0, this.flash - dt * 6); this.mat.emissiveColor.set(this.flash * .4, this.flash * .4, this.flash * .4);
+    if (!this.alive) {
+      if (this.dying) { this.fallV += 14 * dt; p.y -= this.fallV * dt; this.root.rotation.z += dt * 7; this.root.rotation.x += dt * 2.5;
+        if (p.y <= .3) { this.dying = false; G.FX.explode(V(p.x, .5, p.z), .35); G.FX.debris(V(p.x, .5, p.z), 4, .4, .6); G.audio.play('boomSmall', { pos: p, gain: .6, vary: true }); this.root.setEnabled(false); G.drops.scatter(p.x, p.z, rollLoot('drone')); } }
+      return;
+    }
+    this.retarget -= dt;
+    if (this.retarget <= 0) { this.retarget = .5;
+      if (!this.canMend(this.job)) { this.letGo();
+        let best = null, bd = MEND.look; for (const a of G.actors) { if (!this.canMend(a)) continue; const d = dist2(a.pos, p); if (d < bd) { bd = d; best = a; } }
+        if (best) { this.job = best; best.mendBy = this; } } }
+    const W = this.job, P = G.player.pos; let gx, gz, at = false;
+    if (W) { const reach = W.kind === 'walker' ? 2.6 : 1.2, dx = p.x - W.pos.x, dz = p.z - W.pos.z, d = Math.hypot(dx, dz) || 1; gx = W.pos.x + dx / d * reach; gz = W.pos.z + dz / d * reach; at = Math.hypot(gx - p.x, gz - p.z) < .6; }
+    else { /* nothing to mend: wait on the far side of the machine nearest you, or well back from you if there is none */
+      let near = null, nd = 1e9; for (const a of G.actors) { if (!a.alive || a.faction !== 'machine' || a === this || a.kind === 'mender' || a.lurk) continue; const d = dist2(a.pos, P); if (d < nd) { nd = d; near = a; } }
+      const c = near ? near.pos : p, ax = c.x - P.x, az = c.z - P.z, al = Math.hypot(ax, az) || 1, back = near ? 6 : Math.max(0, 13 - al);
+      gx = c.x + ax / al * back; gz = c.z + az / al * back; }
+    const d = Math.hypot(gx - p.x, gz - p.z), sp = Math.min(d * 2.2, 6.5);
+    const to = G.R.indoor && d > .1 ? chase(this, G.nav, gx, gz, dt, .8) : { x: gx, z: gz }, dx = to.x - p.x, dz = to.z - p.z, dl = Math.hypot(dx, dz) || 1, ox = p.x, oz = p.z;
+    if (d > .1) { p.x += dx / dl * sp * dt; p.z += dz / dl * sp * dt; }
+    if (this.knock) { p.x += this.knock.x * dt; p.z += this.knock.z * dt; this.knock.scaleInPlace(Math.exp(-dt * 5)); }
+    if (G.R.indoor) { const y = p.y; collide(p, .45, ox, oz); p.y = y; }
+    p.y += (this.alt + Math.sin(G.t * 2.6 + this.ph) * .12 - p.y) * damp(3, dt);
+    const face = W ? angleTo(p, W.pos) : d > .3 ? Math.atan2(dx, dz) : this.root.rotation.y;
+    this.root.rotation.y = lerpAngle(this.root.rotation.y, face, damp(6, dt)); this.root.rotation.z = -clamp(dx * .04, -.25, .25);
+    /* welding: arms working, a bright arc and sparks on the wreck; when it's done the machine gets up */
+    const welding = W && at;
+    this.arms.forEach((a, i) => { a.sh.rotation.x = welding ? .35 + Math.sin(G.t * 9 + i * 2) * .15 : 0; a.sh.rotation.y = welding ? a.s * Math.sin(G.t * 5 + i) * .2 : 0; });
+    if (welding) {
+      this.weld += dt;
+      const r = W.kind === 'walker' ? 1.9 : .3, hx = p.x - W.pos.x, hz = p.z - W.pos.z, hl = Math.hypot(hx, hz) || 1, pt = V(W.pos.x + hx / hl * r, W.kind === 'walker' ? 1.4 : .35, W.pos.z + hz / hl * r);
+      this.arc.setEnabled(true); this.arc.position.copyFrom(V3.TransformCoordinates(pt, this.root.getWorldMatrix().clone().invert())); this.arc.scaling.setAll(.6 + Math.random() * .8);
+      this.sparkT -= dt; if (this.sparkT <= 0) { this.sparkT = rand(.05, .12); G.FX.spark(pt, 4); if (Math.random() < .3) G.boom(pt, 1.2); }
+      G.audio.play('whir', { pos: p, gain: .25, rate: 2.2, len: .4, gap: .35, key: 'weld' });
+      if (this.weld >= MEND[W.kind]) { this.letGo(); G.game.rebuild(this, W); }
+    } else if (this.weld > 0) { this.weld = 0; this.arc.setEnabled(false); }
   }
 }
 
@@ -384,7 +462,7 @@ export class Husk extends Actor {
     const c = this.spine.getAbsolutePosition().add(V(0, .3, 0)); G.FX.explode(c, .22); G.FX.debris(c, 3, .35, .6);
     G.audio.play('powerOff', { pos: this.pos, gain: .5, rate: 1.55, len: 1.1, fade: .35 });
     if (this.ally) return;
-    G.drops.scatter(this.pos.x, this.pos.z, rollLoot('husk'));
+    if (!this.rebuilt) G.drops.scatter(this.pos.x, this.pos.z, rollLoot('husk'));   // one a mender put back together has nothing left worth salvaging
     G.game.onMachineDown(this, src);
   }
   strike(T) {

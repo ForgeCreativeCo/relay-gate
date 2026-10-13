@@ -2,9 +2,11 @@
    A* over it, then the path pulled tight. */
 import { G } from './core.js';
 
-/* The player's grid, which Mara and the husks share (they are about as wide), plus two coarser ones with more room
-   around every wall and crate: `wide` for Hunter Walkers, `huge` for the Warden. */
-export function makeNav() { const nav = bake(.25, .45); nav.wide = bake(.5, 1.3, true); nav.huge = bake(.5, 2, true); return nav; }
+/* The player's grid, which Mara and the husks share (they are about as wide), plus coarser ones with more room
+   around every wall and crate: `wide` for Hunter Walkers, `huge` for the Warden, and `giant` for the Crucible (baked the first time
+   something asks for it, since only the Foundry has one). */
+export function makeNav() { const nav = bake(.25, .45); nav.wide = bake(.5, 1.3, true); nav.huge = bake(.5, 2, true);
+  let giant = null; Object.defineProperty(nav, 'giant', { get: () => giant || (giant = bake(.5, 3.4, true)) }); return nav; }
 
 /* Where to walk right now to get to (tx, tz): straight there while the way is clear, otherwise the next corner of a path, looked up
    again a couple of times a second (each walker on its own beat, so a crowd doesn't all search in the same frame).
