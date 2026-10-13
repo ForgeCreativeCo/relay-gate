@@ -2,8 +2,10 @@
    settles behind you and the run begins. The world holds still meanwhile. The first time you see an arena's intro you watch it through;
    after that any key, click or tap skips it. An arena's shots are in its file (`intro` in SURVIVAL), each:
    { at: [x, y, z] where the camera looks, r: how far back it sits, a / b: its angle round and down (the game's own if left out),
-     move: seconds to get there from the last shot, hold: seconds to stay, say: Mara's line while it does }.
-   The last shot always returns to you, at the game's own camera. */
+     move: seconds to get there from the last shot, hold: seconds to stay, say: Mara's line while it does,
+     who: whose line it is, if not hers ('' for nobody's: a line of narration) }.
+   The last shot always returns to you, at the game's own camera. The same thing plays an arena's ending (Origin's), with
+   opts { watch: true } so it can't be skipped and { music: false } so nothing plays under it. */
 import { B, G, V, damp } from './core.js';
 
 const $ = id => document.getElementById(id);
@@ -12,7 +14,7 @@ const CAM = { a: -2.25, b: .9 };   // the game's camera angles (main.js)
 
 export function makeIntro() {
   let run = null;   // { shots, i, t, from, done, skippable }
-  const box = $('intro'), line = $('introLine'), skip = $('introSkip');
+  const box = $('intro'), line = $('introLine'), skip = $('introSkip'), who = box.querySelector('.say b');
   /* while it plays nothing else hears a key or a click (the menu can't open over it); once seen, one skips it */
   const onSkip = e => { if (!run) return; e.stopImmediatePropagation(); if (e.type === 'keydown') e.preventDefault(); if (run.skippable) finish(); };
   ['keydown', 'pointerdown'].forEach(ev => window.addEventListener(ev, onSkip, true));
@@ -36,15 +38,15 @@ export function makeIntro() {
       run.from = { at: s.at, r: s.r, a, b }; run.i++; run.t = 0; say(run.shots[run.i]);
     }
   });
-  function say(s) { if (s.say) { line.textContent = s.say; line.classList.remove('in'); void line.offsetWidth; line.classList.add('in'); } }
+  function say(s) { if (s.say) { who.textContent = s.who == null ? 'Mara' : s.who; line.textContent = s.say; line.classList.remove('in'); void line.offsetWidth; line.classList.add('in'); } }
   return {
     /* play it, then call done (straight away if the arena has none) */
-    play(shots, done) {
+    play(shots, done, opts = {}) {
       if (!shots || !shots.length) { done(); return; }
-      G.audio.music('title');   // the title's music carries it (the run's own takes over once it starts)
+      if (opts.music !== false) G.audio.music('title');   // the title's music carries it (the run's own takes over once it starts)
       const p = G.player.pos, home = { at: [p.x, 0, p.z], r: G.zoom, a: CAM.a, b: CAM.b, move: 2, hold: .6 };
       const all = [...shots, home], first = all[0];
-      run = { shots: all, i: 0, t: 0, done, skippable: !!G.progress.seenIntro,
+      run = { shots: all, i: 0, t: 0, done, skippable: !opts.watch && !!G.progress.seenIntro,
         from: { at: first.at, r: first.r, a: first.a == null ? CAM.a : first.a, b: first.b == null ? CAM.b : first.b } };
       skip.hidden = !run.skippable; skip.textContent = G.input.mode === 'touch' ? 'Tap to skip' : 'Press any key to skip';
       box.hidden = false; document.body.classList.add('cinema'); say(first);

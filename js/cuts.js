@@ -16,7 +16,7 @@ export function makeCuts() {
       for (const c of list) {
         let want = 0;
         if (p.x > c.x0 - 10 && p.x < c.x1 + 10 && p.z > c.z0 - 10 && p.z < c.z1 + 10)
-          look: for (const off of [-1.4, 0, 1.4]) for (let d = .3; d <= 7; d += .5) {
+          look: for (const off of [-1.4, -.7, 0, .7, 1.4]) for (let d = .3; d <= 7; d += .5) {
             const x = p.x + px * off + cx * d, z = p.z + pz * off + cz * d;
             if (x > c.x0 - .2 && x < c.x1 + .2 && z > c.z0 - .2 && z < c.z1 + .2) { want = 1; break look; }
           }

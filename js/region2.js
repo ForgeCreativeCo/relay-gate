@@ -10,6 +10,7 @@ import { makeNav } from './nav.js';
 import { buildGate } from './gate.js';
 import { survival } from './survival.js';
 import { makeCuts } from './cuts.js';
+import { layRooms } from './rooms.js';
 import { Actor } from './actors.js';
 import { cloneMat } from './machines.js';
 
@@ -77,56 +78,10 @@ function setPower(name, k, instant) { const z = zones[name]; z.target = k; if (i
 const cuts = makeCuts();
 const cutPiece = (node, x0, z0, x1, z1) => cuts.add(node, x0, z0, x1, z1, WALL_H);
 
-/* greedy merge of a labelled grid into rectangles: the longest run along a row, then down as many rows as match */
-function greedy(lab, W, H, emit) {
-  const used = new Uint8Array(W * H);
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
-    const k = j * W + i, L = lab[k]; if (L < 0 || used[k]) continue;
-    let w = 1; while (i + w < W && lab[k + w] === L && !used[k + w]) w++;
-    let h = 1; grow: while (j + h < H) { for (let q = 0; q < w; q++) { const kk = (j + h) * W + i + q; if (lab[kk] !== L || used[kk]) break grow; } h++; }
-    for (let b = 0; b < h; b++) for (let q = 0; q < w; q++) used[(j + b) * W + i + q] = 1;
-    emit(i, j, w, h, L);
-  }
-}
-
-/* ---------- floors and walls: rasterise the rooms and the space around them, then merge into as few boxes as possible ---------- */
+/* ---------- floors and walls: generated around the rooms (rooms.js). A wall on the camera's side of a room sinks; each takes the look of the zone it borders ---------- */
 function buildWalls() {
-  const rooms = Object.values(ROOMS), pad = (THICK + 1) * CELL;
-  let X0 = 1e9, Z0 = 1e9, X1 = -1e9, Z1 = -1e9;
-  for (const { r } of rooms) { X0 = Math.min(X0, r[0] - pad); Z0 = Math.min(Z0, r[1] - pad); X1 = Math.max(X1, r[2] + pad); Z1 = Math.max(Z1, r[3] + pad); }
-  const W = Math.round((X1 - X0) / CELL), H = Math.round((Z1 - Z0) / CELL), N = W * H;
-  const zoneAt = new Array(N).fill(null);
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
-    const x = X0 + (i + .5) * CELL, z = Z0 + (j + .5) * CELL, room = rooms.find(({ r }) => x > r[0] && x < r[2] && z > r[1] && z < r[3]);
-    if (room) zoneAt[j * W + i] = room.zone;
-  }
-  const open = (i, j) => i >= 0 && j >= 0 && i < W && j < H && zoneAt[j * W + i] !== null;
-  /* a wall cell is within THICK cells of open floor. It can sink if the floor it borders lies north or east of it (the camera is south-west). */
-  const ring = []; for (let dj = -THICK; dj <= THICK; dj++) for (let di = -THICK; di <= THICK; di++) if (di || dj) ring.push([di, dj]);
-  ring.sort((a, b) => Math.max(Math.abs(a[0]), Math.abs(a[1])) - Math.max(Math.abs(b[0]), Math.abs(b[1])));
-  const keys = [], lab = new Int16Array(N).fill(-1);
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
-    if (open(i, j)) continue;
-    const near = ring.find(([di, dj]) => open(i + di, j + dj)); if (!near) continue;
-    const zone = zoneAt[(j + near[1]) * W + i + near[0]], sinks = ring.some(([di, dj]) => di >= 0 && dj >= 0 && open(i + di, j + dj));
-    const key = (sinks ? 'cut|' : 'solid|') + zone; let L = keys.indexOf(key); if (L < 0) { L = keys.length; keys.push(key); }
-    lab[j * W + i] = L;
-  }
-  greedy(lab, W, H, (i, j, w, h, L) => {
-    const [kind, zone] = keys[L].split('|'), x0 = X0 + i * CELL, z0 = Z0 + j * CELL, x1 = x0 + w * CELL, z1 = z0 + h * CELL;
-    /* the faces that look onto open floor, as runs: [x0, z0, x1, z1, normal x, normal z] */
-    const faces = [];
-    const runs = (n, at, emit) => { let s = -1; for (let q = 0; q <= n; q++) { const o = q < n && at(q); if (o && s < 0) s = q; if (!o && s >= 0) { emit(s, q); s = -1; } } };
-    runs(w, q => open(i + q, j - 1), (a, b) => faces.push([x0 + a * CELL, z0, x0 + b * CELL, z0, 0, -1]));
-    runs(w, q => open(i + q, j + h), (a, b) => faces.push([x0 + a * CELL, z1, x0 + b * CELL, z1, 0, 1]));
-    runs(h, q => open(i - 1, j + q), (a, b) => faces.push([x0, z0 + a * CELL, x0, z0 + b * CELL, -1, 0]));
-    runs(h, q => open(i + w, j + q), (a, b) => faces.push([x1, z0 + a * CELL, x1, z0 + b * CELL, 1, 0]));
-    wallBox(zones[zone], kind === 'cut', x0, z0, x1, z1, faces);
-  });
-  /* floors: one slab per zone-coloured rectangle, so overlapping rooms never stack two floors */
-  const names = Object.keys(zones), flab = new Int16Array(N).fill(-1);
-  for (let k = 0; k < N; k++) if (zoneAt[k] !== null) flab[k] = names.indexOf(zoneAt[k]);
-  greedy(flab, W, H, (i, j, w, h, L) => gbox(zones[names[L]].g.floor, { x: X0 + (i + w / 2) * CELL, y: -.05, z: Z0 + (j + h / 2) * CELL, w: w * CELL, h: .1, d: h * CELL, uv: 1 / 3, ao: false, noBottom: true }));
+  layRooms(Object.values(ROOMS), CELL, THICK, (zone, sinks, x0, z0, x1, z1, faces) => wallBox(zones[zone], sinks, x0, z0, x1, z1, faces),
+    (zone, x, z, w, d) => gbox(zones[zone].g.floor, { x, y: -.05, z, w, h: .1, d, uv: 1 / 3, ao: false, noBottom: true }));
 }
 /* one merged wall box, with a skirting board, a light strip and pilasters along each face that looks into a room */
 function wallBox(z, sinks, x0, z0, x1, z1, faces) {

@@ -37,7 +37,9 @@ export function makeEnvironment(scene, opts) {
 
 /* ---------- ground detail: one overlay across the playable area ---------- */
 /* Painted onto two canvases: colour + alpha (grime, scorch, oil, cracks, paint, puddles) and roughness (puddles and oil are glossy).
-   What's region-specific comes from G.decalHints: scorch, oil, paint lines, skids, puddles, and the area and resolution to cover. */
+   What's region-specific comes from G.decalHints: scorch, oil, paint lines, skids, puddles (and what colour standing water is: pale
+   under a daylight sky, dark at night), and the area and resolution to cover. With `clean` there's no grime, staining or cracking at
+   all, only what the region asks for by name (a lab that is swept every night). */
 export function makeGroundDetail(scene) {
   const H = G.decalHints;
   let [X0, Z0, X1, Z1] = H.bounds || [1e9, 1e9, -1e9, -1e9];
@@ -58,7 +60,7 @@ export function makeGroundDetail(scene) {
     g.addColorStop(0, rgba); g.addColorStop(1, rgba.replace(/[\d.]+\)$/, '0)')); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px(x + Math.cos(a) * d), pz(z + Math.sin(a) * d), pr(rr), 0, 6.283); ctx.fill(); } };
 
   /* 1. soot and grime gathering along the edges of every street and square, where walls and rubble are */
-  for (const [x0, z0, x1, z1] of G.open) {
+  for (const [x0, z0, x1, z1] of H.clean ? [] : G.open) {
     const per = 2 * ((x1 - x0) + (z1 - z0)), n = Math.round(per / 2.2);
     for (let k = 0; k < n; k++) { let t = rnd() * per, x, z;
       if (t < x1 - x0) { x = x0 + t; z = z0; } else if ((t -= x1 - x0) < z1 - z0) { x = x1; z = z0 + t; } else if ((t -= z1 - z0) < x1 - x0) { x = x1 - t; z = z1; } else { t -= x1 - x0; x = x0; z = z1 - t; }
@@ -66,12 +68,12 @@ export function makeGroundDetail(scene) {
       splat(col, x + ix * R(0, 1.5), z + iz * R(0, 1.5), R(1.5, 3.6), `rgba(22,18,14,${R(.22, .4).toFixed(2)})`, 4, .7); }
   }
   /* 2. big faint stains everywhere, to break up the tiling of the ground textures */
-  for (let k = 0; k < 170; k++) { const p = randIn(0); if (!p) continue; splat(col, p[0], p[1], R(1.5, 4.5), rnd() < .65 ? `rgba(30,25,20,${R(.03, .07).toFixed(2)})` : `rgba(130,120,104,${R(.03, .07).toFixed(2)})`, 5, .85); }
+  for (let k = 0; k < (H.clean ? 0 : 170); k++) { const p = randIn(0); if (!p) continue; splat(col, p[0], p[1], R(1.5, 4.5), rnd() < .65 ? `rgba(30,25,20,${R(.03, .07).toFixed(2)})` : `rgba(130,120,104,${R(.03, .07).toFixed(2)})`, 5, .85); }
   /* 3. scorch marks under burnt cars, fires, and blast spots from old fighting */
   const scorch = (x, z, r) => { splat(col, x, z, r * .8, 'rgba(12,10,8,.5)', 9, .6); splat(col, x, z, r * 1.5, 'rgba(20,16,12,.2)', 7, .85);
     for (let k = 0; k < 7; k++) { const a = R(0, 6.28), l = r * R(.9, 1.6); col.strokeStyle = `rgba(14,11,9,${R(.08, .16).toFixed(2)})`; col.lineWidth = pr(R(.05, .14)); col.beginPath(); col.moveTo(px(x + Math.cos(a) * r * .5), pz(z + Math.sin(a) * r * .5)); col.lineTo(px(x + Math.cos(a) * l), pz(z + Math.sin(a) * l)); col.stroke(); } };
   for (const [x, z, r] of G.decalHints.scorch) scorch(x, z, r);
-  for (let k = 0; k < 6; k++) { const p = randIn(2); if (p) scorch(p[0], p[1], R(.9, 1.8)); }
+  for (let k = 0; k < (H.clean ? 0 : 6); k++) { const p = randIn(2); if (p) scorch(p[0], p[1], R(.9, 1.8)); }
   /* 4. oil under and around vehicles: dark, a little glossy */
   const oil = (x, z, r) => { splat(col, x, z, r, 'rgba(6,6,8,.45)', 6, .4); splat(ruf, x, z, r, 'rgba(0,165,0,.8)', 6, .4); };   // only slightly glossy: shinier oil caught lamplight like blood
   for (const [x, z, r] of G.decalHints.oil) { oil(x + R(-.6, .6), z + R(-.6, .6), r * R(.6, .9)); if (rnd() < .6) oil(x + R(-2, 2), z + R(-2, 2), R(.4, .9)); }
@@ -80,7 +82,7 @@ export function makeGroundDetail(scene) {
     for (let s = 0; s < len; s++) { const nx = cx + Math.cos(a) * R(.4, 1), nz = cz + Math.sin(a) * R(.4, 1); a += R(-.5, .5);
       col.strokeStyle = 'rgba(14,12,10,.4)'; col.lineWidth = pr(R(.03, .08)); col.beginPath(); col.moveTo(px(cx), pz(cz)); col.lineTo(px(nx), pz(nz)); col.stroke();
       if (rnd() < .12) crack(nx, nz, len * .3 | 0); cx = nx; cz = nz; } };
-  for (let k = 0; k < 70; k++) { const p = randIn(0); if (p) crack(p[0], p[1], 6 + rnd() * 18 | 0); }
+  for (let k = 0; k < (H.clean ? 0 : 70); k++) { const p = randIn(0); if (p) crack(p[0], p[1], 6 + rnd() * 18 | 0); }
   /* 6. faded road paint: edge lines and crossings on the streets, worn through in places */
   /* a painted line, worn: stretches fade in and out and some are gone entirely */
   const paint = (x0, z0, x1, z1, w, rgb, a) => { const L = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(L / 1.2); col.lineCap = 'butt'; col.lineWidth = pr(w);
@@ -98,7 +100,7 @@ export function makeGroundDetail(scene) {
   const puddle = (x, z, r) => { splat(col, x, z, r * 1.3, 'rgba(20,18,16,.14)', 6, .9);
     const blobs = [...Array(7)].map(() => [R(0, 6.28), R(0, r * .5), r * R(.35, .65)]);
     for (const [a, d, rr] of blobs) { const cx = x + Math.cos(a) * d, cz = z + Math.sin(a) * d;
-      for (const [ctx, fill, edge] of [[col, 'rgba(150,156,162,.45)', .1], [ruf, 'rgba(0,14,95,1)', .06]]) { const g = ctx.createRadialGradient(px(cx), pz(cz), pr(rr) * (1 - edge), px(cx), pz(cz), pr(rr));
+      for (const [ctx, fill, edge] of [[col, H.puddleCol || 'rgba(150,156,162,.45)', .1], [ruf, 'rgba(0,14,95,1)', .06]]) { const g = ctx.createRadialGradient(px(cx), pz(cz), pr(rr) * (1 - edge), px(cx), pz(cz), pr(rr));
         g.addColorStop(0, fill); g.addColorStop(1, fill.replace(/[\d.]+\)$/, '0)')); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px(cx), pz(cz), pr(rr), 0, 6.283); ctx.fill(); } } };
   const puddleSpots = (H.puddles || []).slice();
   for (let k = 0; k < (H.puddleN == null ? 30 : H.puddleN); k++) { const p = randIn(1.2); if (p) puddleSpots.push([p[0], p[1], R(.5, 1.6)]); }

@@ -1,9 +1,12 @@
 /* Survival: no route to walk, just machines arriving, sooner and in bigger groups, until you go down.
    survival(arena) turns a map into what game.js plays. Each map's file says how it plays as an arena (SURVIVAL in region1.js, region2.js
-   and region3.js). The title screen picks between them; ?region=2 or ?region=3 in the address opens the station or the Foundry. */
+   and region3.js, 1984 in region4.js, Origin in region5.js). The title screen picks between them; ?region=2 to 5 in the address opens the
+   station, the Foundry, 1984 or Origin. Every arena but the last goes on until you go down; Origin can be won. */
 import { G, V, rand, dist2, inOpen, boost, angleTo } from './core.js';
 import { Drone, Walker, Husk, Mender, MEND } from './machines.js';
 import { Crucible } from './crucible.js';
+import { Infiltrator } from './infiltrator.js';
+import { FirstMachine } from './firstmachine.js';
 import { newInventory, rollLoot } from './loot.js';
 
 /* The pressure curve. Pairs are [at the start, at full pressure]; `by` is the minute full pressure is reached. These are the numbers
@@ -31,7 +34,8 @@ const TUNE = {
   horn: 20,                               // the horn sounds when a group arrives, but not more often than this many seconds
   /* Menders weld wrecks back into machines. An arena that has them says from which minute they come, how many at once, and the chance a group brings one. */
   menders: null,                          // e.g. { from: 1, max: 3, chance: .45 }
-  xp: { drone: 2, husk: 3, mender: 3, walker: 12, warden: 40, crucible: 60, fabricator: 10, leech: 8 },   // what each kill is worth (Mara's count too)
+  groups: true,                           // false: the arena brings the groups in itself, with run.wave (1984's time gates)
+  xp: { drone: 2, husk: 3, mender: 3, walker: 12, warden: 40, crucible: 60, infiltrator: 50, first: 80, fabricator: 10, leech: 8 },   // what each kill is worth (Mara's count too)
   level: [8, 6, 1.2],                     // XP for the next level: the first number, plus the second per level so far, plus the third times that count squared
 };
 
@@ -55,10 +59,12 @@ const UPGRADES = [
   { id: 'maraHp', kind: 'mara', name: 'Medic\'s vest', add: { maraHp: 40, maraUp: 25 }, max: 4, tell: n => `Mara has ${40 * n} more health and gets back up ${25 * n}% sooner` },
 ];
 
-/* The big bosses: the Warden, or the Crucible in the Foundry. margin: the room it needs, where an arena has no arrive() to place it. */
+/* The big bosses: the Warden, the Crucible in the Foundry, the Infiltrator in 1984, or the first machine in Origin. margin: the room it needs, where an arena has no arrive() to place it. */
 const BIGS = {
   warden: { name: 'The Warden', short: 'Warden', shorts: 'Wardens', make: (x, z) => new Walker(x, z, { boss: true, patrolR: 0, leash: 1e9 }), margin: 2.4 },
   crucible: { name: 'The Crucible', short: 'Crucible', shorts: 'Crucibles', make: (x, z) => new Crucible(x, z), margin: 4 },
+  infiltrator: { name: 'The Infiltrator', short: 'Infiltrator', shorts: 'Infiltrators', make: (x, z) => new Infiltrator(x, z), margin: .6 },
+  first: { name: 'The first machine', short: 'First machine', shorts: 'First machines', make: (x, z) => new FirstMachine(x, z), margin: 1.6 },
 };
 
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -71,7 +77,16 @@ const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(
    stats gives the end card more [number, label] pairs; run.kills counts what went down, by kind.
    music(run) is the arena's own music track for the moment (audio.js MUSIC; null for none), and musicKeys the tracks to load for it.
    The boss's music, and the drums while walkers are about (unless walkerDrums is false), play over it. status(run) is a line for the HUD
-   under the clock (the arena's objectives). */
+   under the clock (the arena's objectives). bossMusic is the track for its big boss, if not the usual one.
+   noAlly: Mara isn't in this arena (1984, where she can only reach you by payphone), so nobody heals you or gets you back up, and her
+   upgrades aren't offered. onKill(R, machine, run) hears of every machine that goes down. With tune.groups false the arena brings the
+   groups in itself: run.wave(c, flags) sends an ordinary one from c (a walker with it when one is due) and returns the husks and drones
+   in it, each given `flags`; run.gap() is how long to leave before the next, run.room() how many more machines there is room for, and
+   run.sizeAdd makes every group that much bigger.
+   What an arena can take away as a run goes on (Origin, where wiping the research unmakes the machines): run.ban.drone, .husk, .walker or
+   .mender stops that kind coming, and run.toughK scales the health of everything that arrives. run.boss(x, z) brings the big boss in
+   where and when the arena says, instead of with a level. winnable: the run can be won, with run.win(card); its record is the fastest
+   win, not the longest run. */
 export function survival(arena) {
   const T = Object.assign({}, TUNE, arena.tune), GATE = arena.gate, START = arena.start;
   T.boss = Object.assign({}, TUNE.boss, arena.tune && arena.tune.boss); const BIG = BIGS[T.boss.big];
@@ -79,14 +94,16 @@ export function survival(arena) {
   let RUN = null;
   const need = (level) => Math.round(T.level[0] + T.level[1] * (level - 1) + T.level[2] * (level - 1) ** 2);
 
+  /* the upgrades taken this run, for the end card */
+  const taken = () => UPGRADES.filter(u => RUN.taken[u.id]).map(u => ({ kind: u.kind, text: u.name + (RUN.taken[u.id] > 1 ? ' ×' + RUN.taken[u.id] : '') }));
   /* a level: the game waits while you pick one of three upgrades */
   function levelUp(R) {
     RUN.xp -= need(RUN.level); RUN.level++;
-    const pool = UPGRADES.filter(u => !u.max || (RUN.taken[u.id] || 0) < u.max), picks = [];
+    const pool = UPGRADES.filter(u => (!u.max || (RUN.taken[u.id] || 0) < u.max) && !(arena.noAlly && u.kind === 'mara')), picks = [];
     while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
     G.audio.play('powerOn', { gain: .4, rate: 1.4, len: 1, fade: .3 });
     /* a boss comes with some levels: the card says so before you pick */
-    const L = RUN.level, due = L % T.boss.warden === 0 ? 'big' : L % T.boss.walker === 0 ? 'walker' : null, have = u => RUN.taken[u.id] || 0;
+    const L = RUN.level, due = L % T.boss.warden === 0 ? 'big' : L % T.boss.walker === 0 && !RUN.ban.walker ? 'walker' : null, have = u => RUN.taken[u.id] || 0;
     G.UI.levelUp(L, picks.map(u => ({ kind: u.kind, name: u.name, text: u.tell(1), have: have(u), max: u.max, total: u.tell(have(u) + 1) })), (i) => {
       const u = picks[i]; RUN.taken[u.id] = have(u) + 1;
       for (const k in u.add) G.boost[k] = boost(k) + u.add[k];
@@ -135,13 +152,14 @@ export function survival(arena) {
   }
 
   /* a machine joins the run: tougher the longer it has gone on, and tracked so it hunts you and its wreck gets cleared */
-  function enlist(R, a) { a.maxHp = a.hp = Math.round(a.hp * (1 + T.tough * RUN.time / 60)); RUN.mine.push(R.add(a)); return a; }
+  function enlist(R, a) { a.maxHp = a.hp = Math.round(a.hp * (1 + T.tough * RUN.time / 60) * RUN.toughK); RUN.mine.push(R.add(a)); return a; }
 
   /* The boss a level has earned arrives: through the gate if it is in reach, otherwise wherever there is room for it.
      Only one big boss at a time; with nowhere to put it yet, it is tried again shortly. */
   function milestone(R, p) {
     const what = RUN.due[0], boss = what === 'big'; if (boss && RUN.big && RUN.big.alive) return;
-    const gd = dist2(p, GATE), mouth = T.gate && !RUN.gateShut && gd > 12 && gd < T.gate[1] ? { x: GATE.x, z: GATE.z - 3 } : null;
+    if (!boss && RUN.ban.walker) { RUN.due.shift(); return; }   // it was earned, but there are no walkers any more
+    const gd = GATE ? dist2(p, GATE) : 1e9, mouth = T.gate && !RUN.gateShut && gd > 12 && gd < T.gate[1] ? { x: GATE.x, z: GATE.z - 3 } : null;
     const c = mouth || (arena.arrive ? arena.arrive(p, boss ? 'boss' : 'walker') : spot(p, boss ? BIG.margin : 1.5)); if (!c) return;
     RUN.due.shift();
     const w = boss ? BIG.make(c.x, c.z) : new Walker(c.x, c.z, { patrolR: 0, leash: 1e9 });
@@ -153,67 +171,84 @@ export function survival(arena) {
   }
   const MAKE = { drone: (x, z) => new Drone(x, z), husk: (x, z) => new Husk(x, z, { leash: 1e9 }), mender: (x, z) => new Mender(x, z), walker: (x, z) => new Walker(x, z, { patrolR: 0, leash: 1e9 }) };
 
-  /* One group arrives. Returns false if there was no room (or nowhere) for it, so it can be tried again shortly. */
-  function group(R, p, m) {
+  /* One group arrives. Returns false if there was no room (or nowhere) for it, so it can be tried again shortly.
+     from: all of it comes in there (an arena's own wave); flags are given to its husks and drones, which are also put in `out`. */
+  function group(R, p, m, from, flags, out) {
     const alive = RUN.mine.filter(a => a.alive), room = Math.floor(ramp(T.cap, m)) - alive.length; if (room <= 0) return false;
-    let n = Math.min(room, Math.round(ramp(T.size, m)));
-    const gd = dist2(p, GATE), mouth = T.gate && !RUN.gateShut && gd > T.gate[0] && gd < T.gate[1] && Math.random() < T.gate[2] ? { x: GATE.x, z: GATE.z - 3 } : null;   // nothing comes through a gate that's been shut
-    const at = (kind) => mouth || (arena.arrive ? arena.arrive(p, kind) : spot(p, kind === 'air' ? null : kind === 'walker' ? 1.5 : .6));
-    const husks = ramp(T.husks, m), add = (a) => enlist(R, a);
+    let n = Math.min(room, Math.round(ramp(T.size, m)) + (RUN.sizeAdd || 0));
+    const gd = GATE ? dist2(p, GATE) : 1e9, mouth = !from && T.gate && !RUN.gateShut && gd > T.gate[0] && gd < T.gate[1] && Math.random() < T.gate[2] ? { x: GATE.x, z: GATE.z - 3 } : null;   // nothing comes through a gate that's been shut
+    const at = (kind) => from ? (kind === 'walker' ? G.nav.wide.snap(from.x, from.z, 3) : from) : mouth || (arena.arrive ? arena.arrive(p, kind) : spot(p, kind === 'air' ? null : kind === 'walker' ? 1.5 : .6));
+    const husks = ramp(T.husks, m), add = (a, plain) => { enlist(R, a); if (plain) { if (flags) Object.assign(a, flags); if (out) out.push(a); } return a; };
     const around = (c, r) => { const x = c.x + rand(-r, r), z = c.z + rand(-r, r); return G.nav.snap(x, z, 3) || c; };
     /* a walker, when one is due */
     const maxW = T.walkers.reduce((k, [from, count]) => m >= from ? count : k, 0);
-    if (maxW > alive.filter(a => a.kind === 'walker').length && G.t >= RUN.walkerAt) {
+    if (!RUN.ban.walker && maxW > alive.filter(a => a.kind === 'walker').length && G.t >= RUN.walkerAt) {
       const w = at('walker');
       if (w) { add(new Walker(w.x, w.z, { patrolR: 0, leash: 1e9 })); RUN.walkerAt = G.t + T.walkerGap; n -= 3;
         R.say(mouth ? 'A Hunter Walker is coming through the gate' : 'A Hunter Walker is closing in', '#ff6a5a'); }
     }
     /* the rest: husks on foot, drones in the air */
     const ground = at('ground'), air = at('air'); if (!ground && !air) return n < 0;
+    const huskOK = ground && !RUN.ban.husk, droneOK = air && !RUN.ban.drone;
     for (let i = 0; i < n; i++) {
-      if (ground && (!air || Math.random() < husks)) { const c = around(ground, 2.5); add(new Husk(c.x, c.z, { leash: 1e9 })); }
-      else { const c = arena.indoor ? around(air, 2) : { x: air.x + rand(-3, 3), z: air.z + rand(-3, 3) }; add(new Drone(c.x, c.z)); }
+      if (huskOK && (!droneOK || Math.random() < husks)) { const c = around(ground, 2.5); add(new Husk(c.x, c.z, { leash: 1e9 }), true); }
+      else if (droneOK) { const c = arena.indoor ? around(air, 2) : { x: air.x + rand(-3, 3), z: air.z + rand(-3, 3) }; add(new Drone(c.x, c.z), true); }
     }
     /* a mender, where the arena has them: it follows the group in and puts back together whatever you knock down */
-    const md = T.menders, from = air || ground;
-    if (md && from && m >= md.from && alive.filter(a => a.kind === 'mender').length < md.max && Math.random() < md.chance) { const c = around(from, 2); add(new Mender(c.x, c.z)); }
-    if (mouth || arena.arrive) for (const c of [ground, air]) if (c) G.FX.puffAt(V(c.x, 2, c.z), 12);
+    const md = T.menders, lead = air || ground;
+    if (md && lead && !RUN.ban.mender && m >= md.from && alive.filter(a => a.kind === 'mender').length < md.max && Math.random() < md.chance) { const c = around(lead, 2); add(new Mender(c.x, c.z)); }
+    if (mouth || (arena.arrive && !from)) for (const c of [ground, air]) if (c) G.FX.puffAt(V(c.x, 2, c.z), 12);
     return true;
   }
 
   return {
     num: arena.num, name: arena.name, tag: `Survival · ${arena.name}`,
     blurb: arena.blurb,
-    titleNote: s => { const p = (s && s.progress) || {}; return p.best ? `Your best run: ${clock(p.best)}${p.bestLevel ? ', level ' + p.bestLevel : ''}.` : ''; },
+    titleNote: s => { const p = (s && s.progress) || {}; if (arena.winnable) return p.fastest ? `Your fastest: ${clock(p.fastest)}.` : '';
+      return p.best ? `Your best run: ${clock(p.best)}${p.bestLevel ? ', level ' + p.bestLevel : ''}.` : ''; },
     preparing: arena.preparing,
     hornSignals: true,   // the horn means a wave has arrived, so it never sounds at random here (audio.js)
-    medic: true,     // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
-    musicKeys: ['boss', 'drums', ...(arena.musicKeys || [])],
+    medic: !arena.noAlly,   // unless Mara gets to you first: here she heals you and gets you back up (actors.js)
+    noAlly: !!arena.noAlly,
+    musicKeys: [arena.bossMusic || 'boss', ...(arena.walkerDrums !== false ? ['drums'] : []), ...(arena.musicKeys || [])],
     intro: arena.intro, onIntro: arena.onIntro,   // the camera's sweep and Mara's lines before each run, and what the arena does each frame of it (intro.js)
     indoor: arena.indoor, indoorAt: arena.indoorAt, noHorn: arena.noHorn, ambience: arena.ambience, look: arena.look,
     /* each arena keeps its own record: in its own slot in this browser, and in its own document in your account */
     save: { key: arena.saveKey, doc: arena.saveKey },
     build: arena.build,
     start: START,
-    fresh: () => { const p = G.progress || {}; return { gate: true, best: p.best || 0, bestLevel: p.bestLevel || 0, seenIntro: !!p.seenIntro }; },   // your best run outlives the run
+    fresh: () => { const p = G.progress || {}; return { gate: true, best: p.best || 0, bestLevel: p.bestLevel || 0, seenIntro: !!p.seenIntro, beatBoss: !!p.beatBoss, fastest: p.fastest || 0 }; },   // your best run outlives the run (and so does having beaten the big boss here, and your fastest win)
     gate: GATE,
 
     /* a run starts from nothing: the starter rifle, an empty pack, level 1, the clock at zero */
     spawn(R) {
       G.inv = newInventory(); G.boost = {}; G.player.recalc(); G.ally.recalc(); G.ally.healCD = G.ally.reviveCD = 0; G.ally.revives = 0; G.progress.kills = 0;
-      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, hornAt: 0, squad: [], big: null, bigs: 0, kills: {}, mendSaidAt: 0, rebuilt: 0 };
+      RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, hornAt: 0, squad: [], big: null, bigs: 0, kills: {}, mendSaidAt: 0, rebuilt: 0, ban: {}, toughK: 1 };
       /* for an arena's own events: send n machines (husks and drones in the usual mix) from c, each given the properties in flags */
       RUN.send = (c, n, flags = {}) => { const m = RUN.time / 60, out = [];
         for (let i = 0; i < n; i++) { const husk = Math.random() < ramp(T.husks, m) + .1, x = c.x + rand(-2.5, 2.5), z = c.z + rand(-2.5, 2.5), at = husk ? G.nav.snap(x, z, 3) || c : { x, z };
           const a = enlist(R, husk ? new Husk(at.x, at.z, { leash: 1e9 }) : new Drone(at.x, at.z)); Object.assign(a, flags); out.push(a); }
         G.FX.puffAt(V(c.x, 2, c.z), 16); return out; };
       RUN.size = () => Math.round(ramp(T.size, RUN.time / 60));   // how big an ordinary group is just now
+      /* for an arena that brings its own groups in (tune.groups false) */
+      RUN.wave = (c, flags) => { const out = []; group(R, G.player.pos, RUN.time / 60, c, flags, out); return out; };
+      RUN.gap = () => ramp(T.gap, RUN.time / 60) * rand(.8, 1.2) * RUN.gapK * (RUN.big && RUN.big.alive ? T.boss.ease : 1);
+      RUN.room = () => Math.floor(ramp(T.cap, RUN.time / 60)) - RUN.mine.filter(a => a.alive).length;
+      /* the big boss, brought in by the arena */
+      RUN.boss = (x, z) => { const w = BIG.make(x, z); RUN.big = w; RUN.bigs++; enlist(R, w); G.UI.boss(w); return w; };
+      /* the run is won (an arena that can be): the clock stops, the fastest win is kept, and the card says so. card: what to say on it */
+      RUN.win = (card = {}) => { if (RUN.over) return; RUN.over = true; G.audio.music(null);
+        const P = G.progress, t = RUN.time, was = P.fastest || 0, record = !was || t < was; if (record) P.fastest = t; G.save.now();
+        G.UI.endCard(Object.assign({ tag: `Survival · ${arena.name}`, name: `Done in ${clock(t)}`,
+          record: record ? (was ? `New fastest · The one to beat was ${clock(was)}` : 'Your first time through') : `Your fastest is ${clock(was)}`, isRecord: record, text: '',
+          stats: [[RUN.level, 'Level reached'], [P.kills, 'Machines down'], ...(arena.stats ? arena.stats(RUN) : [])], taken: taken(), again: 'Run again', others: G.otherArenas }, card)); };
       if (arena.begin) arena.begin(R, RUN);
     },
     interactables(R, progress, L) { if (arena.interactables) arena.interactables(L); },   // things to walk up to and use (the Foundry's kill switches)
     assemble: build,   // B, or the scrap meter: build machines of your own (`build` above is the map's)
     onKill(R, m) {
       if (!RUN || RUN.over) return; RUN.xp += T.xp[m.kind] || 1; RUN.kills[m.kind] = (RUN.kills[m.kind] || 0) + 1;
+      if (arena.onKill) arena.onKill(R, m, RUN);
       if (m === RUN.big) { G.UI.boss(null); const loot = rollLoot('warden'); if (m.kind === 'crucible') loot.push({ scrap: 40 }); G.drops.scatter(m.pos.x, m.pos.z - 1, loot); R.say(`${BIG.name} is down`, '#1fe0ff'); }
     },
     /* the big boss calls for help as it weakens */
@@ -245,7 +280,7 @@ export function survival(arena) {
       const dt = Math.min(.05, Math.max(0, G.t - RUN.last)); RUN.last = G.t;
       if (RUN.over) return;
       if (G.player.down <= 0) RUN.time = G.t - RUN.t0;   // the clock stops when you go down
-      G.audio.music(RUN.big && RUN.big.alive ? 'boss' : arena.walkerDrums !== false && RUN.mine.some(a => a.alive && a.kind === 'walker') ? 'drums' : arena.music ? arena.music(RUN) : null);
+      G.audio.music(RUN.big && RUN.big.alive ? arena.bossMusic || 'boss' : arena.walkerDrums !== false && RUN.mine.some(a => a.alive && a.kind === 'walker') ? 'drums' : arena.music ? arena.music(RUN) : null);
       const m = RUN.time / 60;
       if (arena.tick) arena.tick(R, RUN, dt);
       /* machines hunt you wherever you go (their home is what they return to and patrol); wrecks are cleared after a while */
@@ -264,7 +299,7 @@ export function survival(arena) {
       if (RUN.squad.length && !RUN.squadGone && !squadUp().length) { RUN.squadGone = true; R.say('Your squad is gone · Scrap can build again', '#9aa0a6'); }   // once, however many went down together
       if (RUN.squad.length && RUN.squad.every(a => a.gone)) RUN.squad = [];
       if (RUN.due.length && G.t >= RUN.dueAt && G.player.down <= 0) { milestone(R, p); RUN.dueAt = G.t + 1; }
-      if (G.t >= RUN.nextAt && G.player.down <= 0) { const came = group(R, p, m);
+      if (T.groups && G.t >= RUN.nextAt && G.player.down <= 0) { const came = group(R, p, m);
         if (came && G.t >= RUN.hornAt) { G.audio.horn(true); RUN.hornAt = G.t + T.horn; }
         RUN.nextAt = G.t + (came ? ramp(T.gap, m) * rand(.8, 1.2) * RUN.gapK * (RUN.big && RUN.big.alive ? T.boss.ease : 1) : 1); }
       if (G.t >= RUN.hudAt) { RUN.hudAt = G.t + .25; G.UI.objective(`Survive · ${clock(RUN.time)} · ${G.progress.kills} down`); G.UI.status(arena.status ? arena.status(RUN) : ''); G.UI.xp(RUN.level, RUN.xp / need(RUN.level)); G.UI.build(meter()); }
@@ -274,6 +309,9 @@ export function survival(arena) {
     /* going down ends the run */
     onDeath() {
       if (RUN.over) return; RUN.over = true; G.audio.music(null);
+      if (arena.winnable) { const f = G.progress.fastest; G.save.now();   // here the record is the fastest win, so a run that ends this way doesn't set one
+        G.UI.endCard({ tag: `Survival · ${arena.name}`, name: `You went down at ${clock(RUN.time)}`, record: f ? `Your fastest is ${clock(f)}` : '', text: arena.lost || 'Every run starts again from the starter rifle at level 1.',
+          stats: [[RUN.level, 'Level reached'], [G.progress.kills, 'Machines down'], ...(arena.stats ? arena.stats(RUN) : [])], taken: taken(), again: 'Run again', others: G.otherArenas }); return; }
       const P = G.progress, t = RUN.time, was = P.best || 0, wasLevel = P.bestLevel, record = t > was; if (record) { P.best = t; P.bestLevel = RUN.level; } G.save.now();
       const n = G.ally.revives || 0;
       G.UI.endCard({ tag: `Survival · ${arena.name}`, name: `You lasted ${clock(t)}`,
@@ -281,8 +319,7 @@ export function survival(arena) {
         text: (n ? `Mara got you back up ${n === 1 ? 'once' : n === 2 ? 'twice' : n + ' times'}. ` : '') + 'Every run starts again from the starter rifle at level 1.',
         stats: [[RUN.level, 'Level reached'], [P.kills, 'Machines down'], ...[['walker', 'Walker', 'Walkers'], [T.boss.big, BIG.short, BIG.shorts]].map(([k, one, many]) => { const n = RUN.kills[k] || 0; return [n, `${n === 1 ? one : many} destroyed`]; }),
           ...(arena.stats ? arena.stats(RUN) : [])],
-        taken: UPGRADES.filter(u => RUN.taken[u.id]).map(u => ({ kind: u.kind, text: u.name + (RUN.taken[u.id] > 1 ? ' ×' + RUN.taken[u.id] : '') })),
-        again: 'Run again', others: G.otherArenas });
+        taken: taken(), again: 'Run again', others: G.otherArenas });
     },
   };
 }

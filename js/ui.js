@@ -33,7 +33,7 @@ export function makeUI() {
      over the spot; off it, an arrow at the edge of the screen pointing the way, with how far it is. */
   const marks = []; for (let k = 0; k < 3; k++) { const m = el('div', 'mark'), i = el('i'), s = el('span'); m.append(i, s); m.hidden = true; document.body.append(m); marks.push({ m, i, s }); }
   function drawMarks() {
-    const L = (G.started && G.marks) || [], W = innerWidth, H = innerHeight, pad = 48, padX = 90;   // wider at the sides, so the label fits
+    const L = (G.started && G.marks) || [], W = innerWidth, H = innerHeight, pad = 48, padX = 112;   // wider at the sides, so the label fits
     marks.forEach((k, n) => { const it = L[n]; if (!it) { k.m.hidden = true; return; } k.m.hidden = false; k.m.style.color = it.color || 'var(--amber)';
       const s = UI.project(it.pos.add ? it.pos.add(V(0, it.h || 2.5, 0)) : V(it.pos.x, it.h || 2.5, it.pos.z)), d = Math.round(Math.hypot(it.pos.x - G.player.pos.x, it.pos.z - G.player.pos.z));
       const on = s.ok && s.x > padX && s.x < W - padX && s.y > pad && s.y < H - pad; k.s.textContent = on ? it.label : `${it.label} · ${d} m`;
@@ -52,7 +52,7 @@ export function makeUI() {
   const tagFor = (d) => { if (d.tag) return d.tag; const t = el('div', 'tag'); if (d.tierLabel) { const b = el('b', null, d.tierLabel); b.style.color = d.color; t.append(b); } const s = el('span', null, d.label); if (!d.tierLabel) s.style.color = d.color; t.append(s); document.body.append(t); d.tag = t; return t; };
 
   /* ---------- touch buttons that depend on context ---------- */
-  const partOrder = ['head', 'guns', 'cannons', 'missiles', 'mortar', 'hangar', 'legs', 'treads', 'core'];
+  const partOrder = ['head', 'guns', 'cannons', 'arm', 'missiles', 'mortar', 'hangar', 'legs', 'treads', 'core'];
   /* T, or the touch button: step the lock through a walker's (or a boss's) parts */
   UI.cyclePart = () => { const P = G.player, t = (P.lock && P.lock.actor) || P.target, a = t && t.parts ? t : (boss && boss.alive ? boss : null); if (!a) return;
     const list = partOrder.filter(k => k === 'core' || (a.parts[k] && a.parts[k].hp > 0)), cur = P.lock && P.lock.actor === a && P.lock.part || 'core';

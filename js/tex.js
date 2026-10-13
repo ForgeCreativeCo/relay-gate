@@ -117,6 +117,7 @@ export const LOOK = {
   machine: '#ff2a2a', gate: '#1fe0ff', human: '#ffb24a', exposure: 1.5, contrast: 1.3, sat: -22, bloomW: .55, bloomT: .55, glowI: .9,
   weatherK: 1,   // how much ash drifts through the air
   env: null,     // reflection sky colours (look.js makeEnvironment); null keeps the outdoor sky
+  bright: false, // a mostly white arena: the HUD puts more shadow behind its text
 };
 /* A region can override any of these with its own `look` (main.js applies it before the lights and materials are made). */
 

@@ -33,6 +33,15 @@ export function makeSave(opts = {}) {
     const pickNewer = [S.remote, local].filter(Boolean).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0];
     return pickNewer || null;
   };
+  /* Another arena's save, from your account (null if it has none, or there's no account): the title screen asks whether 1984's boss
+     has been beaten before it opens Origin. */
+  S.peek = async (doc) => {
+    try { const C = window.claude; if (!C || typeof C.use !== 'function') return null;
+      const [db, user] = await Promise.all([C.use('db'), C.use('user')]); if (!db || !user) return null;
+      const id = await user.id(); if (!id) return null;
+      const snap = await db.doc('data/users/' + id + '/' + doc).get(); return snap && snap.exists ? (snap.data() || {}).state || null : null; }
+    catch (e) { return null; }
+  };
   const snapshot = () => {
     const strip = it => it && JSON.parse(JSON.stringify(it, (k, v) => k === '_ammo' ? undefined : v));
     const inv = G.inv, eq = inv.equip;

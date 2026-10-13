@@ -7,7 +7,9 @@
    down for longer. Two slag channels run the length of the hall from the furnaces in the north wall; every so often one pours, then floods
    its half of the drains, and anything standing in it on the ground burns, machines included. Husks lie slumped in the tunnels and wake
    as you pass; walkers and the Crucible are too big to follow you in. Menders follow the groups in and weld wrecks back into machines,
-   and the big boss here is the Crucible (crucible.js). */
+   and the big boss here is the Crucible (crucible.js).
+   Against the east wall stands the dispatch gate, with finished husks riding a conveyor into it: this is where what the Foundry makes
+   is sent. Not somewhere else, some time else. When the Crucible is badly hurt the gate loses its hold for a moment, and 1984 shows through. */
 import { B, G, V, C, R as sr, dist2, rand } from './core.js';
 import { Geo, gbox, gcyl, gmesh } from './geo.js';
 import { makeMat } from './tex.js';
@@ -49,6 +51,10 @@ const CH_Z = [-22.4, 23.4], CH_W = 2.6;
 /* Seconds to the first pour, between pours, the warning before one, how long it pours, the damage a second to anything standing in it,
    and how long after the channel its drain floods. */
 const SLAG = { first: 35, every: 26, warn: 3, pour: 5, dps: 28, drainLag: 2 };
+/* The dispatch gate: where it stands (x is the face of its ring, which looks west into the hall), how high its centre is and how wide its
+   ring; the conveyor that feeds it runs in from x0; how fast the husks on it ride, and how far apart. Once the Crucible is down to
+   `bleedAt` of its health the gate bleeds through: 1984 shows in the ring for `bleed` seconds, every `every` seconds or so. */
+const DISPATCH = { x: 33.7, z: 15, y: 3.5, r: 2.9, x0: 24.6, speed: .9, gap: 2.4, bleedAt: .3, bleed: [.5, 1.3], every: [1.5, 4] };
 /* Where husks lie slumped in the tunnels (and which way they face), how many at most, and how often a fresh one is put down out of sight. */
 const LURK = { spots: [[-25.5, 30.2, Math.PI], [-14, 30.2, Math.PI], [-3, 30.2, Math.PI], [9, 30.2, Math.PI], [16.5, 30.2, Math.PI], [26, 30.2, Math.PI],
   [-16, -30.4, 0], [-6, -30.4, 0], [5, -30.4, 0], [14, -28.1, Math.PI]], max: 4, every: 40 };
@@ -114,7 +120,7 @@ class Fabricator extends Actor {
 const SWITCH_ON = new B.Color3(.35, 1, .45), SWITCH_OFF = new B.Color3(.35, .05, .03);
 
 /* ---------- the map ---------- */
-let channels = [], now = 0;
+let channels = [], now = 0, dispatch = null;
 const cuts = makeCuts();
 export function buildRegion(M) {
   const scene = G.scene;
@@ -270,12 +276,57 @@ export function buildRegion(M) {
   gbox(g.trim, { x: 0, y: .35, z: 12, w: 4, h: .7, d: 2, uv: .5 }); for (let k = -1; k <= 1; k++) gbox(g.hot, { x: k * 1.2, y: .72, z: 12, w: .9, h: .04, d: 1.4, ao: false }); ob(0, 12, 2, 1, .7);   // casting moulds
   barrel(29, 20); barrel(29.8, 20.6); barrel(-33, -24); barrel(33, -23.5); barrel(-15, 22);
 
+  dispatch = makeDispatch(M, MAT, g);
+
   /* ---------- finish: one mesh per material ---------- */
   gmesh('fFloor', g.floor, MAT.floor, { freeze: true, shadow: false }); gmesh('fWall', g.wall, MAT.wall, { freeze: true }); gmesh('fTrim', g.trim, MAT.trim, { freeze: true });
   gmesh('fWindow', g.window, MAT.window, { freeze: true, shadow: false }); gmesh('fHot', g.hot, MAT.hot, { freeze: true, shadow: false }); gmesh('fRust', g.rust, M.rust, { freeze: true });
   return { gate };
 }
 
+/* The dispatch gate: a housing on the east wall, a ring facing into the hall with a violet field across it, and a conveyor carrying finished
+   husks into it. Behind the field is a second one that is dark until the gate bleeds: a glimpse of where it leads, neon and rain. */
+function makeDispatch(M, MAT, g) {
+  const S = G.scene, D = DISPATCH, glow = (n, hex, a) => { const m = new B.StandardMaterial(n, S); m.disableLighting = true; m.emissiveColor = C(hex); m.alpha = a; m.alphaMode = B.Engine.ALPHA_ADD; m.disableDepthWrite = true; m.backFaceCulling = false; return m; };
+  gbox(g.wall, { x: D.x + 1.25, y: 3.7, z: D.z, w: 2.1, h: 7.4, d: 8.6, tint: .6, noBottom: true }); gbox(g.trim, { x: D.x + 1.25, y: 7.5, z: D.z, w: 2.4, h: .2, d: 8.9, ao: false }); ob(D.x + 1.25, D.z, 1.05, 4.3, 7.4);
+  for (const s of [-1, 1]) { gbox(g.trim, { x: D.x + .05, y: D.y, z: D.z + s * (D.r + .75), w: .5, h: D.y * 2, d: 1, uv: .5 }); gbox(g.hot, { x: D.x - .22, y: D.y, z: D.z + s * (D.r + .75), w: .04, h: 3, d: .16, ao: false }); }
+  const put = (m, mat) => { m.position.set(D.x, D.y, D.z); m.material = mat; m.isPickable = false; return m; };
+  const ring = put(B.MeshBuilder.CreateTorus('dispatchRing', { diameter: D.r * 2 + .5, thickness: .5, tessellation: 32 }, S), M.gateFrame); ring.rotation.z = Math.PI / 2; ring.receiveShadows = true; G.sg.addShadowCaster(ring);
+  const field = glow('dispatchField', '#a488ff', .26), disc = put(B.MeshBuilder.CreateDisc('dispatchDisc', { radius: D.r, tessellation: 40 }, S), field); disc.rotation.y = Math.PI / 2;
+  /* 1984, as it looks from here: a wet street at night, signs in magenta and cyan, a streetlight, rain */
+  const tex = new B.DynamicTexture('dispatchGlimpse', { width: 256, height: 256 }, S, true), c = tex.getContext(), sky = c.createLinearGradient(0, 0, 0, 256);
+  sky.addColorStop(0, '#0a0a2a'); sky.addColorStop(.55, '#3a1a52'); sky.addColorStop(.56, '#120c26'); sky.addColorStop(1, '#05040c'); c.fillStyle = sky; c.fillRect(0, 0, 256, 256);
+  for (const [x, y, w, h, col] of [[30, 78, 70, 20, '#ff38c8'], [118, 66, 54, 26, '#2ff0ff'], [186, 84, 44, 16, '#ffb040'], [150, 104, 30, 10, '#ff38c8']]) {
+    c.shadowColor = col; c.shadowBlur = 16; c.fillStyle = col; c.fillRect(x, y, w, h);                                                  // a sign
+    const wet = c.createLinearGradient(0, 146, 0, 240); wet.addColorStop(0, col); wet.addColorStop(1, 'rgba(0,0,0,0)'); c.globalAlpha = .45; c.fillStyle = wet; c.fillRect(x + 4, 146, w - 8, 94); c.globalAlpha = 1; }   // and its reflection in the road
+  c.shadowColor = '#ffa646'; c.shadowBlur = 22; c.fillStyle = '#ffd08a'; c.beginPath(); c.arc(214, 40, 6, 0, 6.283); c.fill(); c.shadowBlur = 0;
+  c.strokeStyle = 'rgba(200,215,255,.3)'; c.lineWidth = 1; for (let k = 0; k < 90; k++) { const x = Math.random() * 280, y = Math.random() * 256; c.beginPath(); c.moveTo(x, y); c.lineTo(x - 5, y + 22); c.stroke(); }
+  tex.update();
+  const seen = new B.StandardMaterial('dispatchSeen', S); seen.disableLighting = true; seen.emissiveTexture = tex; seen.alpha = 0; seen.backFaceCulling = false; seen.disableDepthWrite = true;
+  const glimpse = put(B.MeshBuilder.CreateDisc('dispatchSeenDisc', { radius: D.r, tessellation: 40 }, S), seen); glimpse.position.x += .03; glimpse.rotation.y = Math.PI / 2; G.glow.addExcludedMesh(glimpse);
+  const light = { pos: V(D.x - 1.4, D.y, D.z), color: C('#a488ff'), range: 15, intensity: .9, flicker: true }; G.lightSources.push(light);
+  /* the conveyor, and the husks riding it: frames with their limbs folded, a few of them, carried round again once they've gone through */
+  const cx = (D.x0 + D.x) / 2, L = D.x - D.x0;
+  gbox(g.trim, { x: cx, y: .45, z: D.z, w: L, h: .5, d: 1.5, uv: .5 }); gbox(g.rust, { x: cx, y: .74, z: D.z, w: L, h: .06, d: 1.2, ao: false }); ob(cx - .4, D.z, L / 2 - .4, .75, .9);
+  for (let x = D.x0 + .4; x < D.x; x += 1.6) for (const s of [-1, 1]) gbox(g.trim, { x, y: .1, z: D.z + s * .6, w: .15, h: .2, d: .15, ao: false });
+  const f = Geo(); gcyl(f, { r0: .17, r1: .13, h: .68, seg: 6, y: .34, ao: false, tint: .6 }); gbox(f, { x: 0, y: .78, z: 0, w: .26, h: .17, d: .18, ao: false, tint: .6 });
+  for (const s of [-1, 1]) { gcyl(f, { r0: .04, h: .7, seg: 4, x: 0, y: .3, z: s * .23, ao: false, tint: .5 }); gcyl(f, { r0: .045, h: .55, seg: 4, x: .2, y: .08, z: s * .12, rz: Math.PI / 2, ao: false, tint: .5 }); }
+  const frame = gmesh('dispatchFrame', f, MAT.trim), n = Math.ceil(L / D.gap), frames = [frame]; frame.position.set(D.x0, .77, D.z);
+  for (let k = 1; k < n; k++) { const i = frame.createInstance('dispatchFrame' + k); i.position.set(D.x0 + k * D.gap, .77, D.z); i.isPickable = false; frames.push(i); }
+  return { frames, field, seen, light, L, bleedT: 0, nextAt: 0, said: false };
+}
+/* each frame, in a run or in the intro: the husks ride in and are gone in a spark; with `hurt` (the Crucible nearly done) the gate bleeds */
+function runDispatch(dt, hurt) {
+  const D = DISPATCH, d = dispatch;
+  for (const f of d.frames) { f.position.x += D.speed * dt; const k = Math.min(1, (D.x - f.position.x) / .8); f.scaling.setAll(Math.max(.01, k));
+    if (f.position.x >= D.x) { f.position.x -= d.frames.length * D.gap; G.FX.spark(V(D.x - .2, 1.3, D.z), 6); } }
+  d.bleedT -= dt;
+  if (hurt && d.bleedT <= -d.nextAt) { d.bleedT = rand(...D.bleed); d.nextAt = rand(...D.every); G.audio.play('whir', { pos: V(D.x, D.y, D.z), gain: .7, rate: 2.6, len: .8, fade: .3, hear: 90 }); }
+  const on = d.bleedT > 0, k = on ? (Math.random() < .25 ? .3 : 1) : 0;
+  d.seen.alpha += (k * .95 - d.seen.alpha) * Math.min(1, dt * 18); d.field.alpha = .26 * (1 - d.seen.alpha * .8) * (.9 + Math.sin(G.t * 5) * .1);
+  d.light.color.set(on ? 1 : .64, on ? .22 : .53, on ? .78 : 1); d.light.intensity = on ? 1.6 : .9;
+  return on;
+}
 /* A strip of slag on the floor (x0..x1, z0..z1), flowing along its length: dark crust with veins, lit from within as it heats, with lights
    along it that come up with the heat. */
 function slagStrip(name, [x0, z0, x1, z1], lightsAt) {
@@ -356,13 +407,14 @@ export const SURVIVAL = survival({
   preparing: 'Firing up the furnaces…', ambience: AMBIENCE, look: LOOK,
   build: buildRegion, gate: GATE, start: { x: 0, z: -6 },
   saveKey: 'relay-gate-survival-foundry-v1',
-  onIntro: dt => cuts.update(dt),   // walls sink around the shot
-  /* before each run: the hall, a fabricator, a slag channel, a tunnel doorway (intro.js) */
+  onIntro: dt => { cuts.update(dt); runDispatch(dt, false); },   // walls sink around the shot, and the dispatch gate keeps taking husks
+  /* before each run: the hall, a fabricator, a slag channel, a tunnel doorway, the dispatch gate (intro.js) */
   intro: [
     { at: [0, 0, 4], r: 46, a: -2.2, b: .75, hold: 3.2, say: 'This is where they\'re made.' },
     { at: [-22, 3, 20], r: 15, a: -2.1, b: .8, move: 2.4, hold: 3.8, say: 'Every fabricator in these walls is turning them out. Shoot one down and the line slows while it\'s out.' },
     { at: [11, 0, 4], r: 20, a: -2.4, b: .75, move: 2.4, hold: 3.4, say: 'When a furnace pours, get out of the channel. Slag doesn\'t care whose side you\'re on.' },
     { at: [24, 1, 29.5], r: 16, a: -2.25, b: .7, move: 2.4, hold: 4, say: 'There are kill switches behind them, in the tunnels. Too tight for the big ones to follow you in.' },
+    { at: [31, 2.6, 15], r: 17, a: -2.55, b: .95, move: 2.4, hold: 4.2, say: 'And that\'s where they go. Not where. When.' },
   ],
   /* the same pressure as the city; menders come with the groups from the first minute; the Crucible instead of the Warden */
   tune: { gate: null, menders: { from: 1, max: 3, chance: .45 }, boss: { big: 'crucible' } },
@@ -387,10 +439,14 @@ export const SURVIVAL = survival({
     slag = { next: SLAG.first, i: Math.floor(Math.random() * 2), on: null, stage: 'idle', t: 0, drainAt: 1e9, drainEnd: 0, drain: null };
     for (const ch of channels) { ch.heat = ch.drain.heat = 0; ch.stream.setEnabled(false); ch.drain.stream.setEnabled(false); showHeat(ch, 0); showHeat(ch.drain, 0); }
     lurkers = []; lurkAt = LURK.every; for (let k = 0; k < 3; k++) lurk(R, 0, true);
+    dispatch.bleedT = 0; dispatch.nextAt = 0; dispatch.said = false;
   },
   tick(R, run, dt) {
     now = run.time; const min = run.time / 60;
     cuts.update(dt);
+    /* the dispatch gate: with the Crucible nearly done it loses its hold, and for a moment you can see where it leads */
+    { const big = run.big, hurt = !!big && big.alive && big.kind === 'crucible' && big.hp < big.maxHp * DISPATCH.bleedAt;
+      if (runDispatch(dt, hurt) && !dispatch.said) { dispatch.said = true; R.say('Mara: "The dispatch gate. That\'s rain. That\'s not here, and it\'s not now."', '#ffb24a'); } }
     /* fabricators: a destroyed one starts up again after a while; each one down slows the groups */
     let down = 0;
     for (const F of FABS) { const a = F.actor; if (!a || a.alive) continue; down++;

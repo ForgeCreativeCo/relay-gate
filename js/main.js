@@ -26,12 +26,14 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   try { engine = new B.Engine(canvas, true, { stencil: true, antialias: true, powerPreference: 'high-performance' }, true); }
   catch (e) { fail('This browser has WebGL turned off, so the game cannot run here.'); return; }
   const scene = new B.Scene(engine); G.engine = engine; G.scene = scene;
-  /* the arena: Dead City, the Relay Station or the Foundry, picked on the title screen or by the address (?region=2, ?region=3).
+  /* the arena: Dead City, the Relay Station, the Foundry, 1984 or Origin, picked on the title screen or by the address (?region=2 to 5).
      Its look is applied before anything is lit. Inside Claude the address never reaches the page, so with nothing in it the title screen's
      last choice is used, kept in this browser (under the key it had when it chose between the campaign and survival: 'station' still means
-     the station, 'foundry' the Foundry, anything else the city). */
+     the station, 'foundry' the Foundry, 'y1984' 1984, 'origin' Origin, anything else the city).
+     Origin is locked until 1984's big boss has been beaten once (`lock` is the save that says so): a dark slot on the title screen till then. */
   const ARENAS = [{ id: 'city', num: '01', label: 'Dead City', go: 'Play Dead City' }, { id: 'station', num: '02', label: 'Relay Station', go: 'Play the Relay Station' },
-    { id: 'foundry', num: '03', label: 'The Foundry', go: 'Play the Foundry' }];
+    { id: 'foundry', num: '03', label: 'The Foundry', go: 'Play the Foundry' }, { id: 'y1984', num: '04', label: '1984', go: 'Play 1984' },
+    { id: 'origin', num: '05', label: 'Origin', go: 'Play Origin', lock: 'relay-gate-survival-1984-v1', why: 'Beat the Infiltrator in 1984 to open this' }];
   const query = new URLSearchParams(location.search), ARENA_KEY = 'relay-gate-mode';
   let kept = ''; try { kept = localStorage.getItem(ARENA_KEY) || ''; } catch (e) {}
   const asked = query.has('region') && ARENAS.find(a => a.num === query.get('region').padStart(2, '0'));
@@ -40,7 +42,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   /* switch arena: remember it and load again (through the address when the choice can't be kept, or the address is what chose) */
   const play = (which) => { let ok = false; try { localStorage.setItem(ARENA_KEY, which.id); ok = localStorage.getItem(ARENA_KEY) === which.id; } catch (e) {}
     if (ok && !location.search) location.reload(); else location.search = which.num === '01' ? '' : `?region=${+which.num}`; };
-  Object.assign(LOOK, REGION.look || {}); G.R = REGION;
+  Object.assign(LOOK, REGION.look || {}); G.R = REGION; document.body.classList.toggle('bright', !!LOOK.bright);
   /* ask for the account save straight away, in parallel with building the region */
   G.save = makeSave(REGION.save); const savedP = G.save.load();
   scene.clearColor = new B.Color4(...C(LOOK.sky).asArray(), 1); scene.fogMode = B.Scene.FOGMODE_EXP2; scene.fogColor = C(LOOK.fog); scene.fogDensity = LOOK.fogD; scene.ambientColor = new B.Color3(0, 0, 0);
@@ -110,11 +112,12 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   const hint = $('soundHint'), hintT = setInterval(() => { const on = !G.audio.ctx || G.audio.ctx.state === 'running' || G.started; hint.hidden = on;
     if (!on) hint.textContent = (G.input && G.input.mode === 'touch' ? 'Tap' : 'Click') + ' anywhere for sound'; else clearInterval(hintT); }, 400);
   G.progress = freshProgress(); G.inv = newInventory();
-  mark('materials'); G.region = REGION.build(M); mark('region'); G.nav = makeNav(); mark('nav'); makeGroundDetail(scene); mark('ground'); scatterDebris(scene, M); mark('world');
+  mark('materials'); G.region = REGION.build(M); mark('region'); G.nav = makeNav(); mark('nav'); makeGroundDetail(scene); mark('ground'); if (!G.decalHints.noDebris) scatterDebris(scene, M); mark('world');   // (1984 hasn't been wrecked yet)
   G.CB = makeCombat(M); G.drops = makeDrops(M);
   G.input = makeInput(canvas); G.UI = makeUI(); G.game = makeGame(); G.intro = makeIntro();
   G.player = new Player(); G.actors.push(G.player); G.player.pos.set(REGION.start.x, 0, REGION.start.z);
-  G.ally = new Ally(REGION.start.x - 1.6, REGION.start.z - 1.4); G.ally.joined = true; G.actors.push(G.ally);   // Mara is in every run
+  G.ally = new Ally(REGION.start.x - 1.6, REGION.start.z - 1.4); G.actors.push(G.ally);
+  G.ally.joined = !REGION.noAlly; if (!G.ally.joined) { G.ally.untargetable = true; G.ally.root.setEnabled(false); }   // Mara is in every run, except where she can't follow you (1984)
   G.setPaused = (p) => { G.paused = p; G.input.release(); if (p) G.audio.silenceHums(); };
   G.input.on(a => {
     const P = G.player;
@@ -171,11 +174,16 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   engine.runRenderLoop(() => { const raw = engine.getDeltaTime(), dt = Math.min(raw / 1000, .05); governRes(raw); if (G.started && !G.paused) step(dt); scene.render(); });
   if (location.hash === '#debug') window.__G = G;
 
-  /* the arenas: one button each, this one pressed; picking another loads it */
-  const pick = $('arenaPick');
-  for (const a of ARENAS) { const b = document.createElement('button'); b.className = 'btn'; b.type = 'button'; b.textContent = a.label; b.setAttribute('aria-pressed', String(a === HERE));
-    b.onclick = () => { if (a !== HERE) play(a); }; pick.append(b); }
-  G.otherArenas = ARENAS.filter(a => a !== HERE).map(a => ({ label: a.go, use: () => play(a) }));   // the end of a run offers them too
+  /* the arenas: one button each, this one pressed; picking another loads it. A locked one is a dark slot until the save it waits on says
+     its boss is beaten: this browser's copy of that save is read at once, your account's as soon as it answers. */
+  const pick = $('arenaPick'), beaten = st => !!(st && st.progress && st.progress.beatBoss);
+  const open = new Set(ARENAS.filter(a => { if (!a.lock || a === HERE) return true; try { return beaten(JSON.parse(localStorage.getItem(a.lock))); } catch (e) { return false; } }));
+  const offer = () => { G.otherArenas = ARENAS.filter(a => a !== HERE && open.has(a)).map(a => ({ label: a.go, use: () => play(a) })); };   // the end of a run offers them too
+  for (const a of ARENAS) { const b = document.createElement('button'); b.className = 'btn'; b.type = 'button'; b.setAttribute('aria-pressed', String(a === HERE));
+    const show = () => { const on = open.has(a); b.disabled = !on; b.classList.toggle('locked', !on); b.textContent = on ? a.label : 'Locked'; b.title = on ? '' : a.why; };
+    show(); b.onclick = () => { if (a !== HERE && open.has(a)) play(a); }; pick.append(b);
+    if (!open.has(a)) G.save.peek(a.lock).then(st => { if (beaten(st)) { open.add(a); show(); offer(); } }); }
+  offer();
 
   /* ---------- title screen ---------- */
   fit();
@@ -189,7 +197,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   function prepare(s) {
     G.game.clearAll(); G.drops.clear(); G.CB.clear(); G.FX.clearDebris();
     G.progress = freshProgress(); G.settings = Object.assign({}, SETTINGS);
-    if (s) { const p = s.progress || {}; G.progress.best = p.best || 0; G.progress.bestLevel = p.bestLevel || 0; G.progress.seenIntro = !!p.seenIntro; G.settings = Object.assign({}, SETTINGS, s.settings || {}); }
+    if (s) { const p = s.progress || {}; G.progress.best = p.best || 0; G.progress.bestLevel = p.bestLevel || 0; G.progress.seenIntro = !!p.seenIntro; G.progress.beatBoss = !!p.beatBoss; G.progress.fastest = p.fastest || 0; G.settings = Object.assign({}, SETTINGS, s.settings || {}); }
     G.game.spawnAll(); G.game.applyGate();
     const st = REGION.start; G.player.respawn(st.x, st.z); cam.target.set(st.x, 0, st.z); G.ally.teleportNear(G.player.pos);
     G.setQuality(G.settings.quality); G.audio.apply(); if (G.settings.controls !== 'auto') G.input.setMode(G.settings.controls, true); $('fps').hidden = !G.settings.fps;

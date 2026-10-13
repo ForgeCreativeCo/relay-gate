@@ -190,6 +190,9 @@ body.cinema .hud{display:none}
 .btn.danger{border-color:rgba(255,122,106,.5);color:var(--bad)}
 .btn[aria-pressed="true"]{border-color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber)}
 .btn:disabled{opacity:.4;cursor:default}
+.btn.locked{opacity:.3;border-style:dashed;letter-spacing:.2em}
+/* an arena that is mostly white (Origin): the HUD's text needs something darker behind it than a shadow */
+body.bright .hud .obj,body.bright .hud .obj2,body.bright .hud .eyebrow,body.bright .barrow,body.bright .feed div,body.bright .tips,body.bright .mark span,body.bright .weapon{text-shadow:0 0 3px #000,0 0 8px rgba(0,0,0,.95),0 1px 2px #000}
 .muted{color:var(--dim);font-size:13px;line-height:1.5;margin:0}
 
 #title{background:radial-gradient(ellipse at 50% 40%,rgba(31,224,255,.08),rgba(8,9,9,.75) 60%)}

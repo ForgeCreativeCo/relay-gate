@@ -1,4 +1,5 @@
 /* Sound: sample playback through Web Audio. Files live in sfx/; a missing or undecodable file just stays silent.
+   1984 has no recordings of its own yet: its payphones, its rain and its score are made here, out of oscillators and noise.
    Gunfire recordings are bursts, cut into single shots at load so each trigger pull plays one shot in time with the game's fire rate. */
 import { G } from './core.js';
 
@@ -77,6 +78,9 @@ const MUSIC = {
   city: { name: 'musEpic', url: 'sfx/music-epic.mp3', from: 0, to: 185.5, gain: .9 },          // "Epic game music" by Kris Klavenes, freesound_community
   boss: { name: 'musBoss', url: 'sfx/music-boss.mp3', from: .7, to: 33.2, gain: .4 },          // "Total war: epic action cinematic trailer" by audioatlant, before its break
   drums: { name: 'musDrums', url: 'sfx/music-drums.mp3', from: 0, to: 39.3, gain: .3 },     // "Battle warrior fighting drums" by tatamusic
+  /* 1984's score isn't a recording: a drum machine, a bass line and an arpeggio played here (synthTrack below), slower in the lot, faster for its boss */
+  synth: { synth: true, bpm: 104, gain: .5 },
+  synthBoss: { synth: true, bpm: 128, gain: .55, drive: true },
 };
 const MUSIC_FADE = 2;
 const MAX_VOICES = 24, HEAR = 42;   // simultaneous sounds; distance (m) at which machines fall silent
@@ -84,7 +88,7 @@ const MAX_VOICES = 24, HEAR = 42;   // simultaneous sounds; distance (m) at whic
 export function makeAudio() {
   const A = { ctx: null, master: null, buffers: {}, voices: 0 };
   const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) { A.unlock = A.shot = A.play = A.apply = A.updateHums = A.silenceHums = A.startAmbience = A.horn = A.music = () => {}; return A; }
+  if (!AC) { A.unlock = A.shot = A.play = A.apply = A.updateHums = A.silenceHums = A.startAmbience = A.horn = A.music = A.ring = A.preloadMusic = () => {}; return A; }
   A.ctx = new AC();
   A.master = A.ctx.createGain(); A.master.connect(A.ctx.destination);
   A.amb = A.ctx.createGain(); A.amb.connect(A.master);   // ambience has its own level under the master volume
@@ -177,7 +181,7 @@ export function makeAudio() {
 
   /* ---------- ambience ---------- */
   const rnd = ([a, b]) => a + Math.random() * (b - a);
-  const BEDS = (G.R.ambience || AMBIENCE.beds).filter(b => !b.accent), ACCENTS = (G.R.ambience || []).filter(b => b.accent);
+  const BEDS = (G.R.ambience || AMBIENCE.beds).filter(b => !b.accent && !b.synth), ACCENTS = (G.R.ambience || []).filter(b => b.accent), MADE = (G.R.ambience || []).filter(b => b.synth);
   let ambOn = false, bedAt = 0, bedIdx = Math.floor(Math.random() * BEDS.length), firstBed = true, hornAt = 0, accentAt = 0;
   function playBed(bed, when, offset) {
     const buf = A.buffers[bed.name]; if (!buf) return 0;
@@ -213,7 +217,7 @@ export function makeAudio() {
     if (!hornAt) hornAt = now + rnd(AMBIENCE.horn.first);
     if (now >= hornAt) { if (!G.R.noHorn && !G.R.hornSignals) horn(); hornAt = now + rnd(AMBIENCE.horn.every); }   // indoors there's no horn on the wind
     if (ACCENTS.length) { if (!accentAt) accentAt = now + rnd(ACCENTS[0].first); if (now >= accentAt) { const a = ACCENTS[Math.floor(Math.random() * ACCENTS.length)]; accent(a); accentAt = now + rnd(a.every); } }
-    if (bedAt > now + 2) return;
+    if (bedAt > now + 2 || !BEDS.length) return;
     const bed = BEDS[bedIdx]; if (!A.buffers[bed.name]) { bedIdx = (bedIdx + 1) % BEDS.length; return; }
     const when = Math.max(now + .05, bedAt), offset = firstBed ? bed.from + Math.random() * (bed.to - bed.from) * .5 : bed.from;   // start somewhere in the middle the first time
     const dur = playBed(bed, when, offset); firstBed = false;
@@ -222,13 +226,64 @@ export function makeAudio() {
   setInterval(tickAmbience, 1000);
   /* the long soundscapes (~3-4 MB) are fetched only once the game starts, so they don't compete with loading it; the horn only where it sounds */
   let ambLoaded = false;
-  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of BEDS.concat(ACCENTS)) A.load(b.name, b.url); if (!G.R.noHorn || G.R.hornSignals) A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
+  A.startAmbience = () => { ambOn = true; if (!ambLoaded) { ambLoaded = true; for (const b of BEDS.concat(ACCENTS)) A.load(b.name, b.url); for (const b of MADE) if (b.synth === 'rain') rain(b.gain || 1); if (!G.R.noHorn || G.R.hornSignals) A.load(AMBIENCE.horn.name, AMBIENCE.horn.url); } tickAmbience(); };
   A.horn = horn;
+
+  /* ---------- sounds made here instead of played from a file ---------- */
+  const noiseBuf = (() => { const n = A.ctx.sampleRate * 2, b = A.ctx.createBuffer(1, n, A.ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; return b; })();
+  /* rain on tarmac (noise, with the lows and the hiss taken off) and, under it, the mains hum of neon tubes and television sets */
+  function rain(gain) {
+    const src = A.ctx.createBufferSource(), hp = A.ctx.createBiquadFilter(), lp = A.ctx.createBiquadFilter(), g = A.ctx.createGain();
+    src.buffer = noiseBuf; src.loop = true; hp.type = 'highpass'; hp.frequency.value = 900; lp.type = 'lowpass'; lp.frequency.value = 5200; g.gain.value = .11 * gain;
+    src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(A.amb); src.start();
+    for (const [f, v] of [[60, .05], [120, .03], [180, .012]]) { const o = A.ctx.createOscillator(), og = A.ctx.createGain(); o.frequency.value = f; og.gain.value = v * gain; o.connect(og); og.connect(A.amb); o.start(); }
+  }
+  /* a payphone ringing: two bells struck in turn about twenty times a second, for two seconds. pos, and how far it carries */
+  A.ring = (pos, hear = 110) => {
+    if (A.ctx.state !== 'running') return; const at = place(pos, hear); if (!at) return;
+    const t = A.ctx.currentTime, v = .13 * (.25 + .75 * at.gain), out = A.ctx.createGain(), am = A.ctx.createGain(), trem = A.ctx.createOscillator(), depth = A.ctx.createGain(), nodes = [out, am, trem, depth];
+    out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(v, t + .02); out.gain.setValueAtTime(v, t + 1.9); out.gain.linearRampToValueAtTime(0, t + 2);
+    am.gain.value = .5; trem.type = 'square'; trem.frequency.value = 21; depth.gain.value = .5; trem.connect(depth); depth.connect(am.gain); trem.start(t); trem.stop(t + 2.05);
+    for (const [f, k] of [[1180, 1], [1420, .8], [2360, .25], [2840, .18]]) { const o = A.ctx.createOscillator(), og = A.ctx.createGain(); o.frequency.value = f; og.gain.value = k; o.connect(og); og.connect(am); o.start(t); o.stop(t + 2.05); nodes.push(o, og); }
+    let end = out; if (at.pan && A.ctx.createStereoPanner) { const p = A.ctx.createStereoPanner(); p.pan.value = at.pan; out.connect(p); end = p; nodes.push(p); }
+    am.connect(out); end.connect(A.master); setTimeout(() => nodes.forEach(n => n.disconnect()), 2300);
+  };
+  /* 1984's score, played a sixteenth at a time a little ahead of the clock: a kick on every beat, a snare on two and four, hats between,
+     a bass line that bounces an octave, an arpeggio over it and a pad underneath, round four chords (A minor, F, C, G). T.drive: busier
+     and brighter, for the boss. Returns what a recorded track does, so the same code fades it in and out. */
+  function synthTrack(key, T, when) {
+    const C = A.ctx, g = C.createGain(), step = 60 / T.bpm / 4, hz = n => 440 * Math.pow(2, (n - 69) / 12);
+    g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(T.gain, when + MUSIC_FADE); g.connect(A.mus);
+    const bassLP = C.createBiquadFilter(); bassLP.type = 'lowpass'; bassLP.frequency.value = T.drive ? 900 : 620; bassLP.Q.value = 4; bassLP.connect(g);
+    const padLP = C.createBiquadFilter(); padLP.type = 'lowpass'; padLP.frequency.value = 1100; padLP.connect(g);
+    const env = (t, len, v, a = .005) => { const e = C.createGain(); e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(v, t + a); e.gain.exponentialRampToValueAtTime(.0008, t + len); return e; };
+    const tone = (type, f, t, len, v, to, a, detune = 0) => { const o = C.createOscillator(), e = env(t, len, v, a); o.type = type; o.frequency.value = f; o.detune.value = detune; o.connect(e); e.connect(to); o.start(t); o.stop(t + len + .02); o.onended = () => { o.disconnect(); e.disconnect(); }; };
+    const hit = (t, len, v, type, f) => { const s = C.createBufferSource(), q = C.createBiquadFilter(), e = env(t, len, v, .002); s.buffer = noiseBuf; q.type = type; q.frequency.value = f; s.connect(q); q.connect(e); e.connect(g); s.start(t, Math.random(), len + .02); s.onended = () => { s.disconnect(); q.disconnect(); e.disconnect(); }; };
+    const kick = t => { const o = C.createOscillator(), e = env(t, .26, .9, .003); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + .13); o.connect(e); e.connect(g); o.start(t); o.stop(t + .3); o.onended = () => { o.disconnect(); e.disconnect(); }; };
+    const ROOTS = [45, 41, 36, 43], THIRD = [3, 4, 4, 4];   // A2, F2, C2, G2, and whether the chord on each is minor or major
+    let n = 0, next = when;
+    const timer = setInterval(() => {
+      if (C.state !== 'running') return;
+      if (next < C.currentTime) next = C.currentTime + .05;   // the tab was in the background: pick up from now
+      while (next < C.currentTime + .3) {
+        const s = n % 16, bar = (n >> 4) % 4, root = ROOTS[bar], third = THIRD[bar], arp = [0, 7, 12, third + 12, 7, 12, third + 12, 19];
+        if (s % 4 === 0 || (T.drive && s === 14)) kick(next);
+        if (s % 8 === 4) { hit(next, .17, .34, 'bandpass', 1900); tone('triangle', 190, next, .09, .25, g); }
+        if (s % 2 === 0 || T.drive) hit(next, s % 4 === 2 ? .07 : .03, s % 4 === 2 ? .11 : .06, 'highpass', 7500);
+        if (s % 2 === 0) tone('sawtooth', hz(root + (s % 4 === 2 ? 12 : 0)), next, step * 1.8, .2, bassLP);
+        if (bar % 2 === 1 || T.drive || (n >> 6) % 2 === 1) tone('square', hz(root + 24 + arp[s % 8]), next, step * 1.1, .035, g);
+        if (s === 0) for (const [i, d] of [[12, -7], [12 + third, 6], [19, -4]]) tone('sawtooth', hz(root + 12 + i), next, step * 16, .035, padLP, .4, d);
+        next += step; n++;
+      }
+    }, 100);
+    return { key, g, endAt: Infinity, src: { stop: () => { clearInterval(timer); setTimeout(() => { g.disconnect(); bassLP.disconnect(); padLP.disconnect(); }, (MUSIC_FADE + .5) * 1000); } } };
+  }
 
   /* ---------- music ---------- */
   let want = null, cur = null;   // cur: { key, src, g, endAt }
   function track(key, when) {
-    const T = MUSIC[key], buf = T && A.buffers[T.name]; if (!buf) return null;
+    const T = MUSIC[key]; if (T && T.synth) return synthTrack(key, T, when);
+    const buf = T && A.buffers[T.name]; if (!buf) return null;
     const dur = Math.min(T.to, buf.duration) - T.from, src = A.ctx.createBufferSource(), g = A.ctx.createGain(); src.buffer = buf;
     g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(T.gain, when + MUSIC_FADE); g.gain.setValueAtTime(T.gain, when + dur - MUSIC_FADE); g.gain.linearRampToValueAtTime(0, when + dur);
     src.connect(g); g.connect(A.mus); src.start(when, T.from, dur); src.onended = () => { src.disconnect(); g.disconnect(); };
@@ -236,10 +291,10 @@ export function makeAudio() {
   }
   function fadeOut(m) { const t = A.ctx.currentTime; m.g.gain.cancelScheduledValues(t); m.g.gain.setValueAtTime(m.g.gain.value, t); m.g.gain.linearRampToValueAtTime(0, t + MUSIC_FADE); try { m.src.stop(t + MUSIC_FADE + .1); } catch (e) {} }
   /* ask for a track by its key (null for none); it comes in once its file has loaded */
-  A.music = (key) => { want = key || null; const T = want && MUSIC[want]; if (T && !A.buffers[T.name] && !T.loading) { T.loading = true; for (const k in MUSIC) if (MUSIC[k].name === T.name) MUSIC[k].loading = true; A.load(T.name, T.url); } };
+  A.music = (key) => { want = key || null; const T = want && MUSIC[want]; if (T && !T.synth && !A.buffers[T.name] && !T.loading) { T.loading = true; for (const k in MUSIC) if (MUSIC[k].name === T.name) MUSIC[k].loading = true; A.load(T.name, T.url); } };
   A.playing = () => cur && cur.key;   // the track playing now
   /* load ahead the tracks a run might want, so the first boss isn't silent while its file comes down */
-  A.preloadMusic = (keys) => { for (const k of keys) { const T = MUSIC[k]; if (T && !A.buffers[T.name] && !T.loading) { for (const j in MUSIC) if (MUSIC[j].name === T.name) MUSIC[j].loading = true; A.load(T.name, T.url); } } };
+  A.preloadMusic = (keys) => { for (const k of keys) { const T = MUSIC[k]; if (T && !T.synth && !A.buffers[T.name] && !T.loading) { for (const j in MUSIC) if (MUSIC[j].name === T.name) MUSIC[j].loading = true; A.load(T.name, T.url); } } };
   setInterval(() => {
     if (A.ctx.state !== 'running') return;
     const now = A.ctx.currentTime;
