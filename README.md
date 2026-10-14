@@ -186,10 +186,12 @@ The campaign (a level-by-level run through Dead City, with the Rust Dogs raiders
 
 1. **WASD movement on desktop.** Right-click to walk is awkward for dodging round a crowd. Phones already use a joystick.
 2. **Something that carries over between runs** (gear, unlocks or a starting choice), once the core run is fun on its own.
-3. **Origin's lobby.** All five arenas have been played through and run well, but Origin is over in about half the time of the others. It gets a first act: a gunfight in a new, bigger lobby before the lab. The plan is under **Origin: the lobby** below.
+3. **Playing Origin's lobby in.** It's built (see The arenas), from the plan under **Origin: the lobby** below, but only checked, not played: every number in it is a first guess, and the pillars and the second Infiltrator are the first things to try.
 4. **Tuning.** Spawn rates, the difficulty ramp, boss timing, upgrade values and the scrap costs keep getting tuned by playing.
 
 ### Origin: the lobby
+
+Built, as described under The arenas; this is the plan it was built from. The questions it left open were settled as: the first machine still gets up after the third wipe, or five minutes into the lab; most of the confession plays as the checkpoint opens; and the counts are first guesses (`LOBBY` in `js/region5.js`). Added beyond the plan: drones in the later waves, since nothing else in them shoots the pillars; the Infiltrators fire into the pillar you're behind; the checkpoint never opens before 2:30; and a first-aid cabinet in the lobby.
 
 Origin is the only arena that can be won, and its record is the fastest win, so it rewards rushing: six six-second wipes, with the first machine up after the third, and a good run is over in about five minutes against everyone else's ten. It needs a first act, and the act is a gunfight in the building's front lobby. The feel to aim for is a big formal lobby that gets taken apart by the fight: stone pillars, a marble floor, a security desk, and dust, sparks and chunks of stone everywhere. Nothing from any film beyond that feel.
 
