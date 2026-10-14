@@ -8,8 +8,9 @@ export const CUT_H = .7;   // what's left standing of a sunk piece
 export function makeCuts() {
   const list = [];   // { x0, z0, x1, z1, node, h, k }
   return {
-    /* node: what sinks (it stands at y 0); the rectangle it covers on the ground; how tall it is */
-    add(node, x0, z0, x1, z1, h) { const c = { x0, z0, x1, z1, node, h, k: 0 }; list.push(c); return c; },
+    /* node: what sinks (it stands at y 0); the rectangle it covers on the ground; how tall it is. fade: it fades to a ghost of itself
+       instead of sinking (something whose top would look odd at knee height on its own, like a door's frame) */
+    add(node, x0, z0, x1, z1, h, fade) { const c = { x0, z0, x1, z1, node, h, k: 0, fade: fade && node.getChildMeshes() }; list.push(c); return c; },
     update(dt) {
       /* around you, or (during an arena's intro) around what the camera is looking at; toward the camera along the ground, and across */
       const p = G.intro && G.intro.playing ? G.camera.target : G.player.pos, a = G.camera.alpha, cx = Math.cos(a), cz = Math.sin(a), px = -cz, pz = cx;
@@ -21,7 +22,7 @@ export function makeCuts() {
             if (x > c.x0 - .2 && x < c.x1 + .2 && z > c.z0 - .2 && z < c.z1 + .2) { want = 1; break look; }
           }
         c.k += (want - c.k) * damp(want ? 9 : 3, dt);
-        c.node.position.y = -c.k * (c.h - CUT_H);
+        if (c.fade) for (const m of c.fade) m.visibility = 1 - c.k * .88; else c.node.position.y = -c.k * (c.h - CUT_H);
       }
     },
   };

@@ -93,12 +93,33 @@ const TAPES = [
 
 /* ---------- the map ---------- */
 const cuts = makeCuts();
-let prop = null, rigLight = null, shutters = [], gate = null, doors = null, pillars = null, now = 0;
+let prop = null, rigLight = null, shutters = [], gate = null, doors = null, pillars = null, beacon = null, now = 0;
+/* the checkpoint's security lights: 'sealed' (flashing red), 'open' (steady green) or off. They flash by the wall clock, so they keep
+   going through the intro and the checkpoint's scene, while the world is stopped */
+function setBeacon(state) {
+  const on = state === 'sealed' ? (Math.sin(performance.now() / 1000 * 7) > 0 ? 1 : .12) : state === 'open' ? .8 : 0, col = state === 'open' ? [.25, 1, .45] : [1, .23, .19];
+  beacon.mat.emissiveColor.set(col[0] * Math.max(on, .1), col[1] * Math.max(on, .1), col[2] * Math.max(on, .1));
+  for (const l of beacon.lights) { l.color.set(...col); l.intensity = state === 'sealed' ? on * 1.4 : on * .6; }
+}
 /* a flat panel with something drawn on it (a sign, a whiteboard, a badge), w by h metres, facing south; dim: how far under full brightness it sits */
 function panel(name, w, h, px, draw, glow = .25) {
   const S = G.scene, t = new B.DynamicTexture(name, { width: px, height: Math.round(px * h / w) }, S, true), c = t.getContext(); draw(c, px, Math.round(px * h / w)); t.update();
   const m = new B.StandardMaterial(name + 'M', S); m.diffuseTexture = t; m.emissiveTexture = t; t.level = 1 - glow; m.diffuseColor = new B.Color3(0, 0, 0); m.specularColor = new B.Color3(0, 0, 0); m.disableLighting = true;   // lit by itself, a little under full, so it sits in the room without going grey in a shadow
   const p = B.MeshBuilder.CreatePlane(name, { width: w, height: h }, S); p.material = m; p.isPickable = false; return p;
+}
+/* the lobby's floor: big polished slabs, cream and pale grey in a checkerboard, with faint veins and fine joints between them. Four slabs
+   to a tile; the floor lays one tile every four metres, so each slab is two metres across */
+function marbleTex(S) {
+  const N = 512, t = new B.DynamicTexture('marbleTex', { width: N, height: N }, S, true), c = t.getContext(), h = N / 2;
+  for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) { const x = i * h, y = j * h, light = (i + j) % 2 === 0;
+    c.fillStyle = light ? '#cfc8bb' : '#aaa499'; c.fillRect(x, y, h, h);
+    const gr = c.createLinearGradient(x, y, x + h, y + h); gr.addColorStop(0, 'rgba(255,255,255,.08)'); gr.addColorStop(1, 'rgba(0,0,0,.05)'); c.fillStyle = gr; c.fillRect(x, y, h, h);
+    c.save(); c.beginPath(); c.rect(x, y, h, h); c.clip();
+    for (let k = 0; k < 5; k++) { c.strokeStyle = `rgba(${light ? '120,112,100' : '96,92,88'},${sr(.08, .2)})`; c.lineWidth = sr(.6, 2.2); c.beginPath(); let px = x + sr(-20, h), py = y + sr(0, h); c.moveTo(px, py);
+      for (let s = 0; s < 4; s++) { const nx = px + sr(30, 90), ny = py + sr(-50, 50); c.bezierCurveTo(px + sr(0, 40), py + sr(-30, 30), nx - sr(0, 40), ny + sr(-30, 30), nx, ny); px = nx; py = ny; } c.stroke(); }
+    c.restore(); }
+  c.strokeStyle = 'rgba(70,64,56,.55)'; c.lineWidth = 2; for (const k of [0, h, N]) { c.beginPath(); c.moveTo(k, 0); c.lineTo(k, N); c.moveTo(0, k); c.lineTo(N, k); c.stroke(); }
+  t.update(); t.wrapU = t.wrapV = B.Texture.WRAP_ADDRESSMODE; return t;
 }
 /* marker-pen sketches of things that don't exist yet: what goes on the whiteboards */
 const SKETCH = {
@@ -125,7 +146,7 @@ export function buildRegion(M) {
     wall: mat('oWall', '#d6d4cd', conc), trim: mat('oTrim', '#b6b0a2', { tex: M.crate.albedoTexture, spec: .1 }), blue: mat('oBlue', '#2f5f9e'),
     tile: mat('oTile', '#b9bbc0', { tex: M.pave.diffuseTexture, bump: M.pave.bumpTexture, spec: .25, power: 48 }), carpet: mat('oCarpet', '#7c8674', { tex: M.trunk.diffuseTexture }),
     raised: mat('oRaised', '#9a9da4', { tex: M.crate.albedoTexture, bump: M.crate.bumpTexture, spec: .2 }), clean: mat('oClean', '#c6d0d6', { tex: M.pave.diffuseTexture, spec: .35, power: 64 }),
-    marble: mat('oMarble', '#d6d0c4', { tex: M.pave.diffuseTexture, spec: .55, power: 96 }), stone: mat('oStone', '#e0dace', { tex: M.conc.diffuseTexture, bump: M.conc.bumpTexture, bumpLevel: .4, spec: .12 }),
+    marble: mat('oMarble', '#ffffff', { tex: marbleTex(S), spec: .35, power: 110 }), stone: mat('oStone', '#e0dace', { tex: M.conc.diffuseTexture, bump: M.conc.bumpTexture, bumpLevel: .4, spec: .12 }),
     glass: mat('oGlass', '#9fc4d6', { alpha: .22, spec: .9, power: 128 }),
     beige: mat('oBeige', '#d2c5a4', { spec: .12 }), dark: mat('oDark', '#2b2c30', { tex: M.crate.albedoTexture, spec: .15 }), hazard: mat('oHazard', '#c9a13a'), steel: mat('oSteel', '#aeb4bc', { metal: .8, rough: .35, env: 1.4 }),
     strip: lit('oStrip', '#f4f8ff'), green: lit('oGreen', '#39ff7a'), amber: lit('oAmber', '#ffb040'), red: lit('oRed', '#ff3a30'), led: lit('oLed', '#58f0c8'),
@@ -144,7 +165,7 @@ export function buildRegion(M) {
     ob(cx, cz, (x1 - x0) / 2, (z1 - z0) / 2, WALL_H);
     if (!sinks) return;
     const node = new B.TransformNode('wallCut', S); for (const k in gg) gmesh('wallCut_' + k, gg[k], MAT[k], { parent: node, shadow: k !== 'strip' }); cuts.add(node, x0, z0, x1, z1, WALL_H);
-  }, (zone, x, z, w, d) => gbox(g[zone], { x, y: -.05, z, w, h: .1, d, uv: zone === 'raised' ? .5 : zone === 'carpet' ? .5 : 1 / 3, ao: false, noBottom: true }));
+  }, (zone, x, z, w, d) => gbox(g[zone], { x, y: -.05, z, w, h: .1, d, uv: zone === 'raised' ? .5 : zone === 'carpet' ? .5 : zone === 'marble' ? .25 : 1 / 3, ao: false, noBottom: true }));
   /* ceiling lights, as lamps for whatever is under them */
   for (const [x, z] of [[0, -49], [-8, -42], [8, -42], [0, -35], [-18, -42], [18, -42], [0, -25], [-20, -15], [18, -15], [-25, 0], [0, 5], [27, 2], [0, 24], [-8, 9], [8, 0]]) G.lightSources.push({ pos: V(x, 3.4, z), color: C('#f2f6ff'), range: 15, intensity: 1 });
 
@@ -166,7 +187,7 @@ export function buildRegion(M) {
     for (const s of [-1, 1]) gbox(fr, { x: s * .2, y: 1.1, z: .1, w: .05, h: .6, d: .05, ao: false });   // handles
     for (const dx of [-3 * w / 8, -w / 8, w / 8, 3 * w / 8]) gbox(gl, { x: dx, y: 1.6, z: 0, w: w / 4 - .12, h: 3.05, d: .03, ao: false });
     gmesh('doorFrame', fr, MAT.steel, { parent: n }); const pane = gmesh('doorGlass', gl, MAT.glass, { parent: n, shadow: false }); n.position.set(x, 0, z);
-    cuts.add(n, x - w / 2, z - .2, x + w / 2, z + .2, WALL_H);
+    cuts.add(n, x - w / 2, z - .2, x + w / 2, z + .2, WALL_H, true);
     doors = { pane, ob: ob(x, z, w / 2, .15, WALL_H), broken: false }; }
   /* the metal detectors: two arches you walk through */
   for (const x of [-1.5, 1.5]) { for (const s of [-1, 1]) gbox(g.beige, { x: x + s * .55, y: 1.05, z: -49.5, w: .14, h: 2.1, d: .5 }); gbox(g.beige, { x, y: 2.17, z: -49.5, w: 1.24, h: .16, d: .5, ao: false }); gbox(g.led, { x: x + .3, y: 2.26, z: -49.7, w: .14, h: .03, d: .05, ao: false }); }
@@ -180,6 +201,13 @@ export function buildRegion(M) {
       c.fillStyle = '#23344e'; c.textBaseline = 'middle'; c.font = '700 44px Georgia, "Times New Roman", serif'; c.fillText(COMPANY, 76, H / 2 + 2); }, .1); p.position.set(-7.5, 2.6, -32.04); }
   /* the doors at the far end of each side corridor, where machines come in */
   for (const s of [-1, 1]) { gbox(g.dark, { x: s * 22.05, y: 1.1, z: -42, w: .1, h: 2.2, d: 1.8, ao: false }); gbox(g.amber, { x: s * 21.98, y: 1.6, z: -42, w: .02, h: .3, d: .5, ao: false }); }
+  /* round lights hung from the ceiling down the hall, a steel rim round each */
+  for (const [x, z] of [[0, -48.5], [0, -42], [0, -35.5], [-10.5, -45], [10.5, -45], [-10.5, -38], [10.5, -38]]) {
+    gcyl(g.strip, { r0: .42, h: .04, seg: 16, x, y: 3.52, z, ao: false }); gcyl(g.steel, { r0: .52, r1: .5, h: .12, seg: 16, x, y: 3.6, z, ao: false, cap: false }); }
+  /* the security lights either side of the way through: red and flashing while the checkpoint is sealed, green once it opens (setBeacon) */
+  { const bg = Geo(); for (const z of [-32.07, -19.07]) for (const s of [-1, 1]) { gbox(g.dark, { x: s * 2.9, y: 3.05, z: z + .03, w: .8, h: .46, d: .06, ao: false }); gbox(bg, { x: s * 2.9, y: 3.05, z: z - .03, w: .64, h: .3, d: .1, ao: false }); }
+    beacon = { mat: lit('oBeacon', '#ff3a30'), lights: [-33.5, -20.5].map(z => ({ pos: V(0, 3, z), color: C('#ff3a30'), range: 15, intensity: 0 })) };
+    gmesh('beacons', bg, beacon.mat, { shadow: false, freeze: true }); G.lightSources.push(...beacon.lights); }
   /* the pillars (pillars.js) */
   pillars = makePillars(PILLARS, MAT.stone, cuts, ob);
 
@@ -254,6 +282,8 @@ function setShutter(sh, down, quiet) {
 }
 /* shutters slide toward where they're meant to be */
 function moveShutters(dt) { for (const s of [...shutters, gate]) { s.k += ((s.down ? 1 : 0) - s.k) * damp(s === gate ? 1.6 : 5, dt); s.slab.scaling.y = Math.max(.001, s.k); } }
+/* what the security lights should be showing: sealed through the lobby, green as it opens and for a while after you're through, then off */
+const beaconNow = () => setBeacon(lab.act !== 'lobby' ? (now - lab.labAt < 20 ? 'open' : 'off') : ['open', 'through'].includes(lab.lobby.stage) ? 'open' : 'sealed');
 /* the front doors: whole at the start of a run; the first Infiltrator walks through the glass */
 function setDoors(broken, quiet) {
   if (doors.broken === broken) return false; doors.broken = broken; doors.pane.setEnabled(!broken);
@@ -391,7 +421,7 @@ export const SURVIVAL = survival({
   saveKey: 'relay-gate-survival-origin-v2',   // v2: the lobby came in, and the fastest wins before it were on a shorter course
   noAlly: true, winnable: true,
   lost: 'The research is still there. Every run starts again from the starter rifle at level 1.',
-  onIntro: dt => { cuts.update(dt); moveShutters(dt); },
+  onIntro: dt => { cuts.update(dt); moveShutters(dt); if (lab) beaconNow(); },
   /* before each run: the front doors, the lobby, the sealed checkpoint (intro.js). The rest of what she has to say waits for the checkpoint
      opening (OPENING above) */
   intro: [
@@ -428,7 +458,7 @@ export const SURVIVAL = survival({
     for (const s of shutters) { if (setShutter(s, false, true)) moved = true; s.k = 0; s.slab.scaling.y = .001; s.until = 0; }
     if (setShutter(gate, true, true)) moved = true; gate.k = 1; gate.slab.scaling.y = 1;
     if (setDoors(false, true)) moved = true; if (moved && G.nav) G.nav = makeNav();
-    pillars.reset();
+    pillars.reset(); setBeacon('sealed');
     prop.setEnabled(true); rigLight.intensity = 1.5; G.marks = [];
     /* the prototypes: husks, paler and not as strong, lying where they were being built */
     for (const [x, z, face] of PROTOS) lab.protos.push(R.add(pale(new Husk(x, z, { slumped: true, face, leash: 1e9, wakeR: 4 }))));
@@ -444,6 +474,7 @@ export const SURVIVAL = survival({
     for (const t of TERMINALS) if (!t.wiped) { const w = G.game.working(), on = w && w.label.startsWith(`Wipe ${t.name}`), k = on ? (Math.random() < .5 ? .3 : 1) : .8 + .2 * Math.sin(G.t * 3 + t.x); t.mat.emissiveColor.set(on ? k : .22 * k, k, on ? .3 * k : .48 * k); }
     for (const m of MEDS) m.mat.emissiveColor.set(now >= m.readyAt ? .35 : .5, now >= m.readyAt ? 1 : .12, now >= m.readyAt ? .44 : .08);
     /* the first act: the lobby, until you're through the checkpoint */
+    beaconNow();
     if (lab.act === 'lobby') { lobbyTick(R, run);
       G.marks = lab.lobby.stage === 'through' ? [{ pos: V(CHECKPOINT.x, 0, CHECKPOINT.z), h: 2.6, label: 'Checkpoint · On to the lab', color: '#1fe0ff' }] : []; return; }
     /* the find gets up: a few wipes in, after a warning, or once it's waited long enough. It comes without whatever has already been wiped */
