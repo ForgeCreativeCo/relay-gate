@@ -94,7 +94,8 @@ const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(
    win, not the longest run. run.hold keeps the ordinary groups (and the walkers levels earn) away while an arena runs a stretch of its
    own, and run.late is how many seconds of the clock that stretch took: the pressure curve starts from there. run.enlist(machine) brings
    in one of the arena's own. onBossPhase(R, boss, phase, run), where an arena has it, answers a boss's phases instead of the usual call
-   for help. */
+   for help. afterWin(card, saved), where an arena has it, is given the win's card (and the save's promise) instead of it being shown:
+   true if it has taken it. */
 export function survival(arena) {
   const T = Object.assign({}, TUNE, arena.tune), GATE = arena.gate, START = arena.start;
   T.boss = Object.assign({}, TUNE.boss, arena.tune && arena.tune.boss); const BIG = BIGS[T.boss.big];
@@ -252,10 +253,12 @@ export function survival(arena) {
       RUN.boss = (x, z) => { const w = BIG.make(x, z); RUN.big = w; RUN.bigs++; enlist(R, w); G.UI.boss(w); return w; };
       /* the run is won (an arena that can be): the clock stops, the fastest win is kept, and the card says so. card: what to say on it */
       RUN.win = (card = {}) => { if (RUN.over) return; RUN.over = true; G.audio.music(null);
-        const P = G.progress, t = RUN.time, was = P.fastest || 0, record = !was || t < was; if (record) P.fastest = t; G.save.now();
-        G.UI.endCard(Object.assign({ tag: `Survival · ${arena.name}`, name: `Done in ${clock(t)}`,
+        const P = G.progress, t = RUN.time, was = P.fastest || 0, record = !was || t < was; if (record) P.fastest = t; const saved = G.save.now();
+        const full = Object.assign({ tag: `Survival · ${arena.name}`, name: `Done in ${clock(t)}`,
           record: record ? (was ? `New fastest · The one to beat was ${clock(was)}` : 'Your first time through') : `Your fastest is ${clock(was)}`, isRecord: record, text: '',
-          stats: [[RUN.level, 'Level reached'], [P.kills, 'Machines down'], ...(arena.stats ? arena.stats(RUN) : [])], taken: taken(), again: 'Run again', others: G.otherArenas }, card)); };
+          stats: [[RUN.level, 'Level reached'], [P.kills, 'Machines down'], ...(arena.stats ? arena.stats(RUN) : [])], taken: taken(), again: 'Run again', others: G.otherArenas }, card);
+        if (arena.afterWin && arena.afterWin(full, saved)) return;   // the arena takes the card somewhere else (Origin: to the city's ending)
+        G.UI.endCard(full); };
       if (arena.begin) arena.begin(R, RUN);
     },
     interactables(R, progress, L) { if (arena.interactables) arena.interactables(L); },   // things to walk up to and use (the Foundry's kill switches)

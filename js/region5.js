@@ -20,6 +20,7 @@ import { Infiltrator, INFILTRATOR } from './infiltrator.js';
 import { makePillars } from './pillars.js';
 import { rollLoot } from './loot.js';
 import { survival } from './survival.js';
+import { ENDING_KEY } from './ending.js';
 
 /* The company whose lab this is. A placeholder: it hasn't been named yet, and whatever it ends up as shouldn't be a real firm's name. */
 const COMPANY = 'HALVORSEN LABS';
@@ -405,13 +406,23 @@ const OUTRO = [
   { at: [0, 2, 2], r: 46, a: -2.2, b: .6, move: 3, hold: 3.5, who: '', say: 'The radio goes quiet.' },
   { at: [1.4, 1, -22], r: 10, a: -2.2, b: .9, move: 3.2, hold: 4.5, who: '', say: 'Then, at reception, a telephone rings.' },
   { at: [1.4, 1, -22], r: 7, a: -2.1, b: .95, move: 1.5, hold: 6.5, who: 'A voice you almost know', say: '"Hello? … No. Nobody by that name works here. I only started on Monday."' },
-  { at: [0, 6, 0], r: 60, a: -2.25, b: .35, move: 4, hold: 5.5, who: '', say: 'She never takes it apart. In the city the sky is clear, and the gate is dark.' },
+  { at: [0, 6, 0], r: 60, a: -2.25, b: .35, move: 4, hold: 5.5, who: '', say: 'She never takes it apart. So nothing is ever copied from it.' },
 ];
+/* After the ending, the win goes on to the city's (ending.js): the record is saved first, then the card is left for it and the page loads
+   again. Where this browser can't keep the card, the card is shown here as before */
+function toTheCity(card, saved) {
+  const keep = { ...card, others: undefined }; let left = false;
+  for (const st of ['sessionStorage', 'localStorage']) { if (left) break; try { window[st].setItem(ENDING_KEY, JSON.stringify(keep)); left = window[st].getItem(ENDING_KEY) !== null; } catch (e) {} }
+  if (!left) return false;
+  G.UI.objective('');
+  Promise.race([Promise.resolve(saved).catch(() => {}), new Promise(r => setTimeout(r, 4000))]).then(() => location.reload());
+  return true;
+}
 function ending(run) {
   lab.over = true; G.setPaused(true); G.audio.music(null); G.marks = [];
   for (const ms of [12600, 15600]) setTimeout(() => { if (G.intro.playing) G.audio.ring(V(1.4, 0, -22), 400); }, ms);
   G.intro.play(OUTRO, () => run.win({ name: `You erased it in ${clock(run.time)}`,
-    text: 'The research is gone and the first machine with it. Nothing you fought to get here was ever built. Nobody called Mara ever talked you through it.' }), { watch: !G.progress.fastest, music: false });
+    text: 'The research is gone and the first machine with it. Nothing you fought to get here was ever built. Nobody called Mara ever talked you through it.' }), { watch: !G.progress.fastest, music: false, stay: true });
 }
 export const SURVIVAL = survival({
   num: '05', name: 'Origin',
@@ -419,7 +430,7 @@ export const SURVIVAL = survival({
   preparing: 'Finding where it began…', indoor: true, noHorn: true, ambience: AMBIENCE, look: LOOK,
   build: buildRegion, start: START,
   saveKey: 'relay-gate-survival-origin-v2',   // v2: the lobby came in, and the fastest wins before it were on a shorter course
-  noAlly: true, winnable: true,
+  noAlly: true, winnable: true, afterWin: toTheCity,
   lost: 'The research is still there. Every run starts again from the starter rifle at level 1.',
   onIntro: dt => { cuts.update(dt); moveShutters(dt); if (lab) beaconNow(); },
   /* before each run: the front doors, the lobby, the sealed checkpoint (intro.js). The rest of what she has to say waits for the checkpoint

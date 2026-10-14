@@ -6,7 +6,8 @@
      who: whose line it is, if not hers ('' for nobody's: a line of narration) }.
    The last shot always returns to you, at the game's own camera. The same thing plays an arena's ending, with opts { watch: true }
    so it can't be skipped, { music: false } so the music is left as it is, and { stay: true } so it ends on its own last shot instead
-   of coming back to you. A shot with nothing to say clears the line. */
+   of coming back to you ({ keep: true } as well: the camera is left on that shot afterwards, even when it's skipped). A shot with
+   nothing to say clears the line. */
 import { B, G, V, damp } from './core.js';
 
 const $ = id => document.getElementById(id);
@@ -21,7 +22,8 @@ export function makeIntro() {
   ['keydown', 'pointerdown'].forEach(ev => window.addEventListener(ev, onSkip, true));
   function finish() {
     if (!run) return; const r = run; run = null; box.hidden = true; document.body.classList.remove('cinema');
-    const cam = G.camera, p = G.player.pos; cam.target.set(p.x, 0, p.z); cam.radius = G.zoom; cam.alpha = CAM.a; cam.beta = CAM.b;
+    if (!r.keep) { const cam = G.camera, p = G.player.pos; cam.target.set(p.x, 0, p.z); cam.radius = G.zoom; cam.alpha = CAM.a; cam.beta = CAM.b; }   // (the city's ending keeps its last view under the card)
+    if (r.keep) { const s = r.shots[r.shots.length - 1], cam = G.camera; cam.target.set(...s.at); cam.radius = s.r; if (s.a != null) cam.alpha = s.a; if (s.b != null) cam.beta = s.b; }
     G.progress.seenIntro = true; G.save.soon();
     r.done();
   }
@@ -47,7 +49,7 @@ export function makeIntro() {
       if (opts.music !== false) G.audio.music(G.R.introMusic || 'title');   // the title's music carries it, or the arena's own for it (the run's takes over once it starts)
       const p = G.player.pos, home = { at: [p.x, 0, p.z], r: G.zoom, a: CAM.a, b: CAM.b, move: 2, hold: .6 };
       const all = opts.stay ? shots : [...shots, home], first = all[0];
-      run = { shots: all, i: 0, t: 0, done, skippable: !opts.watch && !!G.progress.seenIntro,
+      run = { shots: all, i: 0, t: 0, done, keep: !!opts.keep, skippable: !opts.watch && !!G.progress.seenIntro,
         from: { at: first.at, r: first.r, a: first.a == null ? CAM.a : first.a, b: first.b == null ? CAM.b : first.b } };
       skip.hidden = !run.skippable; skip.textContent = G.input.mode === 'touch' ? 'Tap to skip' : 'Press any key to skip';
       box.hidden = false; document.body.classList.add('cinema'); say(first);

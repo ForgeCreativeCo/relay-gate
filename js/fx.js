@@ -42,10 +42,12 @@ export function makeFx() {
   FX.explode = (pos, size = 1) => { emit(FX.fire, pos, 120 * size | 0); emit(FX.smoke, pos, 40 * size | 0); emit(FX.sparks, pos, 70 * size | 0); G.boom(pos, 5 + 4 * size); G.shake = Math.max(G.shake, .35 * size); };
   FX.dustAt = (pos, n = 60) => emit(FX.dust, pos, n);
   FX.puffAt = (pos, n = 6) => emit(FX.puff, pos, n);
+  /* a fire that burns for good: flames, embers and smoke (returned, so it can be put out) */
   FX.campfire = (pos) => {
-    cfg(ps('fire', 300, pos.clone()), { c1: [1, .62, .18, 1], c2: [1, .32, .06, 1], size: [.25, .6], life: [.3, .75], rate: 70, box: [[-.3, 0, -.3], [.3, .2, .3]], d1: [-.2, 1, -.2], d2: [.2, 1.6, .2], pow: [1, 2], add: true }).start();
-    cfg(ps('embers', 120, pos.add(V(0, .3, 0))), { c1: [1, .7, .3, 1], c2: [1, .45, .1, 1], size: [.04, .09], life: [1.4, 3], rate: 12, d1: [-.6, 1, -.6], d2: [.6, 2, .6], pow: [.6, 1.6], add: true }).start();
-    cfg(ps('smoke', 80, pos.add(V(0, 1.1, 0))), { c1: [.25, .23, .22, .35], c2: [.35, .33, .3, .25], size: [.8, 1.8], life: [3, 5], rate: 6, d1: [-.2, 1, -.2], d2: [.3, 1.4, .2], pow: [.4, .8] }).start();
+    const L = [cfg(ps('fire', 300, pos.clone()), { c1: [1, .62, .18, 1], c2: [1, .32, .06, 1], size: [.25, .6], life: [.3, .75], rate: 70, box: [[-.3, 0, -.3], [.3, .2, .3]], d1: [-.2, 1, -.2], d2: [.2, 1.6, .2], pow: [1, 2], add: true }),
+      cfg(ps('embers', 120, pos.add(V(0, .3, 0))), { c1: [1, .7, .3, 1], c2: [1, .45, .1, 1], size: [.04, .09], life: [1.4, 3], rate: 12, d1: [-.6, 1, -.6], d2: [.6, 2, .6], pow: [.6, 1.6], add: true }),
+      cfg(ps('smoke', 80, pos.add(V(0, 1.1, 0))), { c1: [.25, .23, .22, .35], c2: [.35, .33, .3, .25], size: [.8, 1.8], life: [3, 5], rate: 6, d1: [-.2, 1, -.2], d2: [.3, 1.4, .2], pow: [.4, .8] })];
+    L.forEach(p => p.start()); return L;
   };
   FX.smokeFrom = (emitter, big) => cfg(ps('smk', big ? 220 : 90, emitter), { c1: [.14, .13, .13, .6], c2: [.26, .25, .24, .45], size: big ? [1, 2.6] : [.4, 1.1], life: [1.5, big ? 4.5 : 2.8], d1: [-.3, 1, -.3], d2: [.3, 1.6, .3], pow: [.6, 1.4], rate: big ? 22 : 12 });
   /* ---------- combat visuals ---------- */

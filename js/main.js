@@ -13,6 +13,7 @@ import { makeSave } from './save.js';
 import { makeGame, freshProgress } from './game.js';
 import { makeUI } from './ui.js';
 import { makeIntro } from './intro.js';
+import { runEnding, ENDING_KEY } from './ending.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('c'); G.canvas = canvas;
@@ -37,14 +38,19 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   const query = new URLSearchParams(location.search), ARENA_KEY = 'relay-gate-mode';
   let kept = ''; try { kept = localStorage.getItem(ARENA_KEY) || ''; } catch (e) {}
   const asked = query.has('region') && ARENAS.find(a => a.num === query.get('region').padStart(2, '0'));
-  const HERE = asked || ARENAS.find(a => a.id === kept) || ARENAS[0];
+  /* The city's ending (ending.js): after a win, Origin leaves its card here and loads the page again. It's read once, then gone, so a
+     reload goes back to Origin's title screen */
+  let ENDING = null; for (const st of ['sessionStorage', 'localStorage']) try { const s = window[st], t = s.getItem(ENDING_KEY); if (t) { s.removeItem(ENDING_KEY); ENDING = ENDING || JSON.parse(t); } } catch (e) {}
+  const HERE = ENDING ? ARENAS[0] : asked || ARENAS.find(a => a.id === kept) || ARENAS[0];
   const REGION = (await import(`./region${+HERE.num}.js`)).SURVIVAL;
   /* switch arena: remember it and load again (through the address when the choice can't be kept, or the address is what chose) */
   const play = (which) => { let ok = false; try { localStorage.setItem(ARENA_KEY, which.id); ok = localStorage.getItem(ARENA_KEY) === which.id; } catch (e) {}
     if (ok && !location.search) location.reload(); else location.search = which.num === '01' ? '' : `?region=${+which.num}`; };
   Object.assign(LOOK, REGION.look || {}); G.R = REGION; document.body.classList.toggle('bright', !!LOOK.bright);
   /* ask for the account save straight away, in parallel with building the region */
-  G.save = makeSave(REGION.save); const savedP = G.save.load();
+  /* (the ending saves nothing: it isn't a run of the city, and must leave the city's record alone) */
+  G.save = ENDING ? { where: '', load: async () => null, peek: async () => null, soon() {}, now: async () => {}, wipe: async () => {} } : makeSave(REGION.save); const savedP = G.save.load();
+  if (ENDING) G.ending = { buildings: [], fires: [], trees: [], thin: [], camps: [], wreck: [] };   // region1.js keeps the city's pieces apart in here
   scene.clearColor = new B.Color4(...C(LOOK.sky).asArray(), 1); scene.fogMode = B.Scene.FOGMODE_EXP2; scene.fogColor = C(LOOK.fog); scene.fogDensity = LOOK.fogD; scene.ambientColor = new B.Color3(0, 0, 0);
   scene.skipPointerMovePicking = true;
   G.machineColor = C(LOOK.machine);
@@ -82,6 +88,7 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
   const curves = new B.ColorCurves(); curves.globalSaturation = LOOK.sat;
   curves.highlightsHue = 35; curves.highlightsDensity = 30; curves.highlightsSaturation = 20;
   ip.colorCurvesEnabled = true; ip.colorCurves = curves;
+  G.look = { hemi, sun, ip, curves, pipe };   // for the city's ending, which turns the sky from ash to blue
   /* Resolution governor. High aims for the display's full sharpness (up to 2x on high-density screens), Low for 1x.
      Pixel count is what this scene costs most, so when frames run slow the internal resolution steps down, and it climbs back when there's room. */
   const RES = { max: 1, scale: 99, floor: .6, acc: 0, n: 0, good: 0, hold: 0 };
@@ -185,6 +192,9 @@ const mark = n => { try { performance.mark('relay-' + n); } catch (e) {} };
     show(); b.onclick = () => { if (a !== HERE && open.has(a)) play(a); }; pick.append(b);
     if (!open.has(a)) G.save.peek(a.lock).then(st => { if (beaten(st)) { open.add(a); show(); offer(); } }); }
   offer();
+
+  /* the city's ending plays instead of a run; it ends on a card that goes back to Origin or on to the city */
+  if (ENDING) { fit(); window.__booted = true; runEnding(ENDING, { back: () => location.reload(), city: () => play(ARENAS[0]) }); return; }
 
   /* ---------- title screen ---------- */
   fit();

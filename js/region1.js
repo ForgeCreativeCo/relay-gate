@@ -35,7 +35,11 @@ export function buildRegion(M) {
     for (let k = -3; k <= 3; k++) paint.push(along === 'x' ? [cx + k * 1.1, cz - 1.4, cx + k * 1.1, cz + 1.4, .45, '200,192,170', .13] : [cx - 1.4, cz + k * 1.1, cx + 1.4, cz + k * 1.1, .45, '200,192,170', .13]);
   G.decalHints = { scorch: [], oil: [], bounds: [-20, -18, 72, 162], res: [1024, 2048], paint, skids: { n: 10, x: [-3, 3], z: [16, 60] }, puddles: [[0, -6, 1.4], [-6, 2, 1], [6, 6, 1.2]] };
   const BK = Buckets(40), RUB = [[], [], []], SAND = [];
-  const at = (x, z, m) => BK.at(x, z, m);
+  /* The ending (ending.js) builds this same city to mend it on screen, so it needs the pieces apart: each ruin on its own (`piece`), and
+     the wreckage in small chunks it can clear one place at a time (FINE). What stays as it is (the streets' fountain, the rail lines,
+     the outpost's lamps) is built as usual (`keeping`). G.ending says it's the ending, and is where the pieces are handed over. */
+  const E = G.ending, FINE = Buckets(10); let piece = null, keeping = false;
+  const at = (x, z, m) => !E || keeping ? BK.at(x, z, m) : piece ? (piece.g[m] || (piece.g[m] = Geo())) : FINE.at(x, z, m);
 
   /* ---------- ground and street surfaces ---------- */
   const ground = B.MeshBuilder.CreateGround('ground', { width: 320, height: 320 }, scene);
@@ -65,6 +69,7 @@ export function buildRegion(M) {
       RUB[k % 3].push(B.Matrix.Compose(V(s * R(.8, 1.6), s * R(.5, 1), s * R(.8, 1.5)), B.Quaternion.FromEulerAngles(R(-.5, .5), R(0, 3.1), R(-.5, .5)), V(px, (y || 0) + s * .18, pz))); }
   }
   function building(cx, cz, w, d, h) {
+    if (E) { piece = { cx, cz, w, d, g: {} }; E.buildings.push(piece); }
     const C = at(cx, cz, 'conc'), CAPG = C, REB = at(cx, cz, 'rust');
     const floors = Math.max(1, Math.round(h / FH)), roofed = rnd() < .28, quad = rnd() < .6 ? Math.floor(rnd() * 4) : -1;
     const inQuad = (x, z) => quad >= 0 && ((quad & 1) ? x > 0 : x < 0) && ((quad & 2) ? z > 0 : z < 0);
@@ -74,6 +79,7 @@ export function buildRegion(M) {
     const bays = []; for (let k = 0; k < nx; k++) { bays.push([-w / 2 + (k + .5) * w / nx, -d / 2, w / nx, 'x']); bays.push([-w / 2 + (k + .5) * w / nx, d / 2, w / nx, 'x']); }
     for (let k = 0; k < nz; k++) { bays.push([-w / 2, -d / 2 + (k + .5) * d / nz, d / nz, 'z']); bays.push([w / 2, -d / 2 + (k + .5) * d / nz, d / nz, 'z']); }
     const solid = bays.map(() => rnd() < .22), store = rnd() < .5;
+    if (E) Object.assign(piece, { floors, nx, nz, bays, solid, store });   // the shape of it, for its whole twin
     const rebar = (x, y, z, n) => { for (let k = 0; k < n; k++) { const l = R(.5, 1.4); gcyl(REB, { r0: .025, h: l, seg: 4, x: x + R(-.15, .15), y: y + l / 2 - .1, z: z + R(-.15, .15), rx: R(-.5, .5), rz: R(-.5, .5), ao: false }); } };
     for (let f = 0; f < floors; f++) {
       const y0 = f * FH, brk = f === floors - 1 && !roofed;
@@ -96,6 +102,7 @@ export function buildRegion(M) {
       if (rnd() < .6) gbox(C, { x: cx + R(-w / 4, w / 4), y: y + .9, z: cz + R(-d / 4, d / 4), w: 1.6, h: 1.5, d: 1.6, tint: .8 }); }
     rubblePile(cx, cz, 9, Math.max(w, d) / 2 + 2);
     ob(cx, cz, w / 2 + .15, d / 2 + .15, roofed ? floors * FH + 1 : Math.max(FH, (floors - 1) * FH + 1.2));
+    piece = null;
   }
   for (let gx = -52; gx <= 96; gx += 13) for (let gz = -42; gz <= 176; gz += 13) {
     const cx = gx + R(-1.2, 1.2), cz = gz + R(-1.2, 1.2), w = R(6.5, 10), d = R(6.5, 10);
@@ -132,7 +139,8 @@ export function buildRegion(M) {
     gcyl(g, { r0: .1, r1: .07, h: 6.5, seg: 6, M: MT(0, 3.25, 0).multiply(Mb), ao: false });
     gbox(g, { M: MT(dir * .8, 6.4, 0).multiply(Mb), w: 1.8, h: .12, d: .14, ao: false }); gbox(g, { M: MT(dir * 1.6, 6.3, 0).multiply(Mb), w: .5, h: .16, d: .24, ao: false }); };
   const barrel = (x, z, burning) => { const g = at(x, z, 'rust'); gcyl(g, { r0: .4, h: 1.1, seg: 12, x, y: .55, z, uv: .8 }); for (const yy of [.2, .55, .9]) gcyl(g, { r0: .42, h: .05, seg: 12, x, y: yy, z, tint: .7 }); ob(x, z, .45, .45, 1.1);
-    if (burning) { G.decalHints.scorch.push([x, z, 1.6]); G.FX.campfire(V(x, 1.1, z)); G.lightSources.push({ pos: V(x, 1.9, z), color: C('#ff6418'), range: 9, intensity: 1.45, flicker: true }); } };
+    if (burning) { G.decalHints.scorch.push([x, z, 1.6]); const sys = G.FX.campfire(V(x, 1.1, z)), light = { pos: V(x, 1.9, z), color: C('#ff6418'), range: 9, intensity: 1.45, flicker: true }; G.lightSources.push(light);
+      if (E) E.fires.push({ x, z, sys, light, flames: [] }); } };
   const crate = (x, z, ry, s = 1) => { gbox(at(x, z, 'crate'), { x, y: .35 * s, z, w: 1.1 * s, h: .7 * s, d: .8 * s, ry, uv: .6 }); ob(x, z, .6 * s, .6 * s, .7 * s); };
   const sandbags = (x0, z0, x1, z1, rows = 3) => { const len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(len / .72)), a = Math.atan2(x1 - x0, z1 - z0);
     for (let r = 0; r < rows; r++) for (let k = 0; k < n - (r % 2); k++) { const t = (k + .5 + (r % 2) * .5) / n;
@@ -144,8 +152,9 @@ export function buildRegion(M) {
   const campfire = (x, z) => { const g = at(x, z, 'rust');
     for (let k = 0; k < 5; k++) gcyl(g, { r0: .1, h: 1.2, seg: 6, M: MT(0, 0, 0, Math.PI / 2, k * .63, 0).multiply(MT(x, .12, z)), ao: false, tint: .5 });
     for (let k = 0; k < 9; k++) { const a = k / 9 * 6.28; gbox(at(x, z, 'conc'), { x: x + Math.cos(a) * .75, y: .1, z: z + Math.sin(a) * .75, w: .28, h: .2, d: .22, ry: a, tint: .7 }); }
-    for (let k = 0; k < 4; k++) { const f = B.MeshBuilder.CreateCylinder('flame', { height: R(.6, 1.1), diameterTop: 0, diameterBottom: R(.25, .45), tessellation: 6 }, scene); f.position.set(x + R(-.2, .2), .45, z + R(-.2, .2)); f.material = M.fire; f.isPickable = false; G.flames.push(f); }
-    G.FX.campfire(V(x, .3, z)); G.lightSources.push({ pos: V(x, 1.3, z), color: C('#ff6418'), range: 13, intensity: 1.9, flicker: true }); ob(x, z, .8, .8, .5); G.decalHints.scorch.push([x, z, 1.8]); };
+    const flames = []; for (let k = 0; k < 4; k++) { const f = B.MeshBuilder.CreateCylinder('flame', { height: R(.6, 1.1), diameterTop: 0, diameterBottom: R(.25, .45), tessellation: 6 }, scene); f.position.set(x + R(-.2, .2), .45, z + R(-.2, .2)); f.material = M.fire; f.isPickable = false; G.flames.push(f); flames.push(f); }
+    const sys = G.FX.campfire(V(x, .3, z)), light = { pos: V(x, 1.3, z), color: C('#ff6418'), range: 13, intensity: 1.9, flicker: true }; G.lightSources.push(light); ob(x, z, .8, .8, .5); G.decalHints.scorch.push([x, z, 1.8]);
+    if (E) E.fires.push({ x, z, sys, light, flames }); };
   const block = (x, z, w, d, h) => { gbox(at(x, z, 'conc'), { x, y: h / 2, z, w, h, d, tint: R(.8, 1) }); ob(x, z, w / 2, d / 2, h); };
   G.flames = [];
 
@@ -155,8 +164,10 @@ export function buildRegion(M) {
   campfire(0, -1.5);
   crate(8, 4, .2); crate(9.2, 4.1, -.1); crate(8.6, 4, .4, .7); barrel(-9.5, 9); barrel(-8.6, 9.8); barrel(9.5, -10);
   { const g = at(-9, -9, 'rust'); gcyl(g, { r0: .08, h: 8, seg: 6, x: -9.5, y: 4, z: -9.5, ao: false }); for (let k = 0; k < 3; k++) gbox(g, { x: -9.5, y: 6.5 + k * .5, z: -9.5, w: .9 - k * .2, h: .05, d: .05, ao: false }); ob(-9.5, -9.5, .2, .2, 8); }
+  keeping = true;   // (the outpost's lamps: they'd be left hanging in the air without their posts)
   { const g = Geo(); for (const [x, z] of [[-3, 10.5], [3, 10.5]]) { gcyl(at(x, z, 'rust'), { r0: .06, h: 2.6, seg: 6, x, y: 1.3, z, ao: false }); gcyl(g, { r0: .12, h: .22, seg: 8, x, y: 2.65, z, ao: false }); G.lightSources.push({ pos: V(x, 2.6, z), color: C('#ffcf7a'), range: 8, intensity: 1.2 }); }
     gmesh('outpostLamps', g, M.lamp, { shadow: false }); }
+  keeping = false;
   { const g = at(6, 8, 'wood'); gbox(g, { x: 5.5, y: .8, z: 8, w: 2.4, h: .1, d: 1, ry: .1 }); for (const [dx, dz] of [[-1, -.4], [1, -.4], [-1, .4], [1, .4]]) gbox(g, { x: 5.5 + dx, y: .4, z: 8 + dz, w: .1, h: .8, d: .1 }); ob(5.5, 8, 1.3, .6, .9); }
 
   /* ---------- Ring Road ---------- */
@@ -166,10 +177,12 @@ export function buildRegion(M) {
   for (let k = 0; k < 40; k++) rubblePile(R(-4, 4), R(15, 63), 1, .5);
 
   /* ---------- Market Square: fountain, stalls, raider barricade ---------- */
+  keeping = true;
   { const g = at(0, 80, 'conc'), oct = r => [...Array(8)].map((_, k) => { const a = k / 8 * Math.PI * 2 + Math.PI / 8; return [Math.cos(a) * r, Math.sin(a) * r]; });
     const vert = MT(0, 0, 0, 0, 0, Math.PI / 2).multiply(MT(0, 0, 80));
     gprism(g, oct(3.2), 0, .7, vert, { uv: .4 }); gprism(g, oct(.6), .7, 2.6, vert, { uv: .4 }); gprism(g, oct(1.4), 2.6, 2.9, vert, { uv: .4, tint: .9 });
     ob(0, 80, 3, 3, .7); ob(0, 80, .7, .7, 3); }
+  keeping = false;
   for (const x of [-10, -4, 4, 10]) { const g = at(x, 93, 'rust'); gcyl(g, { r0: .05, h: 2.4, seg: 4, x: x - 1.2, y: 1.2, z: 93.5, ao: false }); gcyl(g, { r0: .05, h: 2.4, seg: 4, x: x + 1.2, y: 1.2, z: 93.5, ao: false });
     gbox(at(x, 93, rnd() < .5 ? 'tarp' : 'tarpB'), { x, y: 2.3, z: 93, w: 2.8, h: .04, d: 2, rx: R(-.25, -.1), ao: false }); crate(x + R(-.6, .6), 93.4, R(-.4, .4), .8); }
   barrier(-11.5, 73, 0); barrier(-12, 76.8, .1); barrier(-11.6, 84, -.1); barrier(-11.2, 87.6, 0); sandbags(-12.4, 79, -12.4, 82, 3);
@@ -180,8 +193,10 @@ export function buildRegion(M) {
   car(22, 78, 1.5); barrier(28, 82.5, 1.57); car(35, 81.5, 1.7, true); pole(24, 74.4, 1, 0); pole(36, 85.6, -1, .3);
 
   /* ---------- Rail yard: tracks, boxcars, an abandoned raider camp ---------- */
+  keeping = true;
   for (const x of [46, 50, 58, 62]) { const g = at(x, 82, 'rust'); gbox(g, { x: x - .6, y: .08, z: 82, w: .12, h: .16, d: 36, ao: false }); gbox(g, { x: x + .6, y: .08, z: 82, w: .12, h: .16, d: 36, ao: false });
     for (let z = 65; z < 100; z += 1.2) gbox(at(x, z, 'wood'), { x, y: .04, z, w: 1.8, h: .08, d: .25, tint: R(.7, 1) }); }
+  keeping = false;
   const boxcar = (x, z, ry, rz) => { const g = at(x, z, 'rust'), P = MT(0, 0, 0, 0, ry, rz || 0).multiply(MT(x, 0, z));
     gbox(g, { M: MT(0, 2.1, 0).multiply(P), w: 3, h: 3, d: 10, uv: .35 }); gbox(g, { M: MT(0, .45, 0).multiply(P), w: 2.4, h: .5, d: 9.6, tint: .5 });
     for (const zz of [-3.4, 3.4]) for (const s of [-1, 1]) gcyl(g, { r0: .42, h: .2, seg: 10, M: MT(0, 0, 0, 0, 0, Math.PI / 2).multiply(MT(s * 1, .42, zz)).multiply(P), tint: .4 });
@@ -209,18 +224,20 @@ export function buildRegion(M) {
 
   /* ---------- bare trees in the yard and plaza ---------- */
   { const g = Geo(); for (const [x, z] of [[41.5, 96], [65, 66], [32, 120], [68, 120], [32, 154], [68, 154], [-15, 94], [15, 66]]) {
-      const h = R(3, 4.8); gcyl(g, { r0: .24, r1: .12, h, seg: 6, x, y: h / 2, z, rz: R(-.1, .1), ao: false, uv: 1 });
+      const h = R(3, 4.8); gcyl(g, { r0: .24, r1: .12, h, seg: 6, x, y: h / 2, z, rz: R(-.1, .1), ao: false, uv: 1 }); if (E) E.trees.push({ x, z, h });
       for (let b = 0; b < 3; b++) { const a = R(0, 6.28), bl = R(1, 1.8); gcyl(g, { r0: .08, r1: .03, h: bl, seg: 5, M: MT(0, bl / 2, 0).multiply(MT(x, h * R(.55, .9), z, Math.cos(a) * .9, 0, Math.sin(a) * .9)), ao: false }); }
       ob(x, z, .3, .3, 4); }
     gmesh('trees', g, M.trunk); }
 
   /* ---------- finish: merge buckets, instance rubble and sandbags ---------- */
-  BK.build({ conc: M.conc, rust: M.rust, crate: M.crate, tarp: M.tarp, tarpB: M.tarpB, wood: M.wood });
+  const MATS = { conc: M.conc, rust: M.rust, crate: M.crate, tarp: M.tarp, tarpB: M.tarpB, wood: M.wood };
+  BK.build(MATS);
+  if (E) { E.wreck = FINE.build(MATS); E.buildings.forEach((b, i) => { b.ruin = Object.keys(b.g).map(m => gmesh(`ruin${i}_${m}`, b.g[m], MATS[m])).filter(Boolean); b.g = null; }); E.camps = Object.values(CAMPS); }
   RUB.forEach((list, k) => { if (!list.length) return; const r = B.MeshBuilder.CreateIcoSphere('rock' + k, { radius: .5, subdivisions: 1 }, scene);
     const pos = r.getVerticesData('position'), cache = {}; for (let q = 0; q < pos.length; q += 3) { const key = pos[q].toFixed(2) + ',' + pos[q + 1].toFixed(2) + ',' + pos[q + 2].toFixed(2); if (!cache[key]) cache[key] = R(.7, 1.25); const s = cache[key]; pos[q] *= s; pos[q + 1] *= s * .75; pos[q + 2] *= s; }
-    r.setVerticesData('position', pos); r.convertToFlatShadedMesh(); r.material = M.rubble; r.receiveShadows = true; r.isPickable = false; r.thinInstanceAdd(list); G.sg.addShadowCaster(r); });
+    r.setVerticesData('position', pos); r.convertToFlatShadedMesh(); r.material = M.rubble; r.receiveShadows = true; r.isPickable = false; r.thinInstanceAdd(list); G.sg.addShadowCaster(r); if (E) E.thin.push({ mesh: r, list }); });
   const sand = B.MeshBuilder.CreateCapsule('sandbag', { radius: .17, height: .75, tessellation: 8, subdivisions: 1 }, scene);
-  sand.bakeTransformIntoVertices(B.Matrix.RotationZ(Math.PI / 2).multiply(B.Matrix.Scaling(1, .6, 1))); sand.material = M.sand; sand.receiveShadows = true; sand.isPickable = false; sand.thinInstanceAdd(SAND); G.sg.addShadowCaster(sand);
+  sand.bakeTransformIntoVertices(B.Matrix.RotationZ(Math.PI / 2).multiply(B.Matrix.Scaling(1, .6, 1))); sand.material = M.sand; sand.receiveShadows = true; sand.isPickable = false; sand.thinInstanceAdd(SAND); G.sg.addShadowCaster(sand); if (E) E.thin.push({ mesh: sand, list: SAND });
 
   return { gate };
 }
