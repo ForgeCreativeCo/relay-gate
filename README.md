@@ -186,12 +186,43 @@ The campaign (a level-by-level run through Dead City, with the Rust Dogs raiders
 
 1. **WASD movement on desktop.** Right-click to walk is awkward for dodging round a crowd. Phones already use a joystick.
 2. **Something that carries over between runs** (gear, unlocks or a starting choice), once the core run is fun on its own.
-3. **Playing the last two arenas in.** 1984 and Origin are built (see below) but have only been checked, not played: every number in them is a first guess.
-4. **Tuning.** Spawn rates, the difficulty ramp, boss timing, upgrade values and the scrap costs are all first guesses.
+3. **Origin's lobby.** All five arenas have been played through and run well, but Origin is over in about half the time of the others. It gets a first act: a gunfight in a new, bigger lobby before the lab. The plan is under **Origin: the lobby** below.
+4. **Tuning.** Spawn rates, the difficulty ramp, boss timing, upgrade values and the scrap costs keep getting tuned by playing.
+
+### Origin: the lobby
+
+Origin is the only arena that can be won, and its record is the fastest win, so it rewards rushing: six six-second wipes, with the first machine up after the third, and a good run is over in about five minutes against everyone else's ten. It needs a first act, and the act is a gunfight in the building's front lobby. The feel to aim for is a big formal lobby that gets taken apart by the fight: stone pillars, a marble floor, a security desk, and dust, sparks and chunks of stone everywhere. Nothing from any film beyond that feel.
+
+**Shape of the run.** About three minutes in the lobby, then about five in the lab as it plays now: around eight minutes for a good run, close to the other arenas without padding. Both acts are things you do, not a clock you wait out, so a faster player still clears them faster and the fastest-win record still means something.
+
+**Where it goes.** A new room, not the current one. The current lobby (`lobby` in `ROOMS`, 16 × 11 m, `[-8, -30, 8, -19]`) stays, and becomes **the security checkpoint** between the new lobby and the lab: the reception desk, the company's name on the wall and the telephone the ending rings all stay where they are. The new lobby goes south of it, about 28 × 20 m (around `[-14, -52, 14, -32]`), joined to the checkpoint by a doorway in the checkpoint's south wall. You come in at the new lobby's south end, through glass front doors and a pair of metal detectors, so `START` moves there. The checkpoint's doors north to the lab (`linkLobby`) are sealed until the lobby is cleared; the security shutters Origin already has are the way to do it. The ending is better for this: the phone rings in a room you fought your way through.
+
+**The room.**
+- Two rows of stone pillars down the middle (four or five a side), a big front desk as low cover, benches and planters, side corridors on the east and west walls for machines to come in by.
+- **Pillars break.** Each has three stages: whole, chipped (bullet scars, chunks off the edges), cracked (a big piece gone, dust trickling), then rubble. Gunfire from both sides wears them down, explosions faster. Broken stays broken for the run, so your cover goes as the fight goes on. Rubble keeps the pillar's footprint and stays low cover: it blocks walking but not shots over it, so pathfinding (`nav.js`) doesn't change; only the obstacle's height drops, which is what line of sight reads.
+- **Keep it readable from above.** Pillars are shorter than a real lobby's (around 4 m), and the ones between you and the camera sink out of the way, as walls do in the station and the lab (`cuts.js`).
+- **Keep it light on phones.** Pillar chunks and debris come from a small fixed pool, and pieces settle and fade rather than piling up.
+
+**The fight.**
+1. **Waves, about two minutes.** Husks and prototypes come in through the glass doors and the side corridors (arrival spots in the lobby only, while it lasts). No walkers: they need room, and the lobby is for close fighting. No drones either, unless they turn out to be needed.
+2. **The Infiltrators.** The first one walks in through the front doors. When it is down to half health, the second comes in from a side corridor. Both are lighter than 1984's (about 40% of its health and part health, its phases and coat kept), so the lobby doesn't outshine the finale: the first machine stays the big fight. Settings for them go in a block near the top of `js/region5.js`, alongside `LAB`.
+3. **Through.** When the second goes down, the checkpoint doors open, the lobby goes quiet, and Mara says something as you walk into the lab. From there the lab plays as written now.
+
+**What changes with it.**
+- **The first machine's clock.** `LAB.wakeBy` (480) counts from the start of the run, so as it stands the find could get up while you're still in the lobby. It should count from walking into the lab, or be pushed later.
+- **Terminal effects stay in the lab.** Wiping flight control or frame assembly can't happen before the lab, so the lobby always plays at full strength.
+- **The intro.** It opens on the new lobby (the glass doors, the pillars, the sealed doors at the far end) instead of the lab. Some of what's in the intro now (her desk, her handwriting, the find) may land better at the moment the checkpoint doors open; see below.
+- **Mara's lines.** New ones for the lobby (the radio still reaches her through the find), for the Infiltrators walking in, and for the doors opening.
+- **Records.** Fastest wins set before the lobby are on a shorter course and can't be beaten fairly. Reset Origin's record when this goes in (a new save key, or a version number on it).
+
+**Still to decide.**
+- Whether the first machine still gets up after the third wipe, or as soon as you're in the lab, now that the lab is the second half of a longer run.
+- How the confession splits between the intro and the doors opening.
+- How many husks and prototypes, and how often: first guesses until played.
 
 ### The last two arenas
 
-Built, as described under The arenas; what follows is the plan they were built from, kept for what's still open in it. Not done yet: the company's name (still a placeholder); more recorded sound for 1984 (it has its music now, but the payphone bell is a generated stand-in, and there's no CRT hum); the cut to Dead City at the very end (the ending says it in words); and nothing has been tuned by playing. Two things came out differently from the plan: the first machine gets up after three wipes, not after all six, so each further wipe weakens it while you fight it; and Origin's machines arrive in a flash at the edges of rooms, without 1984's charging gates.
+Built, as described under The arenas; what follows is the plan they were built from, kept for what's still open in it. Not done yet: the company's name (still a placeholder); more recorded sound for 1984 (it has its music now, but the payphone bell is a generated stand-in, and there's no CRT hum); and the cut to Dead City at the very end (the ending says it in words). Both have been played through. Two things came out differently from the plan: the first machine gets up after three wipes, not after all six, so each further wipe weakens it while you fight it; and Origin's machines arrive in a flash at the edges of rooms, without 1984's charging gates.
 
 The arenas tell one story, in order: **Dead City** (the ruins) → **the Relay Station** (the Foundry's front office) → **the Foundry** (where the machines are made) → **1984** (where they're sent) → **Origin** (where Mara made them, so where you unmake them). Each arena has its own verb: hold, restore, destroy, protect, erase.
 
