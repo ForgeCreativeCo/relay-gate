@@ -81,8 +81,10 @@ const MUSIC = {
   drums: { name: 'musDrums', url: 'sfx/music-drums.mp3', from: 0, to: 39.3, gain: .3 },     // "Battle warrior fighting drums" by tatamusic
   eighties: { name: 'mus80s', url: 'sfx/music-80s-beat.mp3', from: 14, to: 225, gain: 1.05 },   // "80s retro beat 001", freesound_community: 1984's music, without its slow way in and its wind-down
   /* Origin's two are both short pieces: each loops the part before its last note dies away */
-  originIntro: { name: 'musOriginIntro', url: 'sfx/music-origin-intro.mp3', from: .4, to: 12.8, gain: .25 },   // "Cyberpunk dark logo" by AlexZavesa: under Origin's intro
-  origin: { name: 'musOrigin', url: 'sfx/music-origin.mp3', from: .4, to: 13.5, gain: .24 },                    // "Dark cyberpunk logo (main version)" by AlexZavesa: Origin's music
+  /* and each comes round every 16 beats, so the next pass lands on the beat (a loop repeats every to − from − MUSIC_FADE seconds, the
+     crossfade overlapping): the intro's 10.69 s at about 90 beats a minute, the lab's 11.46 s at about 84 */
+  originIntro: { name: 'musOriginIntro', url: 'sfx/music-origin-intro.mp3', from: .4, to: 13.09, gain: .25 },   // "Cyberpunk dark logo" by AlexZavesa: under Origin's intro
+  origin: { name: 'musOrigin', url: 'sfx/music-origin.mp3', from: .4, to: 13.86, gain: .24 },                    // "Dark cyberpunk logo (main version)" by AlexZavesa: Origin's music
   infiltrator: { name: 'musInfiltrator', url: 'sfx/music-infiltrator.mp3', from: 32, to: 210.4, gain: .5 },   // "Lightning tiger god loop", freesound_community: 1984's boss, from where it has finished building
 };
 const MUSIC_FADE = 2;
