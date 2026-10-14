@@ -1,5 +1,5 @@
 /* Factions, projectiles and damage shared by every actor. */
-import { B, G, V, V3, insideObstacle, dist2 } from './core.js';
+import { B, G, V, V3, obstacleAt, dist2 } from './core.js';
 
 /* Two sides: the machines, and you, Mara and the machines you build. */
 export function hostile(a, b) {
@@ -12,6 +12,7 @@ export function nearestHostile(self, range, from) {
   return best;
 }
 
+const BLAST_K = 2;   // how much more a blast takes off cover that breaks than its damage to a body would
 const FLASH = { bolt: '#ff5a40', ally: '#ffd27a', tracer: '#ffc35a' };
 const KINDS = {
   tracer: { mat: 'tracer', w: .07, len: 1.3, n: 60 },
@@ -52,7 +53,8 @@ export function makeCombat(M) {
           if (a === p.owner || !hostile(p.src, a)) continue; if (Math.abs(q.x - a.pos.x) > 7 || Math.abs(q.z - a.pos.z) > 7) continue;
           for (const h of H) if (V3.DistanceSquared(q, h.c) < h.r * h.r) { hit = [a, h.part, q]; break; } if (hit) break;
         }
-        if (!hit && (q.y < .02 || insideObstacle(q.x, q.z, q.y))) wall = q;
+        if (!hit && q.y < .02) wall = q;
+        else if (!hit) { const o = obstacleAt(q.x, q.z, q.y); if (o) { wall = q; if (o.hit) o.hit(p.dmg * ((p.owner && p.owner.breaker) || 1), q); } }   // cover that breaks wears down (some machines hit it harder)
       }
       p.m.position.addInPlace(step); p.life -= dt;
       if (hit) {
@@ -71,6 +73,8 @@ export function makeCombat(M) {
   CB.blast = (pos, radius, dmg, owner, opts = {}) => {
     for (const a of G.actors) { if (!a.alive || a === owner || !hostile({ faction: owner.faction, alive: true }, a)) continue; const d = dist2(pos, a.pos); if (d > radius + (a.radius || .5)) continue;
       const k = 1 - Math.min(1, d / (radius + .5)) * .5; a.damage(dmg * k, 'core', owner, a.pos.add(V(0, 1, 0)), { knock: opts.knock ? { from: pos, force: opts.knock } : null }); }
+    /* and cover that breaks, if it's in reach: a blast takes far more off it than a bullet does */
+    for (const o of G.obstacles) if (o.hit && Math.hypot(pos.x - o.x, pos.z - o.z) - Math.max(o.hw, o.hd) < radius) o.hit(dmg * BLAST_K, pos);
   };
   return CB;
 }

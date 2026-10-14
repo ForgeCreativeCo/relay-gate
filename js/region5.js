@@ -2,32 +2,42 @@
    green screens, a raised floor in the mainframe hall, a clean room, and in the central lab the find itself, opened up on a rig under
    lights. Nothing here has been built yet: it is being worked out, on whiteboards and benches, by a young researcher called Mara.
    The walls are generated round the rooms (rooms.js) and the ones on the camera's side sink while you're behind them (cuts.js).
-   How it plays: like survival, but it can be won. Six terminals hold the research. Wiping one (stand at it) takes something out of the
+   How it plays: like survival, but it can be won, and in two acts. First the front lobby: a big formal hall of stone pillars that the
+   fight takes apart (pillars.js), held until security runs out of machines to send, and then two Infiltrators, sent back from 1984 to
+   guard where they began. When both are down the checkpoint opens onto the lab. Then the lab: six terminals hold the research. Wiping one (stand at it) takes something out of the
    future for good: a kind of machine stops coming, or the first machine loses one of the things it can do. So the lab gets weaker as you
    go, the reverse of everywhere else. It fights back: every wipe wakes the nearest prototypes on their benches and drops the security
    shutters for a while. After a few wipes the find gets up off its rig (firstmachine.js). Wipe every terminal and kill it, and the run is
    won; the score is your time. Mara isn't here either, but she can talk to you: the find is a relay, and it never stopped listening. */
-import { B, G, V, C, R as sr, dist2, rand, damp, pick } from './core.js';
+import { B, G, V, C, R as sr, dist2, rand, damp, pick, lerp, angleTo } from './core.js';
 import { Geo, gbox, gcyl, gmesh } from './geo.js';
 import { makeMat } from './tex.js';
 import { makeNav } from './nav.js';
 import { makeCuts } from './cuts.js';
 import { layRooms } from './rooms.js';
-import { cloneMat, Husk } from './machines.js';
+import { cloneMat, Husk, Drone } from './machines.js';
+import { Infiltrator, INFILTRATOR } from './infiltrator.js';
+import { makePillars } from './pillars.js';
+import { rollLoot } from './loot.js';
 import { survival } from './survival.js';
 
 /* The company whose lab this is. A placeholder: it hasn't been named yet, and whatever it ends up as shouldn't be a real firm's name. */
 const COMPANY = 'HALVORSEN LABS';
 
 /* Walkable rectangles [x0, z0, x1, z1] on a half-metre grid, and the floor each has; north is +z. The rooms first (where two overlap, the
-   one listed first owns the floor), then the doorways between them, each overlapping both sides by a metre. */
+   one listed first owns the floor), then the doorways between them, each overlapping both sides by a metre.
+   The lobby is the building's front: you come in at its south end, through the glass doors (`front`, a porch outside them) and between
+   the metal detectors. The checkpoint north of it is the old reception, with the desk and the telephone; its doors on to the lab
+   (linkLobby) stay shut until the lobby is cleared. The side corridors are where machines come in. */
 const ROOMS = {
-  lobby: { r: [-8, -30, 8, -19], zone: 'tile' }, south: { r: [-34, -17, 38, -13], zone: 'tile' }, lab: { r: [-12, -5, 12, 14], zone: 'tile' },
+  lobby: { r: [-14, -52, 14, -32], zone: 'marble' }, checkpoint: { r: [-8, -30, 8, -19], zone: 'tile' },
+  south: { r: [-34, -17, 38, -13], zone: 'tile' }, lab: { r: [-12, -5, 12, 14], zone: 'tile' },
   offices: { r: [-34, -9, -16, 9], zone: 'carpet' }, hall: { r: [16, -9, 38, 12], zone: 'raised' }, clean: { r: [-10, 18, 10, 30], zone: 'clean' },
+  front: { r: [-3, -56, 3, -51], zone: 'tile' }, west: { r: [-22, -44, -13, -40], zone: 'marble' }, east: { r: [13, -44, 22, -40], zone: 'marble' }, linkFoyer: { r: [-2, -33, 2, -29], zone: 'marble' },
   linkLobby: { r: [-2, -20, 2, -16], zone: 'tile' }, linkLab: { r: [-2, -14, 2, -4], zone: 'tile' }, linkOff: { r: [-27, -14, -23, -8], zone: 'tile' },
   linkHall: { r: [25, -14, 29, -8], zone: 'tile' }, offLab: { r: [-17, -1, -11, 3], zone: 'tile' }, labHall: { r: [11, 1, 17, 5], zone: 'tile' }, labClean: { r: [-2, 13, 2, 19], zone: 'tile' },
 };
-const START = { x: 0, z: -25 }, RIG = { x: 0, z: 5.5 };
+const START = { x: 0, z: -47 }, RIG = { x: 0, z: 5.5 };
 const CELL = .5, THICK = 2, WALL_H = 3.8;
 const ob = (x, z, hw, hd, h) => { const o = { x, z, hw, hd, h }; G.obstacles.push(o); return o; };
 
@@ -41,18 +51,38 @@ const TERMINALS = [
   { id: 'repair', name: 'repair routines', x: 6, z: 29.55, ban: 'mender', can: 'regen', gone: 'Menders stop coming, and nothing mends itself', mara: 'Mara: "I taught them to fix each other so I could go home on time."' },
   { id: 'core', name: 'core logic', x: -8, z: 13.55, can: 'whole', tough: .65, gone: 'Everything that comes is weaker', mara: 'Mara: "That one is how they think. It\'s how I thought. Wipe it."' },
 ];
-/* Seconds at a terminal to wipe it; how many wipes before the find gets up, the warning it gives, and the time on the clock by which it
-   gets up whatever you've wiped (the same eight minutes at which every other arena's big boss arrives); how many prototypes each wipe
-   wakes; how many shutters come down, and for how long. */
-const LAB = { wipe: 6, wakeAt: 3, wakeWarn: 5, wakeBy: 480, stir: 2, shutters: 2, lockdown: 18 };
-/* security shutters, in four of the doorways: where, how wide, and which way you walk through ('x' or 'z') */
+/* Seconds at a terminal to wipe it; how many wipes before the find gets up, the warning it gives, and how long after you walk into the
+   lab it gets up whatever you've wiped (with a three-minute lobby, about the eight minutes on the clock at which every other arena's big
+   boss arrives); how many prototypes each wipe wakes; how many shutters come down, and for how long. */
+const LAB = { wipe: 6, wakeAt: 3, wakeWarn: 5, wakeBy: 300, stir: 2, shutters: 2, lockdown: 18 };
+/* security shutters, in four of the doorways: where, how wide, and which way you walk through ('x' or 'z'). And the checkpoint's own,
+   between it and the lab, which is down from the start of a run until the lobby is cleared */
 const SHUTTERS = [{ x: -14, z: 1, w: 4, axis: 'x' }, { x: 14, z: 3, w: 4, axis: 'x' }, { x: 0, z: -9, w: 4, axis: 'z' }, { x: 0, z: 16, w: 4, axis: 'z' }];
+const CHECKPOINT = { x: 0, z: -18, w: 4, axis: 'z' };
+
+/* The lobby, all first guesses until played. `calm`: seconds of quiet before anything comes. Then waves until `quota` machines have
+   been sent: one every `gap` seconds (from the first number to the second as the waves go on, over `by` seconds), of `size` machines,
+   with no more than `cap` in the lobby at once; `protos` of them are prototypes, and from `drones` seconds in a group from a side
+   corridor may bring drones (they shoot, so the pillars wear down before anything heavier comes). Once the last is sent: up to `lull`
+   seconds for it to be finished off, `quiet` seconds of nothing, and the first Infiltrator walks in through the front doors. While it's
+   alone a few husks keep coming (`trickle`); at `second` of its health the other comes in from a side corridor, and nothing else does.
+   The checkpoint opens `open` seconds after the second goes down, and not before `floor` seconds on the clock, so a run that tears
+   through doesn't skip the room coming apart. */
+const LOBBY = { calm: 12, quota: 32, gap: [7, 4.5], size: [2, 4], by: 90, cap: 9, protos: .4, drones: { from: 45, chance: .35 }, lull: 18, quiet: 3,
+  trickle: { gap: 10, size: 2, cap: 4 }, second: .5, open: 2, floor: 150,
+  /* the two Infiltrators: a share of 1984's health and parts, and how much harder than a bullet their shots wear stone */
+  inf: { hp: .4, breaker: 3 } };
+/* where the lobby's machines arrive: just inside the front doors, and at the far ends of the side corridors (drones only come from those) */
+const LOBBY_IN = [{ x: -4, z: -50.3 }, { x: 4, z: -50.3 }, { x: -20.4, z: -42, side: true }, { x: 20.4, z: -42, side: true }];
+const DOORS = { x: 0, z: -53, w: 6 }, OUTSIDE = { x: 0, z: -55 };   // the glass front doors, and where the first Infiltrator stands before it comes through them
+/* the pillars: two rows down the hall */
+const PILLARS = [-48, -44.5, -41, -37.5, -34].flatMap(z => [[-6.5, z], [6.5, z]]);
 /* where machines arrive: in a flash, as in 1984 (the future sending what it still can, to guard where it began) */
 const ENTRIES = [[-6, -28], [6, -28], [-32, -15], [36, -15], [-32, 6], [-32, -7], [36, 10], [36, -7], [18, 10], [-8, 28], [8, 27], [-10, 12], [5, -3.5]].map(([x, z]) => ({ x, z }));
 /* where the prototypes lie: beside their benches in the clean room, and here and there in the lab and the hall; which way each faces */
 const PROTOS = [[-7, 24.6, Math.PI], [-2.5, 24.6, Math.PI], [2.5, 24.6, Math.PI], [7, 21, 0], [-7, 21, 0], [-10, 2, Math.PI / 2], [10, 11, -Math.PI / 2], [36, 2, -Math.PI / 2], [-33, 0, Math.PI / 2]];
 /* first-aid cabinets, on north and east walls: each gives back `heal` of your health, and refills after `every` seconds */
-const MEDS = [{ x: 6, z: -19, nx: 0, nz: -1 }, { x: 12, z: 9, nx: -1, nz: 0 }, { x: 38, z: 2, nx: -1, nz: 0 }, { x: -16, z: -6, nx: -1, nz: 0 }];
+const MEDS = [{ x: 10, z: -32, nx: 0, nz: -1 }, { x: 6, z: -19, nx: 0, nz: -1 }, { x: 12, z: 9, nx: -1, nz: 0 }, { x: 38, z: 2, nx: -1, nz: 0 }, { x: -16, z: -6, nx: -1, nz: 0 }];
 const MED = { heal: .45, every: 75 };
 /* the dictaphones she left about, and what's on each */
 const TAPES = [
@@ -63,7 +93,7 @@ const TAPES = [
 
 /* ---------- the map ---------- */
 const cuts = makeCuts();
-let prop = null, rigLight = null, shutters = [], now = 0;
+let prop = null, rigLight = null, shutters = [], gate = null, doors = null, pillars = null, now = 0;
 /* a flat panel with something drawn on it (a sign, a whiteboard, a badge), w by h metres, facing south; dim: how far under full brightness it sits */
 function panel(name, w, h, px, draw, glow = .25) {
   const S = G.scene, t = new B.DynamicTexture(name, { width: px, height: Math.round(px * h / w) }, S, true), c = t.getContext(); draw(c, px, Math.round(px * h / w)); t.update();
@@ -95,10 +125,12 @@ export function buildRegion(M) {
     wall: mat('oWall', '#d6d4cd', conc), trim: mat('oTrim', '#b6b0a2', { tex: M.crate.albedoTexture, spec: .1 }), blue: mat('oBlue', '#2f5f9e'),
     tile: mat('oTile', '#b9bbc0', { tex: M.pave.diffuseTexture, bump: M.pave.bumpTexture, spec: .25, power: 48 }), carpet: mat('oCarpet', '#7c8674', { tex: M.trunk.diffuseTexture }),
     raised: mat('oRaised', '#9a9da4', { tex: M.crate.albedoTexture, bump: M.crate.bumpTexture, spec: .2 }), clean: mat('oClean', '#c6d0d6', { tex: M.pave.diffuseTexture, spec: .35, power: 64 }),
+    marble: mat('oMarble', '#d6d0c4', { tex: M.pave.diffuseTexture, spec: .55, power: 96 }), stone: mat('oStone', '#e0dace', { tex: M.conc.diffuseTexture, bump: M.conc.bumpTexture, bumpLevel: .4, spec: .12 }),
+    glass: mat('oGlass', '#9fc4d6', { alpha: .22, spec: .9, power: 128 }),
     beige: mat('oBeige', '#d2c5a4', { spec: .12 }), dark: mat('oDark', '#2b2c30', { tex: M.crate.albedoTexture, spec: .15 }), hazard: mat('oHazard', '#c9a13a'), steel: mat('oSteel', '#aeb4bc', { metal: .8, rough: .35, env: 1.4 }),
     strip: lit('oStrip', '#f4f8ff'), green: lit('oGreen', '#39ff7a'), amber: lit('oAmber', '#ffb040'), red: lit('oRed', '#ff3a30'), led: lit('oLed', '#58f0c8'),
   };
-  const UNLIT = ['strip', 'green', 'amber', 'red', 'led'], g = {}; for (const k in MAT) g[k] = Geo();
+  const UNLIT = ['strip', 'green', 'amber', 'red', 'led', 'glass'], g = {}; for (const k in MAT) g[k] = Geo();
   /* black under everything, so a sunk wall is simply gone */
   const under = B.MeshBuilder.CreateGround('underfloor', { width: 300, height: 300 }, S); under.position.set(0, -.08, 0); under.material = mat('oUnder', '#08090a', { unlit: true }); under.isPickable = false; under.freezeWorldMatrix();
 
@@ -114,7 +146,7 @@ export function buildRegion(M) {
     const node = new B.TransformNode('wallCut', S); for (const k in gg) gmesh('wallCut_' + k, gg[k], MAT[k], { parent: node, shadow: k !== 'strip' }); cuts.add(node, x0, z0, x1, z1, WALL_H);
   }, (zone, x, z, w, d) => gbox(g[zone], { x, y: -.05, z, w, h: .1, d, uv: zone === 'raised' ? .5 : zone === 'carpet' ? .5 : 1 / 3, ao: false, noBottom: true }));
   /* ceiling lights, as lamps for whatever is under them */
-  for (const [x, z] of [[0, -25], [-20, -15], [18, -15], [-25, 0], [0, 5], [27, 2], [0, 24], [-8, 9], [8, 0]]) G.lightSources.push({ pos: V(x, 3.4, z), color: C('#f2f6ff'), range: 15, intensity: 1 });
+  for (const [x, z] of [[0, -49], [-8, -42], [8, -42], [0, -35], [-18, -42], [18, -42], [0, -25], [-20, -15], [18, -15], [-25, 0], [0, 5], [27, 2], [0, 24], [-8, 9], [8, 0]]) G.lightSources.push({ pos: V(x, 3.4, z), color: C('#f2f6ff'), range: 15, intensity: 1 });
 
   /* ---------- furniture ---------- */
   const desk = (x, z, w = 1.8, d = .9) => { gbox(g.beige, { x, y: .74, z, w, h: .06, d, ao: false }); for (const s of [-1, 1]) gbox(g.trim, { x: x + s * (w / 2 - .06), y: .37, z, w: .06, h: .74, d: d - .1 }); gbox(g.trim, { x, y: .45, z: z + d / 2 - .04, w: w - .1, h: .5, d: .04, ao: false }); ob(x, z, w / 2, d / 2, .8); };
@@ -126,7 +158,32 @@ export function buildRegion(M) {
     if (reels) for (const y of [1.65, 1.1]) gcyl(g.steel, { r0: .2, h: .04, seg: 12, x, y, z: z - .43, rx: Math.PI / 2, ao: false });
     else for (let y = .9; y < 1.9; y += .2) if (sr(0, 1) < .6) gbox(sr(0, 1) < .8 ? g.led : g.amber, { x: x + sr(-.25, .25), y, z: z - .42, w: .1, h: .05, d: .02, ao: false }); };
 
-  /* the lobby: a reception desk with a telephone on it, the company's name on the wall, plants */
+  /* ---------- the lobby: marble and glass, so nobody asks what goes on at the back ---------- */
+  /* the front doors: a steel frame with a transom over it, and glass that shatters when the first Infiltrator comes through it */
+  { const n = new B.TransformNode('frontDoors', S), fr = Geo(), gl = Geo(), { x, z, w } = DOORS;
+    for (const dx of [-w / 2, -w / 4, 0, w / 4, w / 2]) gbox(fr, { x: dx, y: 1.6, z: 0, w: .12, h: 3.2, d: .16, ao: false });
+    gbox(fr, { x: 0, y: 3.2, z: 0, w: w + .1, h: .14, d: .18, ao: false }); gbox(fr, { x: 0, y: .04, z: 0, w: w, h: .08, d: .2, ao: false }); gbox(fr, { x: 0, y: 3.5, z: 0, w: w + .1, h: .6, d: .1, ao: false });
+    for (const s of [-1, 1]) gbox(fr, { x: s * .2, y: 1.1, z: .1, w: .05, h: .6, d: .05, ao: false });   // handles
+    for (const dx of [-3 * w / 8, -w / 8, w / 8, 3 * w / 8]) gbox(gl, { x: dx, y: 1.6, z: 0, w: w / 4 - .12, h: 3.05, d: .03, ao: false });
+    gmesh('doorFrame', fr, MAT.steel, { parent: n }); const pane = gmesh('doorGlass', gl, MAT.glass, { parent: n, shadow: false }); n.position.set(x, 0, z);
+    cuts.add(n, x - w / 2, z - .2, x + w / 2, z + .2, WALL_H);
+    doors = { pane, ob: ob(x, z, w / 2, .15, WALL_H), broken: false }; }
+  /* the metal detectors: two arches you walk through */
+  for (const x of [-1.5, 1.5]) { for (const s of [-1, 1]) gbox(g.beige, { x: x + s * .55, y: 1.05, z: -49.5, w: .14, h: 2.1, d: .5 }); gbox(g.beige, { x, y: 2.17, z: -49.5, w: 1.24, h: .16, d: .5, ao: false }); gbox(g.led, { x: x + .3, y: 2.26, z: -49.7, w: .14, h: .03, d: .05, ao: false }); }
+  /* the front desk, low enough to shoot over: a long counter with a stone top, screens on it */
+  { const z = -38.5; gbox(g.trim, { x: 0, y: .5, z, w: 6, h: 1, d: .9, uv: .4 }); gbox(g.stone, { x: 0, y: 1.03, z, w: 6.2, h: .07, d: 1.05, ao: false }); gbox(g.blue, { x: 0, y: .55, z: z - .46, w: 5.8, h: .1, d: .02, ao: false });
+    for (const x of [-1.8, 1.8]) crt(x, z + .2, 1.05); ob(0, z, 3.1, .52, 1.05); }
+  /* benches along the walls, planters in the corners, the company's name over the way on to the checkpoint */
+  for (const [x, z] of [[-11, -47], [11, -47], [-11, -36], [11, -36]]) { gbox(g.trim, { x, y: .22, z, w: .6, h: .44, d: 2.4 }); gbox(g.stone, { x, y: .47, z, w: .7, h: .06, d: 2.5, ao: false }); ob(x, z, .35, 1.25, .5); }
+  for (const [x, z] of [[-12.8, -50.8], [12.8, -50.8], [-12.8, -33.2], [12.8, -33.2]]) plant(x, z);
+  { const p = panel('logoLobby', 5.4, 1, 512, (c, W, H) => { c.fillStyle = '#e9e7e1'; c.fillRect(0, 0, W, H); c.fillStyle = '#2f5f9e'; c.fillRect(14, H / 2 - 22, 44, 44); c.fillStyle = '#e9e7e1'; c.fillRect(26, H / 2 - 10, 20, 20);
+      c.fillStyle = '#23344e'; c.textBaseline = 'middle'; c.font = '700 44px Georgia, "Times New Roman", serif'; c.fillText(COMPANY, 76, H / 2 + 2); }, .1); p.position.set(-7.5, 2.6, -32.04); }
+  /* the doors at the far end of each side corridor, where machines come in */
+  for (const s of [-1, 1]) { gbox(g.dark, { x: s * 22.05, y: 1.1, z: -42, w: .1, h: 2.2, d: 1.8, ao: false }); gbox(g.amber, { x: s * 21.98, y: 1.6, z: -42, w: .02, h: .3, d: .5, ao: false }); }
+  /* the pillars (pillars.js) */
+  pillars = makePillars(PILLARS, MAT.stone, cuts, ob);
+
+  /* the checkpoint: the old reception, with a telephone on its desk, the company's name on the wall, plants */
   desk(0, -22, 4.4, 1.1); gbox(g.dark, { x: 1.4, y: .82, z: -22.1, w: .3, h: .1, d: .24, ao: false }); gbox(g.dark, { x: 1.4, y: .9, z: -22.1, w: .34, h: .05, d: .09, ao: false });
   plant(-7.2, -19.9); plant(7.2, -29.2); plant(-7.2, -29.2);
   { const p = panel('logo', 5.4, 1, 512, (c, W, H) => { c.fillStyle = '#e9e7e1'; c.fillRect(0, 0, W, H); c.fillStyle = '#2f5f9e'; c.fillRect(14, H / 2 - 22, 44, 44); c.fillStyle = '#e9e7e1'; c.fillRect(26, H / 2 - 10, 20, 20);
@@ -174,23 +231,38 @@ export function buildRegion(M) {
     gbox(g.wall, { x: m.x + m.nx * .12, y: 1.5, z: m.z + m.nz * .12, w: along ? .7 : .24, h: .8, d: along ? .24 : .7, ao: false }); gbox(g.red, { x: m.x + m.nx * .25, y: 1.5, z: m.z + m.nz * .25, w: along ? .34 : .02, h: .1, d: along ? .02 : .34, ao: false }); gbox(g.red, { x: m.x + m.nx * .25, y: 1.5, z: m.z + m.nz * .25, w: along ? .1 : .02, h: .34, d: along ? .02 : .1, ao: false });
     const s = Geo(); gbox(s, { x: m.x + m.nx * .25, y: 1.98, z: m.z + m.nz * .25, w: along ? .5 : .02, h: .06, d: along ? .02 : .5, ao: false }); gmesh('medLamp', s, m.mat, { shadow: false, freeze: true }); }
   /* ---------- security shutters: a slab that drops into a doorway. Each sinks like a wall when it's between you and the camera ---------- */
-  shutters = SHUTTERS.map((s, i) => { const node = new B.TransformNode('shutter' + i, S), x = s.axis === 'x', hw = x ? .25 : s.w / 2 + .1, hd = x ? s.w / 2 + .1 : .25, sg = Geo(), sr2 = Geo();
+  const shutter = (s, i) => { const node = new B.TransformNode('shutter' + i, S), x = s.axis === 'x', hw = x ? .25 : s.w / 2 + .1, hd = x ? s.w / 2 + .1 : .25, sg = Geo(), sr2 = Geo();
     gbox(sg, { x: 0, y: (WALL_H - .3) / 2, z: 0, w: hw * 2, h: WALL_H - .3, d: hd * 2, uv: .5, ao: false }); for (const y of [.5, 1.9]) gbox(sr2, { x: 0, y, z: 0, w: hw * 2 + .04, h: .12, d: hd * 2 + .04, ao: false });
     const slab = new B.TransformNode('shutterSlab' + i, S); slab.parent = node; gmesh('shutter' + i, sg, MAT.dark, { parent: slab }); gmesh('shutterStripe' + i, sr2, MAT.hazard, { parent: slab, shadow: false });
     node.position.set(s.x, 0, s.z); cuts.add(node, s.x - hw, s.z - hd, s.x + hw, s.z + hd, WALL_H); slab.scaling.y = .001;
-    return { s, slab, ob: { x: s.x, z: s.z, hw, hd, h: WALL_H }, down: false, k: 0, until: 0 }; });
+    return { s, slab, ob: { x: s.x, z: s.z, hw, hd, h: WALL_H }, down: false, k: 0, until: 0 }; };
+  shutters = SHUTTERS.map(shutter); gate = shutter(CHECKPOINT, 'Checkpoint');
 
-  for (const k in g) gmesh('o_' + k, g[k], MAT[k], { freeze: true, shadow: !UNLIT.includes(k) && !['tile', 'carpet', 'raised', 'clean'].includes(k) });
+  for (const k in g) gmesh('o_' + k, g[k], MAT[k], { freeze: true, shadow: !UNLIT.includes(k) && !['tile', 'carpet', 'raised', 'clean', 'marble'].includes(k) });
   for (const n in extra) gmesh('o_' + n, extra[n].g, extra[n].m, { freeze: true });
   /* no relay gate here either: what the engine expects of one is stood in for */
   return { gate: { discA: new B.TransformNode('noGateA', S), discB: new B.TransformNode('noGateB', S), source: { intensity: 0 } } };
 }
-/* a shutter comes down or goes up: the doorway shuts or opens, and the walkable grid is baked again */
-function setShutter(sh, down) {
-  if (sh.down === down) return; sh.down = down;
+/* a shutter comes down or goes up: the doorway shuts or opens, and the walkable grid is baked again (quiet: setting up a run, unheard
+   and with the grid left for whoever sets it up to bake once) */
+function setShutter(sh, down, quiet) {
+  if (sh.down === down) return false; sh.down = down;
   const i = G.obstacles.indexOf(sh.ob); if (down && i < 0) G.obstacles.push(sh.ob); else if (!down && i >= 0) G.obstacles.splice(i, 1);
+  if (quiet) return true;
   if (G.nav) G.nav = makeNav();
-  G.audio.play('powerOn', { pos: sh.s, gain: .4, rate: down ? .8 : 1.3, len: 1, fade: .3 });
+  G.audio.play('powerOn', { pos: sh.s, gain: .4, rate: down ? .8 : 1.3, len: 1, fade: .3 }); return true;
+}
+/* shutters slide toward where they're meant to be */
+function moveShutters(dt) { for (const s of [...shutters, gate]) { s.k += ((s.down ? 1 : 0) - s.k) * damp(s === gate ? 1.6 : 5, dt); s.slab.scaling.y = Math.max(.001, s.k); } }
+/* the front doors: whole at the start of a run; the first Infiltrator walks through the glass */
+function setDoors(broken, quiet) {
+  if (doors.broken === broken) return false; doors.broken = broken; doors.pane.setEnabled(!broken);
+  const i = G.obstacles.indexOf(doors.ob); if (!broken && i < 0) G.obstacles.push(doors.ob); else if (broken && i >= 0) G.obstacles.splice(i, 1);
+  if (quiet) return true;
+  if (G.nav) G.nav = makeNav();
+  for (const dx of [-2.2, -.7, .7, 2.2]) { G.FX.spark(V(DOORS.x + dx, rand(.8, 2.6), DOORS.z), 18); G.FX.puffAt(V(DOORS.x + dx, 1.5, DOORS.z + .5), 6); }
+  G.FX.flash(V(DOORS.x, 1.6, DOORS.z + .4), '#d8f0ff', 3, .1); G.audio.play('boomSmall', { pos: DOORS, gain: .7, rate: 1.6, hear: 80 }); G.audio.play('whir', { pos: DOORS, gain: .5, rate: 2.2, len: .6, fade: .3 }); G.shake = Math.max(G.shake, .3);
+  return true;
 }
 
 /* ---------- how Origin looks and sounds: bright, flat and clean, the opposite of everywhere else ---------- */
@@ -225,11 +297,83 @@ function wipe(R, run, t) {
   if (lab.wiped < TERMINALS.length) R.say(`Security lockdown · The shutters are down for ${LAB.lockdown} seconds`, '#ff6a5a');
   if (lab.wiped === LAB.wakeAt) { lab.wakeAt = now + LAB.wakeWarn; R.say('Something on the rig is moving', '#ff6a5a'); G.audio.play('engage', { pos: RIG, gain: .9, rate: .7, hear: 120 }); }
 }
-/* the ending: the camera leaves you; she says what she can; a telephone rings in the lobby */
+/* ---------- the lobby ---------- */
+const MARA = {
+  start: 'Mara: "They\'ll have you on the cameras by now. Hold the lobby. Security only has so much to send."',
+  pillars: 'Mara: "Use the pillars. They won\'t last, so don\'t stay behind one for long."',
+  quiet: 'Mara: "That\'s the last of them. Listen. Something else is walking up to the doors."',
+  one: 'Mara: "That\'s one of the ones from 1984. They sent it back to guard the place it came from."',
+  two: 'Mara: "Two. Of course there are two."',
+  lab: 'Mara: "Start with whichever terminal is nearest. It\'s listening now."',
+};
+/* a prototype: a husk, paler and not as strong, not finished yet */
+function pale(h) { h.name = 'Prototype'; h.maxHp = h.hp = Math.round(h.hp * .7); for (const m of [h.mat, h.matL]) if (m.albedoColor) m.albedoColor = B.Color3.Lerp(m.albedoColor, C('#d8d2c0').toLinearSpace(), .55); return h; }
+/* One group into the lobby, at one of its ways in that isn't on top of you: husks and prototypes, and once the waves have gone on a
+   while, drones with a group from a side corridor. opts.side: only from the corridors; opts.husks: no drones */
+function lobbyWave(run, n, opts = {}) {
+  const L = lab.lobby, P = G.player.pos, ways = LOBBY_IN.filter(e => !opts.side || e.side), far = ways.filter(e => dist2(e, P) > 9), from = pick(far.length ? far : ways);
+  const c = G.nav.snap(from.x, from.z, 3) || from, drones = !opts.husks && from.side && now - L.wavesAt >= LOBBY.drones.from; flashAt(c);
+  for (let i = 0; i < n; i++) { const p = G.nav.snap(c.x + rand(-2, 2), c.z + rand(-2, 2), 3) || c;
+    const a = drones && Math.random() < LOBBY.drones.chance ? new Drone(p.x, p.z) : Math.random() < LOBBY.protos ? pale(new Husk(p.x, p.z, { leash: 1e9 })) : new Husk(p.x, p.z, { leash: 1e9 });
+    a.lobby = true; L.mob.push(run.enlist(a)); L.sent++; }
+}
+/* an Infiltrator, lighter than 1984's (the lab's first machine is still the big fight), that fires into the pillars to wear them away */
+function sendInfiltrator(run, at, second) {
+  const c = G.nav.snap(at.x, at.z, 3) || at, f = new Infiltrator(c.x, c.z), K = LOBBY.inf, L = lab.lobby;
+  f.maxHp = f.hp = Math.round(f.hp * K.hp); for (const k in f.parts) f.parts[k].max = f.parts[k].hp = Math.round(f.parts[k].max * K.hp);
+  f.breakCost = Math.round(INFILTRATOR.breakCost * K.hp); f.breach = true; f.breaker = K.breaker; f.lobbyBoss = true; if (second) f.name = 'The second Infiltrator';
+  f.root.rotation.y = angleTo(c, G.player.pos); L.infs.push(run.enlist(f)); if (!L.infs.some(o => o !== f && o.alive)) G.UI.boss(f);
+  return f;
+}
+/* The lobby, step by step: quiet, the waves, the last of them finished off, a moment of nothing, the first Infiltrator through the glass
+   (a few husks with it), the second from a corridor, and the checkpoint opening once both are down */
+function lobbyTick(R, run) {
+  const L = lab.lobby, K = LOBBY, t = now, alive = () => L.mob.filter(a => a.alive).length, [one] = L.infs;
+  if (L.stage === 'calm' && t >= K.calm) { L.stage = 'waves'; L.wavesAt = L.nextAt = t; R.say('Security has seen you · Hold the lobby until it runs out of machines', '#ff6a5a'); R.say(MARA.start, '#ffb24a'); }
+  else if (L.stage === 'waves') {
+    if (L.sent >= K.quota) { L.stage = 'lull'; L.lullAt = t; return; }
+    if (!L.saidPillars && L.sent >= K.quota / 3) { L.saidPillars = true; R.say(MARA.pillars, '#ffb24a'); }
+    if (t >= L.nextAt) { const k = Math.min(1, (t - L.wavesAt) / K.by), n = Math.min(K.cap - alive(), Math.round(lerp(K.size[0], K.size[1], k)), K.quota - L.sent);
+      if (n > 0) lobbyWave(run, n); L.nextAt = t + lerp(K.gap[0], K.gap[1], k) * rand(.85, 1.15); }
+  }
+  else if (L.stage === 'lull' && (!alive() || t - L.lullAt > K.lull)) { L.stage = 'quiet'; L.quietAt = t; R.say(MARA.quiet, '#ffb24a'); G.audio.play('step', { pos: OUTSIDE, gain: .6, rate: 1.4, hear: 60 }); }
+  else if (L.stage === 'quiet' && t - L.quietAt >= K.quiet) { setDoors(true); sendInfiltrator(run, OUTSIDE); L.stage = 'one'; L.nextAt = t + K.trickle.gap;
+    R.say('The Infiltrator · It came through the front doors', '#ff6a5a'); R.say(MARA.one, '#ffb24a'); }
+  else if (L.stage === 'one') {
+    if (!one.alive || one.hp <= one.maxHp * K.second) { const P = G.player.pos, from = LOBBY_IN.filter(e => e.side).sort((a, b) => dist2(b, P) - dist2(a, P))[0];
+      flashAt(from); sendInfiltrator(run, from, true); L.stage = 'two'; R.say(`A second Infiltrator · From the ${from.x < 0 ? 'west' : 'east'} corridor`, '#ff6a5a'); R.say(MARA.two, '#ffb24a'); }
+    else if (t >= L.nextAt) { L.nextAt = t + K.trickle.gap; const n = Math.min(K.trickle.size, K.trickle.cap - alive()); if (n > 0) lobbyWave(run, n, { side: true, husks: true }); }
+  }
+  else if (L.stage === 'two' && L.infs.every(f => !f.alive && f.boomed)) { L.stage = 'open'; L.openAt = Math.max(t + K.open, K.floor);
+    if (L.openAt - t > K.open + .5) R.say(`The checkpoint is cycling its lock · ${Math.ceil(L.openAt - t)} seconds`, '#9aa0a6'); }
+  else if (L.stage === 'open' && t >= L.openAt && G.player.down <= 0) openCheckpoint(R);
+  else if (L.stage === 'through' && G.player.pos.z > CHECKPOINT.z + 1.5) intoLab(R, run);
+}
+/* The checkpoint opens: the world stops, and while the camera goes through to the lab she says what it is (watched through the first
+   time, skippable after). The shutter goes up as it plays */
+const OPENING = [
+  { at: [0, 1.2, -19], r: 13, a: -2.2, b: .85, hold: 3.4, who: '', say: 'The checkpoint opens. The lobby goes quiet.' },
+  { at: [RIG.x, 1.2, RIG.z], r: 17, a: -2.3, b: .8, move: 2.6, hold: 4.4, say: 'That\'s it, on the rig. What you put down in 1984. A few years on a table and everything else was copied from it.' },
+  { at: [-21, 1, -4], r: 15, a: -2.35, b: .85, move: 2.6, hold: 4.6, say: 'That\'s my desk. That\'s my handwriting on the board. I was the one who took it apart.' },
+  { at: [-25.5, 1.4, 7], r: 13, a: -2.0, b: .95, move: 2, hold: 4.6, say: 'Six terminals hold what I worked out. Wipe every one. Each thing you erase is a thing they never learn to build.' },
+  { at: [RIG.x, 1.2, RIG.z], r: 12, a: -2.5, b: .9, move: 2.6, hold: 4.2, say: 'It will get up when it understands what you\'re doing. Kill it. Then there\'s nothing left of me to find.' },
+];
+function openCheckpoint(R) {
+  lab.lobby.stage = 'through'; setShutter(gate, false); G.marks = [];
+  G.setPaused(true); G.CB.clear(); G.audio.music(null);
+  G.intro.play(OPENING, () => { G.progress.seenScene = true; G.save.soon(); G.setPaused(false); }, { watch: !G.progress.seenScene });
+}
+/* through the checkpoint: the lab's half of the run starts, and its clock with it (the groups' pressure, the find's patience) */
+function intoLab(R, run) {
+  lab.act = 'lab'; lab.labAt = now; run.late = now; run.hold = false; run.nextAt = G.t + 4; run.hudAt = 0;
+  R.say('The lab · Wipe all six terminals', '#1fe0ff'); R.say(MARA.lab, '#ffb24a');
+}
+
+/* the ending: the camera leaves you; she says what she can; a telephone rings at reception */
 const OUTRO = [
   { at: [RIG.x, 1, RIG.z - 2], r: 13, a: -2.3, b: .8, hold: 6, say: 'That was all of it. I can feel it going. The city, the gate. I don\'t think I\'m going to remem—' },
   { at: [0, 2, 2], r: 46, a: -2.2, b: .6, move: 3, hold: 3.5, who: '', say: 'The radio goes quiet.' },
-  { at: [1.4, 1, -22], r: 10, a: -2.2, b: .9, move: 3.2, hold: 4.5, who: '', say: 'Then, in the lobby, a telephone rings.' },
+  { at: [1.4, 1, -22], r: 10, a: -2.2, b: .9, move: 3.2, hold: 4.5, who: '', say: 'Then, at reception, a telephone rings.' },
   { at: [1.4, 1, -22], r: 7, a: -2.1, b: .95, move: 1.5, hold: 6.5, who: 'A voice you almost know', say: '"Hello? … No. Nobody by that name works here. I only started on Monday."' },
   { at: [0, 6, 0], r: 60, a: -2.25, b: .35, move: 4, hold: 5.5, who: '', say: 'She never takes it apart. In the city the sky is clear, and the gate is dark.' },
 ];
@@ -241,25 +385,27 @@ function ending(run) {
 }
 export const SURVIVAL = survival({
   num: '05', name: 'Origin',
-  blurb: 'Where it started: the lab that took the first machine apart. Wipe all six terminals, and every one takes something out of the future. Then kill what\'s on the rig. This run can be won.',
+  blurb: 'Where it started: the lab that took the first machine apart. Fight through the lobby to reach it, then wipe all six terminals: every one takes something out of the future. Then kill what\'s on the rig. This run can be won.',
   preparing: 'Finding where it began…', indoor: true, noHorn: true, ambience: AMBIENCE, look: LOOK,
   build: buildRegion, start: START,
-  saveKey: 'relay-gate-survival-origin-v1',
+  saveKey: 'relay-gate-survival-origin-v2',   // v2: the lobby came in, and the fastest wins before it were on a shorter course
   noAlly: true, winnable: true,
   lost: 'The research is still there. Every run starts again from the starter rifle at level 1.',
-  onIntro: dt => cuts.update(dt),
-  /* before each run: the lobby, the find, her desk, a terminal, the rig again (intro.js). This is where it comes out */
+  onIntro: dt => { cuts.update(dt); moveShutters(dt); },
+  /* before each run: the front doors, the lobby, the sealed checkpoint (intro.js). The rest of what she has to say waits for the checkpoint
+     opening (OPENING above) */
   intro: [
-    { at: [-2, 2, -21], r: 16, a: -2.1, b: .85, hold: 4.4, say: 'I can reach you here. What they found is a relay, and it never stopped listening. I know this building.' },
-    { at: [RIG.x, 1.2, RIG.z], r: 17, a: -2.3, b: .8, move: 2.6, hold: 4.4, say: 'That\'s it, on the rig. What you put down in 1984. A few years on a table and everything else was copied from it.' },
-    { at: [-21, 1, -4], r: 15, a: -2.35, b: .85, move: 2.6, hold: 4.6, say: 'That\'s my desk. That\'s my handwriting on the board. I was the one who took it apart.' },
-    { at: [-25.5, 1.4, 7], r: 13, a: -2.0, b: .95, move: 2, hold: 4.6, say: 'Six terminals hold what I worked out. Wipe every one. Each thing you erase is a thing they never learn to build.' },
-    { at: [RIG.x, 1.2, RIG.z], r: 12, a: -2.5, b: .9, move: 2.6, hold: 4.2, say: 'It will get up when it understands what you\'re doing. Kill it. Then there\'s nothing left of me to find.' },
+    { at: [0, 1.6, -51], r: 15, a: -2.1, b: .85, hold: 4.4, say: 'I can reach you here. What they found is a relay, and it never stopped listening. I know this building.' },
+    { at: [0, 1.4, -41], r: 24, a: -2.3, b: .75, move: 2.8, hold: 4.4, say: 'This is the front of it. Marble and glass, so nobody asks what goes on at the back.' },
+    { at: [0, 1.2, -19], r: 15, a: -2.2, b: .85, move: 2.6, hold: 4.6, say: 'The lab is through there, past the checkpoint. Security will seal it the moment they see you. Make them open it.' },
   ],
-  music: () => 'origin', musicKeys: ['origin'], introMusic: 'originIntro',
-  /* a small place: fewer machines at once, walkers early (while there still are walkers), menders, and a boss the lab brings in itself */
+  /* the lab's music, and 1984's Infiltrator track while one of them is in the lobby */
+  music: () => lab && lab.lobby.infs.some(f => f.alive) ? 'infiltrator' : 'origin', musicKeys: ['origin', 'infiltrator'], introMusic: 'originIntro',
+  /* a small place: fewer machines at once, walkers early (while there still are walkers), menders, and a boss the lab brings in itself.
+     All of it from walking into the lab (run.late): the lobby brings its own */
   tune: { size: [2, 5], cap: [5, 16], walkers: [[4, 1], [9, 2]], gate: null, menders: { from: 1.5, max: 2, chance: .35 }, boss: { big: 'first' } },
   arrive(p, kind) {
+    if (!lab || lab.act === 'lobby') return null;
     const nav = kind === 'walker' || kind === 'boss' ? G.nav.wide : G.nav, L = ENTRIES.map(e => nav.snap(e.x, e.z, 2)).filter(s => s && dist2(p, s) > 12); if (!L.length) return null;
     const c = pick(L); flashAt(c); return c;
   },
@@ -272,27 +418,36 @@ export const SURVIVAL = survival({
     for (const t of TAPES) L.push({ pos: t.pos, r: 1.4, label: 'Play the dictaphone', use: () => { lab.tapes.add(t); G.UI.feed(t.say, '#ffb24a'); } });
   },
   begin(R, run) {
-    now = 0; lab = { eng: R, run, wiped: 0, boss: null, wakeAt: 0, over: false, bossSaid: false, protos: [], tapes: new Set() };
+    now = 0; lab = { eng: R, run, act: 'lobby', labAt: 0, wiped: 0, boss: null, wakeAt: 0, over: false, bossSaid: false, protos: [], tapes: new Set(),
+      lobby: { stage: 'calm', sent: 0, cleared: 0, mob: [], infs: [], infDown: 0 } };
+    run.hold = true; run.late = 0;   // no ordinary groups until you're through to the lab
     for (const t of TERMINALS) { t.wiped = false; t.mat.emissiveColor = C('#39ff7a'); t.light.intensity = .8; }
     for (const m of MEDS) m.readyAt = 0;
-    for (const s of shutters) { if (s.down) setShutter(s, false); s.k = 0; s.slab.scaling.y = .001; s.until = 0; }
+    /* the lobby whole again: the glass in the doors, the pillars, and the checkpoint shut (the grid baked once, if anything moved) */
+    let moved = false;
+    for (const s of shutters) { if (setShutter(s, false, true)) moved = true; s.k = 0; s.slab.scaling.y = .001; s.until = 0; }
+    if (setShutter(gate, true, true)) moved = true; gate.k = 1; gate.slab.scaling.y = 1;
+    if (setDoors(false, true)) moved = true; if (moved && G.nav) G.nav = makeNav();
+    pillars.reset();
     prop.setEnabled(true); rigLight.intensity = 1.5; G.marks = [];
     /* the prototypes: husks, paler and not as strong, lying where they were being built */
-    for (const [x, z, face] of PROTOS) { const h = new Husk(x, z, { slumped: true, face, leash: 1e9, wakeR: 4 }); h.name = 'Prototype'; h.maxHp = h.hp = Math.round(h.hp * .7);
-      for (const m of [h.mat, h.matL]) if (m.albedoColor) m.albedoColor = B.Color3.Lerp(m.albedoColor, C('#d8d2c0').toLinearSpace(), .55); lab.protos.push(R.add(h)); }
+    for (const [x, z, face] of PROTOS) lab.protos.push(R.add(pale(new Husk(x, z, { slumped: true, face, leash: 1e9, wakeR: 4 }))));
   },
   tick(R, run, dt) {
     now = run.time; lab.run = run; const min = now / 60, P = G.player;
-    cuts.update(dt);
+    cuts.update(dt); pillars.update(dt);
     /* shutters: down for a while after each wipe, then up again */
-    for (const s of shutters) { if (s.down && now >= s.until) setShutter(s, false); s.k += ((s.down ? 1 : 0) - s.k) * damp(5, dt); s.slab.scaling.y = Math.max(.001, s.k); }
+    for (const s of shutters) if (s.down && now >= s.until) setShutter(s, false); moveShutters(dt);
     /* a woken prototype joins the run, like the husks in the Foundry's tunnels */
     for (const h of lab.protos) if (h.state !== 'slumped' && !h.joined) { h.joined = true; h.maxHp = h.hp = scaled(h.hp, min); run.mine.push(h); }
     /* the terminals' screens scroll; a first-aid cabinet's lamp is green when it's ready */
     for (const t of TERMINALS) if (!t.wiped) { const w = G.game.working(), on = w && w.label.startsWith(`Wipe ${t.name}`), k = on ? (Math.random() < .5 ? .3 : 1) : .8 + .2 * Math.sin(G.t * 3 + t.x); t.mat.emissiveColor.set(on ? k : .22 * k, k, on ? .3 * k : .48 * k); }
     for (const m of MEDS) m.mat.emissiveColor.set(now >= m.readyAt ? .35 : .5, now >= m.readyAt ? 1 : .12, now >= m.readyAt ? .44 : .08);
-    /* the find gets up: a few wipes in, after a warning. It comes without whatever has already been wiped */
-    if (!lab.wakeAt && now >= LAB.wakeBy - LAB.wakeWarn) { lab.wakeAt = now + LAB.wakeWarn; R.say('Something on the rig is moving · It has waited long enough', '#ff6a5a'); G.audio.play('engage', { pos: RIG, gain: .9, rate: .7, hear: 120 }); }
+    /* the first act: the lobby, until you're through the checkpoint */
+    if (lab.act === 'lobby') { lobbyTick(R, run);
+      G.marks = lab.lobby.stage === 'through' ? [{ pos: V(CHECKPOINT.x, 0, CHECKPOINT.z), h: 2.6, label: 'Checkpoint · On to the lab', color: '#1fe0ff' }] : []; return; }
+    /* the find gets up: a few wipes in, after a warning, or once it's waited long enough. It comes without whatever has already been wiped */
+    if (!lab.wakeAt && now - lab.labAt >= LAB.wakeBy - LAB.wakeWarn) { lab.wakeAt = now + LAB.wakeWarn; R.say('Something on the rig is moving · It has waited long enough', '#ff6a5a'); G.audio.play('engage', { pos: RIG, gain: .9, rate: .7, hear: 120 }); }
     if (lab.wakeAt && !lab.boss) { rigLight.intensity = Math.random() < .3 ? .2 : 1.5; if (Math.random() < dt * 12) G.FX.spark(V(RIG.x + rand(-1.5, 1.5), 1.4, RIG.z + rand(-.8, .8)), 4);
       if (now >= lab.wakeAt && P.down <= 0) { const c = G.nav.wide.snap(RIG.x, RIG.z - 2.6, 4) || { x: RIG.x, z: RIG.z - 2.6 }; prop.setEnabled(false); rigLight.intensity = 1.5; G.FX.explode(V(RIG.x, 1.3, RIG.z), .7); G.FX.debris(V(RIG.x, 1.3, RIG.z), 6, .5, .8);
         lab.boss = run.boss(c.x, c.z); strip(lab.boss); R.say('The first machine is up · It has everything you haven\'t wiped yet', '#ff6a5a'); } }
@@ -303,6 +458,20 @@ export const SURVIVAL = survival({
     G.marks = []; const t = TERMINALS.filter(q => !q.wiped).sort((a, b) => dist2(a.pos, P.pos) - dist2(b.pos, P.pos))[0];
     if (t) G.marks.push({ pos: t.pos, h: 2.6, label: `Terminal · ${t.name}`, color: '#39ff7a' });
   },
-  status() { if (!lab) return ''; const b = lab.boss; return `Terminals wiped ${lab.wiped} / ${TERMINALS.length} · ${!b ? (lab.wakeAt ? 'The find is waking' : 'The find is on its rig') : b.alive ? 'The first machine is up' : 'The first machine is down'}`; },
-  stats: () => [[`${lab.wiped} / ${TERMINALS.length}`, 'Terminals wiped'], [lab.boss && !lab.boss.alive ? 'Destroyed' : lab.boss ? 'Awake' : 'On its rig', 'The first machine'], [lab.tapes.size, lab.tapes.size === 1 ? 'Dictaphone played' : 'Dictaphones played']],
+  status() { if (!lab) return ''; const b = lab.boss, L = lab.lobby;
+    if (lab.act === 'lobby') return L.stage === 'through' ? 'The checkpoint is open · On to the lab' : L.stage === 'open' ? 'The checkpoint is opening'
+      : ['calm', 'waves', 'lull'].includes(L.stage) ? `The lobby · ${Math.min(L.cleared, LOBBY.quota)} / ${LOBBY.quota} machines down · The checkpoint is sealed` : `The lobby · Infiltrators down ${L.infDown} / 2 · The checkpoint is sealed`;
+    return `Terminals wiped ${lab.wiped} / ${TERMINALS.length} · ${!b ? (lab.wakeAt ? 'The find is waking' : 'The find is on its rig') : b.alive ? 'The first machine is up' : 'The first machine is down'}`; },
+  stats: () => [[`${lab.lobby.infDown} / 2`, 'Infiltrators destroyed'], [`${pillars.standing()} / ${PILLARS.length}`, 'Pillars still standing'],
+    [`${lab.wiped} / ${TERMINALS.length}`, 'Terminals wiped'], [lab.boss && !lab.boss.alive ? 'Destroyed' : lab.boss ? 'Awake' : 'On its rig', 'The first machine'], [lab.tapes.size, lab.tapes.size === 1 ? 'Dictaphone played' : 'Dictaphones played']],
+  /* the lobby keeps count of what goes down there; an Infiltrator leaves something worth having, and the boss bar moves to the other */
+  onKill(R, m) {
+    if (!lab) return; const L = lab.lobby; if (m.lobby) L.cleared++;
+    if (m.lobbyBoss) { L.infDown++; G.drops.scatter(m.pos.x, m.pos.z - 1, rollLoot('walker')); R.say(`${m.name} is down`, '#1fe0ff'); G.UI.boss(L.infs.find(f => f !== m && f.alive) || null); }
+  },
+  /* an Infiltrator's phases: it says so, and at the first a prototype comes to help it (only husks: the lobby is for close fighting) */
+  onBossPhase(R, b, ph) {
+    R.say((b.phaseSay && b.phaseSay(ph)) || 'It\'s faster now', '#ff6a5a');
+    if (ph === 2 && lab.act === 'lobby') { const c = G.nav.snap(b.pos.x + rand(-4, 4), b.pos.z + rand(-4, 4), 4); if (c) { flashAt(c); const h = pale(new Husk(c.x, c.z, { leash: 1e9 })); h.lobby = true; lab.lobby.mob.push(lab.run.enlist(h)); } }
+  },
 });

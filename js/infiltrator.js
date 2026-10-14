@@ -89,7 +89,7 @@ export class Infiltrator extends Actor {
     this.flash = 1; return dealt;
   }
   breakPart(part, pos) {
-    this.hp -= INFILTRATOR.breakCost; G.FX.explode(pos, .35); G.FX.debris(pos, 3, .3, .6); G.audio.play('whir', { pos, gain: .8, rate: .9 });
+    this.hp -= this.breakCost == null ? INFILTRATOR.breakCost : this.breakCost; G.FX.explode(pos, .35); G.FX.debris(pos, 3, .3, .6); G.audio.play('whir', { pos, gain: .8, rate: .9 });
     if (part === 'arm') { this.arms[1].el.setEnabled(false); this.aim = 0; G.UI.feed('Infiltrator gun arm destroyed · It can only close in now', '#ff6a5a'); }
     if (part === 'legs') G.UI.feed('Infiltrator legs crippled · It limps', '#ff6a5a');
   }
@@ -126,7 +126,7 @@ export class Infiltrator extends Actor {
       if (ph > this.phase) { this.phase = ph; this.kneel = I.kneel; this.aim = this.swing = 0;
         if (this.skin[0].isEnabled()) { const c = this.spine.getAbsolutePosition().add(V(0, .4, 0)); this.skin.forEach(m => m.setEnabled(false)); G.FX.explode(c, .5); G.FX.puffAt(c, 20); }
         G.game.onBossPhase(this, ph); } }
-    /* it hunts you; with you down, whatever of yours is nearest */
+    /* it hunts you; with you down, whatever of yours is nearest. One with `breach` (Origin's lobby) fires into cover that breaks, to wear it away */
     const P = G.player, T = this.target = P.alive && !P.untargetable ? P : nearestHostile(this, 30), dm = T ? dist2(T.pos, p) : 99;
     announce(this, dt, [['engage', { gain: .8, rate: 1.3 }]]);
     const arm = this.partAlive('arm'), legs = this.partAlive('legs'); let mv = 0;
@@ -136,7 +136,7 @@ export class Infiltrator extends Actor {
     else if (T) {
       this.shotCD -= dt; this.slamCD -= dt;
       if (dm < I.slam.reach && this.slamCD <= 0) { this.swing = I.slam.warn; G.audio.play('whir', { pos: p, gain: .5, rate: 1.5, len: .5, fade: .2 }); }
-      else if (arm && this.shotCD <= 0 && dm > I.shot.min && dm < I.shot.reach && clearShot(p, T.pos, 1.3)) { this.aim = I.shot.warn; G.audio.play('whir', { pos: p, gain: .6, rate: 1.9, len: .7, fade: .2 }); }
+      else if (arm && this.shotCD <= 0 && dm > I.shot.min && dm < I.shot.reach && clearShot(p, T.pos, 1.3, this.breach)) { this.aim = I.shot.warn; G.audio.play('whir', { pos: p, gain: .6, rate: 1.9, len: .7, fade: .2 }); }
       else if (dm > 1.5) mv = I.speed[this.phase - 1] * (legs ? 1 : .55) * (arm ? 1 : 1.15) * (dm > I.far ? I.farK : 1);
     }
     let face = T ? angleTo(p, T.pos) : this.root.rotation.y;

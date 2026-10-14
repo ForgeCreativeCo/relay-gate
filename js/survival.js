@@ -91,12 +91,17 @@ const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(
    What an arena can take away as a run goes on (Origin, where wiping the research unmakes the machines): run.ban.drone, .husk, .walker or
    .mender stops that kind coming, and run.toughK scales the health of everything that arrives. run.boss(x, z) brings the big boss in
    where and when the arena says, instead of with a level. winnable: the run can be won, with run.win(card); its record is the fastest
-   win, not the longest run. */
+   win, not the longest run. run.hold keeps the ordinary groups (and the walkers levels earn) away while an arena runs a stretch of its
+   own, and run.late is how many seconds of the clock that stretch took: the pressure curve starts from there. run.enlist(machine) brings
+   in one of the arena's own. onBossPhase(R, boss, phase, run), where an arena has it, answers a boss's phases instead of the usual call
+   for help. */
 export function survival(arena) {
   const T = Object.assign({}, TUNE, arena.tune), GATE = arena.gate, START = arena.start;
   T.boss = Object.assign({}, TUNE.boss, arena.tune && arena.tune.boss); const BIG = BIGS[T.boss.big];
   const ramp = ([a, b], m) => a + (b - a) * Math.min(1, m / T.by);
   let RUN = null;
+  /* minutes into the pressure curve: the clock, less any stretch an arena runs on its own first (run.late: Origin's lobby) */
+  const pace = () => Math.max(0, RUN.time - (RUN.late || 0)) / 60;
   const need = (level) => Math.round(T.level[0] + T.level[1] * (level - 1) + T.level[2] * (level - 1) ** 2);
 
   /* the upgrades taken this run, for the end card */
@@ -108,7 +113,7 @@ export function survival(arena) {
     while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
     G.audio.play('powerOn', { gain: .4, rate: 1.4, len: 1, fade: .3 });
     /* a boss comes with some levels: the card says so before you pick */
-    const L = RUN.level, due = L % T.boss.walker === 0 && !RUN.ban.walker && !RUN.finale ? 'walker' : null, have = u => RUN.taken[u.id] || 0;   // no more walkers once the big boss is on its way
+    const L = RUN.level, due = L % T.boss.walker === 0 && !RUN.ban.walker && !RUN.finale && !RUN.hold ? 'walker' : null, have = u => RUN.taken[u.id] || 0;   // no more walkers once the big boss is on its way
     G.UI.levelUp(L, picks.map(u => ({ kind: u.kind, name: u.name, text: u.tell(1), have: have(u), max: u.max, total: u.tell(have(u) + 1) })), (i) => {
       const u = picks[i]; RUN.taken[u.id] = have(u) + 1;
       for (const k in u.add) G.boost[k] = boost(k) + u.add[k];
@@ -225,7 +230,7 @@ export function survival(arena) {
     save: { key: arena.saveKey, doc: arena.saveKey },
     build: arena.build,
     start: START,
-    fresh: () => { const p = G.progress || {}; return { gate: true, best: p.best || 0, bestLevel: p.bestLevel || 0, seenIntro: !!p.seenIntro, seenOutro: !!p.seenOutro, beatBoss: !!p.beatBoss, fastest: p.fastest || 0 }; },   // your best run outlives the run (and so does having beaten the big boss here, and your fastest win)
+    fresh: () => { const p = G.progress || {}; return { gate: true, best: p.best || 0, bestLevel: p.bestLevel || 0, seenIntro: !!p.seenIntro, seenOutro: !!p.seenOutro, seenScene: !!p.seenScene, beatBoss: !!p.beatBoss, fastest: p.fastest || 0 }; },   // your best run outlives the run (and so does having beaten the big boss here, and your fastest win)
     gate: GATE,
 
     /* a run starts from nothing: the starter rifle, an empty pack, level 1, the clock at zero */
@@ -233,15 +238,16 @@ export function survival(arena) {
       G.inv = newInventory(); G.boost = {}; G.player.recalc(); G.ally.recalc(); G.ally.healCD = G.ally.reviveCD = 0; G.ally.revives = 0; G.progress.kills = 0;
       RUN = { t0: G.t, last: G.t, time: 0, gapK: 1, nextAt: G.t + T.first, walkerAt: 0, hudAt: 0, mine: [], over: false, level: 1, xp: 0, taken: {}, due: [], dueAt: 0, hornAt: 0, squad: [], big: null, bigs: 0, kills: {}, mendSaidAt: 0, rebuilt: 0, ban: {}, toughK: 1 };
       /* for an arena's own events: send n machines (husks and drones in the usual mix) from c, each given the properties in flags */
-      RUN.send = (c, n, flags = {}) => { const m = RUN.time / 60, out = [];
+      RUN.send = (c, n, flags = {}) => { const m = pace(), out = [];
         for (let i = 0; i < n; i++) { const husk = Math.random() < ramp(T.husks, m) + .1, x = c.x + rand(-2.5, 2.5), z = c.z + rand(-2.5, 2.5), at = husk ? G.nav.snap(x, z, 3) || c : { x, z };
           const a = enlist(R, husk ? new Husk(at.x, at.z, { leash: 1e9 }) : new Drone(at.x, at.z)); Object.assign(a, flags); out.push(a); }
         G.FX.puffAt(V(c.x, 2, c.z), 16); return out; };
-      RUN.size = () => Math.round(ramp(T.size, RUN.time / 60));   // how big an ordinary group is just now
+      RUN.enlist = a => enlist(R, a);   // one of the arena's own joins the run like anything else
+      RUN.size = () => Math.round(ramp(T.size, pace()));   // how big an ordinary group is just now
       /* for an arena that brings its own groups in (tune.groups false) */
-      RUN.wave = (c, flags) => { const out = []; group(R, G.player.pos, RUN.time / 60, c, flags, out); return out; };
-      RUN.gap = () => ramp(T.gap, RUN.time / 60) * rand(.8, 1.2) * RUN.gapK * (RUN.big && RUN.big.alive ? T.boss.ease : 1);
-      RUN.room = () => Math.floor(ramp(T.cap, RUN.time / 60)) - RUN.mine.filter(a => a.alive).length;
+      RUN.wave = (c, flags) => { const out = []; group(R, G.player.pos, pace(), c, flags, out); return out; };
+      RUN.gap = () => ramp(T.gap, pace()) * rand(.8, 1.2) * RUN.gapK * (RUN.big && RUN.big.alive ? T.boss.ease : 1);
+      RUN.room = () => Math.floor(ramp(T.cap, pace())) - RUN.mine.filter(a => a.alive).length;
       /* the big boss, brought in by the arena */
       RUN.boss = (x, z) => { const w = BIG.make(x, z); RUN.big = w; RUN.bigs++; enlist(R, w); G.UI.boss(w); return w; };
       /* the run is won (an arena that can be): the clock stops, the fastest win is kept, and the card says so. card: what to say on it */
@@ -263,6 +269,7 @@ export function survival(arena) {
     /* the big boss calls for help as it weakens */
     onBossPhase(R, b, ph) {
       if (!RUN || RUN.over) return;
+      if (arena.onBossPhase) { arena.onBossPhase(R, b, ph, RUN); return; }   // an arena with bosses of its own answers for them
       R.say((b.phaseSay && b.phaseSay(ph)) || (ph === 2 ? 'The Warden is calling in drones and husks · Watch for missile markers' : 'The Warden is overheating · It\'s faster now'), '#ff6a5a');
       const near = (r) => { const x = b.pos.x + rand(-r, r), z = b.pos.z + rand(-r, r); return arena.indoor ? G.nav.snap(x, z, 4) : { x, z }; };
       for (let i = 0; i < 2; i++) { const c = near(6); if (c) enlist(R, new Drone(c.x, c.z)); }
@@ -290,7 +297,7 @@ export function survival(arena) {
       if (RUN.over) return;
       if (G.player.down <= 0) RUN.time = G.t - RUN.t0;   // the clock stops when you go down
       G.audio.music(RUN.big && RUN.big.alive ? arena.bossMusic || 'boss' : arena.walkerDrums !== false && RUN.mine.some(a => a.alive && a.kind === 'walker') ? 'drums' : arena.music ? arena.music(RUN) : null);
-      const m = RUN.time / 60;
+      const m = pace();
       if (arena.tick) arena.tick(R, RUN, dt);
       /* machines hunt you wherever you go (their home is what they return to and patrol); wrecks are cleared after a while */
       for (const a of RUN.mine) {
@@ -322,11 +329,11 @@ export function survival(arena) {
         else RUN.win(card);
         return; }
       if (RUN.due.length && G.t >= RUN.dueAt && G.player.down <= 0) { milestone(R, p); RUN.dueAt = G.t + 1; }
-      if (T.groups && !RUN.closed && G.t >= RUN.nextAt && G.player.down <= 0) { const came = group(R, p, m);
+      if (T.groups && !RUN.closed && !RUN.hold && G.t >= RUN.nextAt && G.player.down <= 0) { const came = group(R, p, m);
         if (came && G.t >= RUN.hornAt) { G.audio.horn(true); RUN.hornAt = G.t + T.horn; }
         RUN.nextAt = G.t + (came ? ramp(T.gap, m) * rand(.8, 1.2) * RUN.gapK * (RUN.big && RUN.big.alive ? T.boss.ease : 1) : 1); }
       if (G.t >= RUN.hudAt) { RUN.hudAt = G.t + .25; G.UI.objective(RUN.finale ? `Destroy ${BIG.name} · ${clock(RUN.time)}${RUN.closed ? ' · overtime' : ''}` : F ? `Survive · ${clock(RUN.time)} · ${BIG.name} at ${clock(F.at)}` : `Survive · ${clock(RUN.time)} · ${G.progress.kills} down`); G.UI.status(arena.status ? arena.status(RUN) : ''); G.UI.xp(RUN.level, RUN.xp / need(RUN.level)); G.UI.build(meter()); }
-      if (RUN.xp >= need(RUN.level) && G.player.down <= 0) levelUp(R);
+      if (RUN.xp >= need(RUN.level) && G.player.down <= 0 && !G.intro.playing) levelUp(R);   // not over a scene the arena is playing
     },
 
     /* going down ends the run */

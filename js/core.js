@@ -43,10 +43,12 @@ export function inOpen(x, z, m = .5) {
   for (const o of G.open) if (x > o[0] + m && x < o[2] - m && z > o[1] + m && z < o[3] - m) return true;
   return false;
 }
-export function insideObstacle(x, z, y) {
-  for (const o of G.obstacles) { if (y != null && y > (o.h || 1.2)) continue; if (Math.abs(x - o.x) < o.hw && Math.abs(z - o.z) < o.hd) return true; }
-  return false;
+/* The obstacle at a point (below its top, if y is given), or null. thru: look past anything that breaks (o.hit: Origin's pillars) */
+export function obstacleAt(x, z, y, thru) {
+  for (const o of G.obstacles) { if ((y != null && y > (o.h || 1.2)) || (thru && o.hit)) continue; if (Math.abs(x - o.x) < o.hw && Math.abs(z - o.z) < o.hd) return o; }
+  return null;
 }
+export function insideObstacle(x, z, y, thru) { return !!obstacleAt(x, z, y, thru); }
 /* Push a circle out of obstacles, then keep it on walkable ground. */
 export function collide(p, r, prevX, prevZ) {
   for (const o of G.obstacles) {
@@ -58,9 +60,9 @@ export function collide(p, r, prevX, prevZ) {
     if (inOpen(p.x, prevZ, r)) p.z = prevZ; else if (inOpen(prevX, p.z, r)) p.x = prevX; else { p.x = prevX; p.z = prevZ; }
   }
 }
-/* Line of sight on the ground plane, sampled against obstacle heights. */
-export function clearShot(a, b, y = 1.3) {
+/* Line of sight on the ground plane, sampled against obstacle heights. thru: cover that breaks doesn't count (a shot can wear it down) */
+export function clearShot(a, b, y = 1.3, thru) {
   const d = Math.hypot(b.x - a.x, b.z - a.z), n = Math.ceil(d / 1.2);
-  for (let i = 1; i < n; i++) { const k = i / n; if (insideObstacle(a.x + (b.x - a.x) * k, a.z + (b.z - a.z) * k, y)) return false; }
+  for (let i = 1; i < n; i++) { const k = i / n; if (insideObstacle(a.x + (b.x - a.x) * k, a.z + (b.z - a.z) * k, y, thru)) return false; }
   return true;
 }
